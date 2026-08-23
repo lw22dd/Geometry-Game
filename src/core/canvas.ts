@@ -6,7 +6,7 @@ export const cv = document.getElementById('c') as HTMLCanvasElement;
 export const ctx = cv.getContext('2d')!;
 export const VW = 1280; // 逻辑宽
 export const VH = 720; // 逻辑高
-export const PPM = 34; // 世界米 → 像素（pixels per meter）
+export const PPM = 48; // 世界米 → 像素（pixels per meter）
 
 export let DPR = 1;
 

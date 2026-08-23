@@ -9,6 +9,8 @@ import { buildMenuScene } from './index';
 import { buildPauseScene, syncPauseWidgets } from './pause';
 import { buildLobbyScene, lobby } from './lobby';
 import { buildDevScene } from './dev';
+import { buildGalleryScene, gallery, closeGallery } from './gallery';
+import { buildInstructionsScene, instructions, closeInstructions } from './instructions';
 import { net } from '../../net';
 import { resetRoom } from '../../net/room';
 import { resetRemotes } from '../player/remote';
@@ -52,6 +54,22 @@ export function registerUIScenes(): void {
     },
   }));
 
+  // ── 预制体图鉴场景 ──
+  ui.register(buildGalleryScene({
+    onBack: () => {
+      closeGallery();
+      ui.show('menu');
+    },
+  }));
+
+  // ── 操作说明弹窗场景 ──
+  ui.register(buildInstructionsScene({
+    onBack: () => {
+      closeInstructions();
+      ui.show('menu');
+    },
+  }));
+
   // ── 大厅场景 ──
   ui.register(buildLobbyScene({
     onEnterGame: () => {
@@ -73,6 +91,13 @@ export function registerUIScenes(): void {
  * 根据 gs.screen + lobby 状态自动切换当前 UI 场景。
  */
 export function syncUI(): void {
+  // 图鉴 / 操作说明弹窗优先
+  if (gallery.open || instructions.open) {
+    const target = gallery.open ? 'gallery' : 'instructions';
+    if (ui.currentName !== target) ui.show(target);
+    return;
+  }
+
   if (lobby.mode !== 'none') {
     // 大厅模式（创建/加入）
     if (ui.currentName !== 'lobby') ui.show('lobby');

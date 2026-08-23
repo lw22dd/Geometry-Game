@@ -97,7 +97,6 @@ export interface PlayerState {
   coyote: number;
   jbuf: number;
   face: number;
-  squash: number;
   dead: boolean;
   deadT: number;
   plat: PlatRef | null;
@@ -136,6 +135,38 @@ export interface Particle {
   type: ParticleKind;
   rot: number;
   vr: number;
+}
+
+/** 玩家动画状态（预制体 FSM 输出） */
+export type PlayerAnimState =
+  | 'idle' | 'run' | 'jumpRise' | 'jumpFall' | 'land' | 'dash'
+  | 'collectPulse' | 'bump' | 'celebrate' | 'dead' | 'respawn';
+
+/** 动画输出参数包（预制体 FSM 每帧计算） */
+export interface AnimOutput {
+  scaleX: number;
+  scaleY: number;
+  rotation: number;
+  offsetX: number;
+  offsetY: number;
+  alpha: number;
+  state: PlayerAnimState;
+  stateTime: number;
+}
+
+/**
+ * 玩家动画帧信号 —— 一次性碰撞/交互事件（system 检测到后发射给预制体 FSM）。
+ * 仅存在于当前物理子步内，不持久化。
+ */
+export interface FrameSignals {
+  /** 本帧收集了光球 */
+  collected?: boolean;
+  /** 本帧激活了检查点 */
+  checkpointHit?: boolean;
+  /** 本帧到达终点 */
+  goalReached?: boolean;
+  /** 本帧撞墙（水平碰撞且速度较大） */
+  wallBump?: boolean;
 }
 
 /** 游戏全局状态（game 系统持有） */
@@ -223,7 +254,6 @@ export interface NetPlayerState {
   grounded: boolean;
   dead: boolean;
   sprint: boolean;
-  squash: number;
   inv: number;
   hasPlat: boolean;
   platDx: number;

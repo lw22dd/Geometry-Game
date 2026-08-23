@@ -19,6 +19,8 @@ import { P } from '../player';
 import { colliderWorldRect } from '../level';
 import { Button, UI_SCENE } from '../../core/uiComponent';
 import type { UIScene } from '../../core/uiComponent';
+import { openGallery } from './gallery';
+import { openInstructions } from './instructions';
 
 /** 光球总数（ECS 实体数量） */
 const orbTotal = (): number => world.query(Collectible).length;
@@ -304,101 +306,6 @@ function _menuTitle(t: number, en: number): void {
   ctx.restore();
 }
 
-/* ---------- 键帽 ---------- */
-function _keycap(x: number, cy: number, label: string): number {
-  ctx.font = '700 13px "Segoe UI",Arial';
-  const tw = ctx.measureText(label).width;
-  const w = tw + 18, h = 24, y = cy - h / 2;
-  rr(ctx, x, y, w, h, 6);
-  ctx.fillStyle = 'rgba(16,12,42,.92)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(140,190,255,.5)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.fillStyle = 'rgba(160,210,255,.14)';
-  ctx.fillRect(x + 3, y + 2, w - 6, 3);          // 顶部高光
-  ctx.fillStyle = 'rgba(0,0,0,.35)';
-  ctx.fillRect(x + 3, y + h - 3, w - 6, 2);      // 底部阴影
-  ctx.fillStyle = '#dff4ff';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label, x + w / 2, cy + 1);
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
-  return w;
-}
-
-function _keyRow(x: number, cy: number, label: string): void {
-  const parts = label.split('/');
-  let cx = x;
-  for (let i = 0; i < parts.length; i++) {
-    if (i > 0) {
-      ctx.font = '600 13px Arial';
-      ctx.fillStyle = 'rgba(150,170,220,.75)';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('/', cx + 7, cy + 1);
-      cx += 16;
-    }
-    cx += _keycap(cx, cy, parts[i].trim()) + 8;
-  }
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
-}
-
-/* ---------- 操作说明卡 ---------- */
-function _menuCard(t: number, en: number): void {
-  if (en <= 0) return;
-  const w = 660, h = 196, x = VW / 2 - w / 2, y = VH / 2 - 78 + (1 - en) * 22;
-  ctx.save();
-  ctx.globalAlpha = en;
-
-  // 玻璃面板
-  ctx.shadowColor = 'rgba(80,60,200,.35)';
-  ctx.shadowBlur = 24;
-  rr(ctx, x, y, w, h, 14);
-  ctx.fillStyle = 'rgba(10,8,32,.62)';
-  ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = 'rgba(130,160,255,.35)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  const hg = ctx.createLinearGradient(0, y, 0, y + 18);
-  hg.addColorStop(0, 'rgba(150,200,255,.12)');
-  hg.addColorStop(1, 'rgba(150,200,255,0)');
-  rr(ctx, x + 2, y + 2, w - 4, 16, 12);
-  ctx.fillStyle = hg;
-  ctx.fill();
-
-  // 左侧竖向荧光条
-  ctx.fillStyle = 'rgba(140,246,255,.5)';
-  ctx.fillRect(x + 22, y + 34, 2, 128);
-
-  const L: [string, string][] = [
-    ['A / D', '左右移动 · 7 m/s（SHIFT 加速 12）'],
-    ['SPACE', '跳跃 · 长按约 3.2 格 / 轻点约 1 格'],
-    ['SHIFT', '加速冲刺 · 霓虹曳光'],
-    ['P', '切换 手感优化 / 经典物理（g=10）'],
-    ['R / M', '返回出生点 / 音效开关'],
-  ];
-  L.forEach((r, i) => {
-    const re = _ease((t - .32 - i * .07) / .4);
-    if (re <= 0) return;
-    const ry = y + 34 + i * 33;
-    ctx.save();
-    ctx.globalAlpha = en * re;
-    ctx.translate((1 - re) * -16, 0);
-    _keyRow(x + 44, ry, r[0]);
-    ctx.font = '500 15px "Segoe UI","Microsoft YaHei",Arial';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(205,220,255,.92)';
-    ctx.fillText(r[1], x + 244, ry + 1);
-    ctx.restore();
-  });
-  ctx.restore();
-}
-
 /* ---------- 目标行（光球 + NOVA 实物图标） ---------- */
 function _menuGoal(t: number, en: number): void {
   if (en <= 0) return;
@@ -464,7 +371,7 @@ function _menuHint(t: number): void {
   ctx.textBaseline = 'alphabetic';
   ctx.font = '500 14px "Segoe UI","Microsoft YaHei",Arial';
   ctx.fillStyle = 'rgba(140,246,255,' + (.5 + .35 * Math.sin(t * 3.2)) + ')';
-  ctx.fillText('— 按任意键开始 · 点击进入 —', VW / 2, by + 64 + 30);
+  ctx.fillText('— 按任意键开始 · 点击进入 —', VW / 2, by + 64 + 74);
   ctx.restore();
 }
 
@@ -478,7 +385,6 @@ function drawMenuScene(_t: number): void {
   _menuBackdrop(t);
   _menuFrame(_ease(t / .5));
   _menuTitle(t, _ease(t / .7));
-  _menuCard(t, _ease((t - .22) / .6));
   _menuGoal(t, _ease((t - .45) / .6));
   _menuHint(t);
   _menuFooter(t);
@@ -500,13 +406,35 @@ export function buildMenuScene(onStart: () => void): UIScene {
     onClick: onStart,
   });
 
+  // 预制体图鉴按钮（位于开始游戏下方）
+  const galleryBtn = new Button({
+    id: 'menu_gallery',
+    label: '📖 预制体图鉴',
+    variant: 'plain',
+    x: VW / 2 - 215, y: VH / 2 + 250, w: 200, h: 36,
+    enterDelay: 0.8,
+    onClick: openGallery,
+  });
+
+  // 操作说明按钮（与图鉴并排）
+  const instrBtn = new Button({
+    id: 'menu_instr',
+    label: '🕹️ 操作说明',
+    variant: 'plain',
+    x: VW / 2 + 15, y: VH / 2 + 250, w: 200, h: 36,
+    enterDelay: 0.8,
+    onClick: openInstructions,
+  });
+
   return {
     name: UI_SCENE.MENU,
-    widgets: [menuBtn],
+    widgets: [menuBtn, galleryBtn, instrBtn],
     draw: drawMenuScene,
     onExit: () => {
       // 复位 hover 与光标（修复原 menuClosed 未被调用的问题）
       menuBtn.hover = false;
+      galleryBtn.hover = false;
+      instrBtn.hover = false;
       const c = ctx.canvas;
       if (c) c.style.cursor = 'default';
     },

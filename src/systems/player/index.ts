@@ -6,7 +6,7 @@
  *   房主：stepPlayer() 为本地玩家，stepRemotePlayer() 为每个客机
  *   客机：stepPlayer() 为本地预测 + 后续被权威状态矫正
  */
-import type { PlayerState, Rect, InputKeys } from '../../types';
+import type { FrameSignals, PlayerState, Rect, InputKeys } from '../../types';
 import { keys } from '../../core/input';
 import { clamp } from '../../core/math';
 import { sfx } from '../../core/audio';
@@ -29,12 +29,12 @@ import { colliderWorldRect } from '../level';
 import { updateCollectSystem } from '../interactions';
 import { updateRespawnPointSystem } from '../interactions';
 import { updateGoalSystem } from '../interactions';
-import { stepDefaultPlayerAnimation } from '../../Prefabs/Player/default/defaultPrefab';
+import { stepPlayerAnimation } from '../../Prefabs/Player';
 
 /** 本地玩家状态 */
 export const P: PlayerState = {
   x: 6, y: 5, vx: 0, vy: 0, half: 0.42, grounded: false,
-  coyote: 0, jbuf: 0, face: 1, squash: 0, dead: false, deadT: 0,
+  coyote: 0, jbuf: 0, face: 1, dead: false, deadT: 0,
   plat: null, sprint: false, wasSpr: false, inv: 0,
 };
 
@@ -105,7 +105,9 @@ export function respawn(): void {
 
 /** 玩家物理步（由 game/index step 调用，读取本地 keys 表） */
 export function stepPlayer(dt: number): void {
-  stepPlayerGeneric(P, null, dt, true);
+  const signals: FrameSignals = {};
+  stepPlayerGeneric(P, null, dt, true, signals);
+  stepPlayerAnimation(P, dt, signals);
 }
 
 /* ==================== 通用物理引擎 ==================== */
@@ -116,12 +118,14 @@ export function stepPlayer(dt: number): void {
  * @param input  外部输入（null 则从本地 keys 表读取）
  * @param dt     帧时间
  * @param isLocal 是否为本地玩家（控制音效/粒子/收集系统触发）
+ * @param outSignals 可选输出参数，物理步内按碰撞/交互结果写入信号
  */
 export function stepPlayerGeneric(
   p: PlayerState,
   input: InputKeys | null,
   dt: number,
   isLocal: boolean,
+  outSignals?: FrameSignals,
 ): void {
   buildSolids();
 
@@ -189,6 +193,8 @@ export function stepPlayerGeneric(
   p.x += p.vx * dt;
   for (const s of solidsNow) {
     if (boxHitFor(p, s)) {
+      // 撞墙信号（水平速度足够大时；碰撞后 vx 清零，连按不会重复触发）
+      if (outSignals && Math.abs(p.vx) > 5) outSignals.wallBump = true;
       if (p.vx > 0) p.x = s.x - p.half;
       else if (p.vx < 0) p.x = s.x + s.w + p.half;
       else {
@@ -226,7 +232,6 @@ export function stepPlayerGeneric(
   if (p.grounded) p.coyote = ph.coy;
 
   p.inv = Math.max(0, p.inv - dt);
-  stepDefaultPlayerAnimation(p, dt);
 
   // 冲刺曳光（仅本地玩家）
   if (p.sprint && isLocal) {
@@ -266,9 +271,15 @@ export function stepPlayerGeneric(
 
   // 收集品 / 检查点 / 终点（仅本地玩家；客机模式下权威逻辑在房主端，本地不执行）
   if (!p.dead && isLocal && room.role !== 'client') {
-    updateCollectSystem();
-    updateRespawnPointSystem();
-    updateGoalSystem();
+    if (updateCollectSystem()) {
+      if (outSignals) outSignals.collected = true;
+    }
+    if (updateRespawnPointSystem()) {
+      if (outSignals) outSignals.checkpointHit = true;
+    }
+    if (updateGoalSystem()) {
+      if (outSignals) outSignals.goalReached = true;
+    }
   }
 }
 
@@ -276,31 +287,27 @@ export function stepPlayerGeneric(
  * 步进远程玩家（房主用：为每个客机模拟物理）。
  * 简化版：不触发音效/粒子/收集系统，仅物理同步。
  */
-export function stepRemotePlayer(p: RemotePlayerState, input: InputKeys | null, dt: number): void {
+export function stepRemotePlayer(p: PlayerState, input: InputKeys | null, dt: number): void {
   // 用临时 PlayerState 执行物理
   const tmp: PlayerState = {
     x: p.x, y: p.y, vx: p.vx, vy: p.vy, half: 0.42,
     grounded: p.grounded, coyote: 0, jbuf: 0, face: p.face,
-    squash: p.squash, dead: p.dead, deadT: 0, plat: null,
+    dead: p.dead, deadT: 0, plat: null,
     sprint: p.sprint, wasSpr: false, inv: p.inv,
   };
 
-  stepPlayerGeneric(tmp, input, dt, false);
+  const signals: FrameSignals = {};
+  stepPlayerGeneric(tmp, input, dt, false, signals);
 
   // 写回
   p.x = tmp.x; p.y = tmp.y;
   p.vx = tmp.vx; p.vy = tmp.vy;
   p.grounded = tmp.grounded;
   p.face = tmp.face;
-  p.squash = tmp.squash;
   p.dead = tmp.dead;
   p.inv = tmp.inv;
   p.sprint = tmp.sprint;
-}
 
-/** 远程玩家权威状态精简接口（给 stepRemotePlayer 用） */
-interface RemotePlayerState {
-  x: number; y: number; vx: number; vy: number;
-  face: number; grounded: boolean; dead: boolean;
-  sprint: boolean; squash: number; inv: number;
+  // 动画步进（p 为稳定对象 → 预制体 WeakMap 状态可延续）
+  stepPlayerAnimation(p, dt, signals);
 }

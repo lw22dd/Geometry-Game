@@ -43,6 +43,8 @@ export const UI_SCENE = {
   PAUSE: 'pause',
   LOBBY: 'lobby',
   DEV: 'dev',
+  GALLERY: 'gallery',
+  INSTRUCTIONS: 'instructions',
 } as const;
 
 export type UISceneName = (typeof UI_SCENE)[keyof typeof UI_SCENE] | null;

@@ -6,7 +6,6 @@ import { ctx, VW, VH, DPR, PPM } from '../../core/canvas';
 import { updateCamera, sx, sy, view } from '../../core/camera';
 import { musicTick, MUS, sfx, AU } from '../../core/audio';
 import { keys } from '../../core/input';
-import { clamp } from '../../core/math';
 import { currentMap, PHYS } from '../../config';
 import { gs, getMode, setMode } from './state';
 import { P, stepPlayer, stepPlayerGeneric, respawn } from '../player';
@@ -17,7 +16,7 @@ import {
   drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawNOVA,
   drawTrail, drawParticles, drawHints,
 } from '../../Prefabs/Scenes';
-import { drawPlayer } from '../../Prefabs/Player';
+import { drawPlayer, drawPlayerFor, stepPlayerAnimation, characterStyleForId } from '../../Prefabs/Player';
 import { drawHUD, drawMinimap } from '../ui';
 import { syncUI } from '../ui/scenes';
 import { ui } from '../../core/uiComponent';
@@ -28,7 +27,7 @@ import {
   remotes, resetRemotes, registerRemote, removeRemote,
   setClientInput, getClientInput, applyNetPlayers, getSelfAuthority,
 } from '../player/remote';
-import type { InputKeys, NetPlayerState, NetOrbState, RemotePlayer } from '../../types';
+import type { FrameSignals, InputKeys, NetPlayerState, NetOrbState, RemotePlayer } from '../../types';
 import { world } from '../../core/ecs';
 import { Position } from '../../components/Position';
 import { Collectible } from '../../components/Collectible';
@@ -97,7 +96,9 @@ export function step(dt: number): void {
     // 收集本地输入 → 发送 → 预测物理
     const inputKeys = getLocalInputKeys();
     net.sendInput(inputKeys);
-    stepPlayerGeneric(P, inputKeys, dt, true);
+    const signals: FrameSignals = {};
+    stepPlayerGeneric(P, inputKeys, dt, true, signals);
+    stepPlayerAnimation(P, dt, signals);
   } else {
     // ── 单机/房主模式：正常物理 ──
     stepPlayer(dt);
@@ -133,16 +134,20 @@ function stepRemoteClients(dt: number): void {
       continue;
     }
     const input = getClientInput(id);
-    stepPlayerGeneric(rp, input, dt, false);
+    const signals: FrameSignals = {};
+    stepPlayerGeneric(rp, input, dt, false, signals);
 
     // 远程玩家收集光球检测（共享光球，任何人收集即计数）
-    updateCollectSystem(rp.x, rp.y);
+    if (updateCollectSystem(rp.x, rp.y)) signals.collected = true;
     // 远程玩家检查点激活（记录该玩家个人复活点）
     const cp = updateRespawnPointSystem(rp.x, rp.y);
     if (cp) {
       rp.cpX = cp.x;
       rp.cpY = cp.y;
+      signals.checkpointHit = true;
     }
+
+    stepPlayerAnimation(rp, dt, signals);
   }
 }
 
@@ -155,7 +160,7 @@ function broadcastHostState(): void {
     playerId: room.playerId,
     x: P.x, y: P.y, vx: P.vx, vy: P.vy,
     face: P.face, grounded: P.grounded, dead: P.dead,
-    sprint: P.sprint, squash: P.squash, inv: P.inv,
+    sprint: P.sprint, inv: P.inv,
     hasPlat: P.plat !== null, platDx: P.plat ? P.plat.dx : 0,
   }];
 
@@ -165,7 +170,7 @@ function broadcastHostState(): void {
       playerId: id,
       x: rp.x, y: rp.y, vx: rp.vx, vy: rp.vy,
       face: rp.face, grounded: rp.grounded, dead: rp.dead,
-      sprint: rp.sprint, squash: rp.squash, inv: rp.inv,
+      sprint: rp.sprint, inv: rp.inv,
       hasPlat: false, platDx: 0,
     });
   }
@@ -347,8 +352,9 @@ export function render(dt: number): void {
   ctx.fillStyle = gr;
   ctx.fillRect(0, 0, VW, VH);
 
-  // 菜单 / 大厅：全屏 UI 场景，直接绘制（不渲染游戏）
-  if (ui.currentName === 'menu' || ui.currentName === 'lobby') {
+  // 菜单 / 大厅 / 图鉴 / 操作说明：全屏 UI 场景，直接绘制（不渲染游戏）
+  if (ui.currentName === 'menu' || ui.currentName === 'lobby'
+      || ui.currentName === 'gallery' || ui.currentName === 'instructions') {
     ui.draw(uiTime);
     return;
   }
@@ -394,9 +400,9 @@ function renderGame(dt: number): void {
   drawParticles();
 
   // 绘制所有玩家（本地 + 远程）
-  drawPlayer();
+  drawPlayer(P);
   for (const [, rp] of remotes) {
-    drawRemotePlayer(rp);
+    drawRemotePlayer(rp, dt);
   }
 
   drawHints();
@@ -425,61 +431,19 @@ function renderGame(dt: number): void {
   drawMinimap(vw, vh);
 }
 
-/** 绘制远程玩家（用不同颜色区分） */
-function drawRemotePlayer(rp: { x: number; y: number; vx: number; vy: number; face: number; grounded: boolean; dead: boolean; sprint: boolean; squash: number; inv: number; id: number }): void {
+/** 绘制远程玩家（走预制体通路，按 ID 取颜色变体；客机端渲染帧步进动画） */
+function drawRemotePlayer(rp: RemotePlayer, dt: number): void {
   if (rp.dead) return;
-
-  const px = sx(rp.x), py = sy(rp.y), sq = rp.squash;
-  let kx = 1 + sq, ky = 1 - sq;
-  if (!rp.grounded) {
-    const e = clamp(Math.abs(rp.vy) * 0.012, 0, 0.2);
-    ky *= 1 + e * 0.5;
-    kx *= 1 - e * 0.4;
-  }
-
-  ctx.save();
-  ctx.translate(px, py);
-  ctx.scale(kx, ky);
-
-  const r = 0.46 * view.SZ;
-  // 用不同颜色区分玩家（基于 ID 选择颜色）
-  const colors = [
-    { body: ['#ffffff', '#75ffb0', '#3ddb84'], glow: 'rgba(100,255,150,.9)', stroke: 'rgba(100,255,150,.55)' },
-    { body: ['#ffffff', '#ffb075', '#ff8030'], glow: 'rgba(255,180,80,.9)', stroke: 'rgba(255,180,80,.55)' },
-    { body: ['#ffffff', '#b075ff', '#8030ff'], glow: 'rgba(180,80,255,.9)', stroke: 'rgba(180,80,255,.55)' },
-    { body: ['#ffffff', '#75d0ff', '#30a0ff'], glow: 'rgba(80,180,255,.9)', stroke: 'rgba(80,180,255,.55)' },
-  ];
-  const cIdx = rp.id % colors.length;
-  const col = colors[cIdx];
-
-  ctx.shadowColor = col.glow;
-  ctx.shadowBlur = 18;
-  const g = ctx.createRadialGradient(-r * 0.3, -r * 0.35, r * 0.15, 0, 0, r);
-  g.addColorStop(0, col.body[0]);
-  g.addColorStop(0.55, col.body[1]);
-  g.addColorStop(1, col.body[2]);
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.arc(0, 0, r, 0, 6.283);
-  ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = col.stroke;
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // 双眼
-  const ew = r * 0.17, eh = r * 0.36;
-  ctx.fillStyle = '#1a1440';
-  ctx.fillRect(rp.face * r * 0.15 - ew / 2, -r * 0.3, ew, eh);
-  ctx.fillRect(rp.face * r * 0.55 - ew / 2, -r * 0.3, ew, eh);
+  // 客机端远程玩家无物理步，动画在渲染帧推进；房主端由 stepRemotePlayer 推进
+  if (!isHost()) stepPlayerAnimation(rp, dt);
+  drawPlayerFor(rp, characterStyleForId(rp.id));
 
   // 玩家 ID 标签
-  ctx.restore();
   ctx.save();
   ctx.textAlign = 'center';
   ctx.font = '500 11px "Segoe UI",Arial';
   ctx.fillStyle = 'rgba(200,220,255,.8)';
-  ctx.fillText('P' + rp.id, px, sy(rp.y + 0.9));
+  ctx.fillText('P' + rp.id, sx(rp.x), sy(rp.y + 0.9));
   ctx.restore();
 }
 

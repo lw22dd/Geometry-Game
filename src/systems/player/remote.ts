@@ -34,7 +34,7 @@ export function registerRemote(id: number, name: string): RemotePlayer {
       // PlayerState 全字段
       x: 6, y: 5, vx: 0, vy: 0, half: 0.42,
       grounded: false, coyote: 0, jbuf: 0, face: 1,
-      squash: 0, dead: false, deadT: 0, plat: null,
+      dead: false, deadT: 0, plat: null,
       sprint: false, wasSpr: false, inv: 0,
       // 检查点（默认出生点）
       cpX: 6, cpY: 4,

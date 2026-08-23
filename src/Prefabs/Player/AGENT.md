@@ -1,31 +1,41 @@
-# Player 文件夹 — 玩家角色预制体
+# Player 文件夹 — 玩家角色预制体注册表
 
 <details>
-<summary>Prefabs/Player — 玩家角色绘制建模（CharacterStyle 驱动）</summary>
+<summary>Prefabs/Player — 玩家「外观-动画」组合：注册表 + 默认预制体</summary>
 
-本目录存放玩家角色预制体：drawPlayer() 绘制实现（角色样式参数化），characters/ 子目录存放角色样式注册表（CHARACTERS / DEFAULT_CHARACTER / CharacterStyle 接口）。当前默认角色为「霓虹跑者」（发光球体 + 双眼）。
+本目录存放玩家角色预制体体系：注册表（registry）按 id 选择预制体；每个预制体 = 一个动画 FSM + 纯绘制函数。当前默认预制体为「霓虹跑者」（发光球体 + 双眼）。system 只通过 `index.ts` 的公开 API（`stepPlayerAnimation` / `drawPlayer` / `drawPlayerFor`）与预制体交互，不 import 具体实现。
 </details>
 
 ```
 Prefabs/Player/
-├── index.ts        # drawPlayer(style?) 绘制实现 + re-export CHARACTERS/DEFAULT_CHARACTER
-└── characters/     # 角色样式注册表
-    ├── index.ts    #   CHARACTERS 数组 + DEFAULT_CHARACTER
-    └── default.ts  #   默认角色「霓虹跑者」：bodyGrad/stroke/glow/eyeColor/eyeDX/radius
+├── index.ts        # 统一出口：每玩家动画状态 WeakMap + step/draw/getOutput API + characterStyleForId
+├── types.ts        # PlayerPrefab 接口（createState/step/getOutput/draw）
+├── registry.ts     # 预制体注册表（registerPrefab / getPrefab / getAllPrefabs）
+├── characters/     # 角色样式注册表（纯数据）
+│   ├── index.ts    #   CHARACTERS 数组 + DEFAULT_CHARACTER
+│   └── default.ts  #   默认角色「霓虹跑者」：bodyGrad/stroke/glow/eyeColor/eyeDX/radius
+├── default/        # 默认预制体（霓虹跑者）
+│   ├── states.ts          #   动画状态枚举 + 转换表（纯数据）
+│   ├── animation.ts       #   FSM 步进（边沿检测 + 状态转换 + 输出合成）
+│   ├── render.ts          #   纯绘制（只读 AnimOutput + CharacterStyle）
+│   └── defaultPrefab.ts   #   组合：实现 PlayerPrefab 接口的 defaultPrefab 对象
 ```
 
 # 数据流
 
 1. 依赖：流入的方向和原因
 
-
-`core/canvas`（ctx）、`core/camera`（sx/sy/view）、`core/math`（clamp）、`systems/player`（P 玩家状态）、`systems/game/state`（gs.time 游戏时钟）。需要这些来将玩家状态（位置/速度/形变/朝向/无敌）转换为像素绘制。
+- `core/canvas`（ctx）、`core/camera`（sx/sy/view）、`core/math`（clamp）、`systems/game/state`（gs.time）、`systems/player`（P 本地玩家）、`systems/player/remote`（RemotePlayer）。需要这些将玩家物理状态转换为动画输出与像素绘制。
+- 物理状态由 `systems/player` 产生（grounded/vy/sprint/dead/face/inv），动画 FSM 只读这些事实 + 自身记忆（previous* 边沿检测），不碰输入与碰撞。
 
 2. 本模块：经过 Prefabs/Player 做了什么
 
-
-实体模板工厂——根据 CharacterStyle 参数绘制玩家角色：身体径向渐变圆球、外描边、发光阴影、双眼（眨眼动画）、空中拉伸/落地压扁形变、受伤闪烁。`characters/` 注册表管理多角色样式数据，新增角色只需在 characters/ 添加数据文件并注册。
+- **步进**：`stepPlayerAnimation(player, dt, signals?)` — 取该玩家预制体 + 独立动画状态（WeakMap 按玩家对象），调用 `prefab.step()`。本地玩家在物理步后调用；远程玩家房主端在 `stepRemoteClients` 中调用，客机端在渲染帧调用。
+- **信号**：物理步内 `systems/player` 检测到的碰撞/交互事件（`collected` / `checkpointHit` / `goalReached` / `wallBump`）通过 `FrameSignals` 传入动画步进，驱动 FSM 进入 `collectPulse` / `celebrate` / `bump` 等状态。信号只在当前物理子步内有效，不持久化。
+- **绘制**：`drawPlayer()` 绘制本地玩家；`drawPlayerFor(player, style)` 绘制远程玩家（按 ID 取 `characterStyleForId` 颜色变体）。
+- **FSM**：默认预制体内部状态机（idle/run/jumpRise/jumpFall/land/dash/collectPulse/bump/celebrate/dead/respawn），边沿信号（起跳/落地/死亡/复活/冲刺）由动画模块从上帧记忆推导，碰撞信号由 system 显式发射，输出 `AnimOutput`（scale/rotation/offset/alpha）参数包给绘制层。
+- `characters/` 注册表管理多角色样式数据；`registry.ts` 管理多预制体组合，新增角色 = 新建目录 + 注册一行。
 
 3. 输出：流出的方向和目的
 
-drawPlayer(style?) → `systems/game` render() 每帧直接调用。CHARACTERS/DEFAULT_CHARACTER → `systems/ui` 角色选择界面（当前未实现，预留）。
+- `stepPlayerAnimation` / `drawPlayer` / `drawPlayerFor` → `systems/game`（render/step）与 `systems/player`（stepPlayer）。CHARACTERS/DEFAULT_CHARACTER → `systems/ui` 角色选择界面（当前未实现，预留）。
