@@ -16,7 +16,7 @@ systems/enemy/
 1. 依赖：流入的方向和原因
 
 
-（预留）将依赖 `core`（数学/音效）、`config`（敌人属性）、`types`（敌人类型）、`systems/player`（玩家位置与状态）、`systems/world`（粒子特效）、`Prefabs/Enemy`（敌人绘制）。
+（预留）将依赖 `core`（数学/音效）、`config`（敌人属性）、`types`（敌人类型）、`systems/player`（玩家位置与状态）、`systems/particles`（粒子特效）、`Prefabs/Enemy`（敌人绘制）。
 
 2. 本模块：经过 enemy 做了什么
 
@@ -25,4 +25,4 @@ systems/enemy/
 
 3. 输出：流出的方向和目的
 
-（预留）敌人位置/状态 → `systems/game` 主循环；敌人绘制 → `Prefabs/Enemy` 建模；敌人死亡 → `systems/world` 粒子特效 + `systems/player` 计分。
+（预留）敌人位置/状态 → `systems/game` 主循环；敌人绘制 → `Prefabs/Enemy` 建模；敌人死亡 → `systems/particles` 粒子特效 + `systems/player` 计分。

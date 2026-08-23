@@ -1,6 +1,7 @@
 /**
  * 相机 / 坐标换算 —— 维护世界→屏幕变换与镜头跟随。
  * 不依赖任何 systems / config，只依赖 types 与 core/math。
+ * 地图边界由调用方传入（支持多地图）。
  */
 import type { PlayerState, GameState } from '../types';
 import { clamp, lerp } from './math';
@@ -23,6 +24,8 @@ export function updateCamera(
   dt: number,
   p: PlayerState,
   gs: GameState,
+  mapW: number,
+  mapH: number,
 ): void {
   // 速度前瞻 + 垂直偏移
   const tx = p.x + clamp(p.vx * 0.45, -7, 7);
@@ -38,8 +41,8 @@ export function updateCamera(
   // 视口范围
   const vw = VW / (PPM * view.zoom);
   const vh = VH / (PPM * view.zoom);
-  cam.x = clamp(cam.x, vw / 2, 240 - vw / 2);
-  cam.y = clamp(cam.y, vh / 2, 72 - vh / 2);
+  cam.x = clamp(cam.x, vw / 2, mapW - vw / 2);
+  cam.y = clamp(cam.y, vh / 2, mapH - vh / 2);
   view.SZ = PPM * view.zoom;
   view.SL = cam.x - vw / 2 + (Math.random() - 0.5) * gs.shake * 0.5;
   view.SB = cam.y - vh / 2 + (Math.random() - 0.5) * gs.shake * 0.5;

@@ -4,10 +4,10 @@
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
-import { farShapes, midShapes, hints, TLIFE } from '../../config';
+import { farShapes, midShapes, currentMap, TLIFE } from '../../config';
 import { gs } from '../../systems/game/state';
 import { P } from '../../systems/player';
-import { trail, particles } from '../../systems/world/particles';
+import { trail, particles } from '../../systems/particles';
 
 /** 视差远层光斑 + 中层旋转形状 */
 export function drawParallax(): void {
@@ -99,7 +99,7 @@ export function drawHints(): void {
   ctx.font = '600 ' + Math.round(0.5 * view.SZ) + 'px "Segoe UI","Microsoft YaHei",Arial';
   ctx.fillStyle = 'rgba(170,200,255,.42)';
   ctx.textAlign = 'center';
-  for (const h of hints) {
+  for (const h of currentMap.hints) {
     const px = sx(h[0]), py = sy(h[1]);
     if (px < -220 || px > VW + 220) continue;
     ctx.fillText(h[2], px, py);

@@ -1,16 +1,21 @@
 /**
  * 场景预制体 —— 障碍物（三角形 + 激光）建模。
- * 三角形尖刺、激光栅栏。
+ * 尖刺（静态几何）+ 激光（ECS 实体）。
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
-import { spikes, lasers, laserOn, laserWarn } from '../../config';
+import { currentMap } from '../../config';
 import { gs } from '../../systems/game/state';
+import { world } from '../../core/ecs';
+import { Position } from '../../components/Position';
+import { Collider } from '../../components/Collider';
+import { Timer } from '../../components/Timer';
+import { colliderWorldRect } from '../../systems/level';
 
 /** 尖刺（三角形，合并路径一次描边发光） */
 export function drawSpikes(): void {
   ctx.beginPath();
-  for (const s of spikes) {
+  for (const s of currentMap.spikes) {
     const px = sx(s.x);
     if (px < -40 || px > VW + 40) continue;
     ctx.moveTo(px, sy(s.y));
@@ -28,13 +33,19 @@ export function drawSpikes(): void {
   ctx.shadowBlur = 0;
 }
 
-/** 激光栅栏 */
+/** 激光栅栏（ECS 实体：Position + Collider + Timer） */
 export function drawLasers(): void {
-  for (const l of lasers) {
-    const px = sx(l.x);
+  for (const e of world.query(Position, Collider, Timer)) {
+    const pos = world.get<Position>(e, Position);
+    const col = world.get<Collider>(e, Collider);
+    const t = world.get<Timer>(e, Timer);
+    const r = colliderWorldRect(pos, col);
+
+    const px = sx(pos.x);
     if (px < -60 || px > VW + 60) continue;
-    const y0 = sy(l.y0), y1 = sy(l.y0 + l.len);
-    const on = laserOn(l, gs.time), warn = laserWarn(l, gs.time);
+    const y0 = sy(r.y), y1 = sy(r.top);
+    const on = t.on;
+    const warn = ((gs.time + t.ph) % t.period) > t.period - 0.3;
     const em = (on || warn) && (Math.floor(gs.time * 12) % 2 === 0) ? '#ffffff' : '#ff8ad8';
     ctx.shadowColor = '#ff5fc8';
     ctx.shadowBlur = on ? 14 : 5;
@@ -43,7 +54,7 @@ export function drawLasers(): void {
     ctx.fillRect(px - 0.3 * view.SZ, y1 - 0.12 * view.SZ, 0.6 * view.SZ, 0.3 * view.SZ);
     ctx.shadowBlur = 0;
     if (on) {
-      const jx = Math.sin(gs.time * 47 + l.x) * 1.2;
+      const jx = Math.sin(gs.time * 47 + pos.x) * 1.2;
       ctx.globalCompositeOperation = 'lighter';
       ctx.strokeStyle = 'rgba(255,90,200,.14)'; ctx.lineWidth = 10;
       ctx.beginPath(); ctx.moveTo(px + jx, y0); ctx.lineTo(px + jx, y1); ctx.stroke();

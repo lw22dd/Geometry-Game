@@ -3,15 +3,16 @@
 <details>
 <summary>config — 物理参数 / 关卡布局 / 背景装饰等纯数据</summary>
 
-本目录存放所有游戏配置数据：双物理模式参数、240×72 格八章节关卡布局（平台、尖刺、激光、光球、检查点、NOVA 星、提示文字、装饰方块）、视差背景形状种子数据。只依赖 types，不引用任何 systems 或 core。
+本目录存放所有游戏配置数据：双物理模式参数、多地图描述符注册表（每张地图 = 静态几何 + 实体生成描述）、视差背景形状种子数据。只依赖 types，不引用任何 systems 或 core。
 </details>
 
 ```
 config/
-├── index.ts         # barrel 导出
-├── physics.ts       # 双物理模式（tuned / classic）、RUN/SPRINT/JUMP_H/MAP_W/MAP_H
-├── level.ts         # 240×72 八章节关卡：solids/movers/spikes/lasers/orbs/cps/NOVA/hints/decos
-└── background.ts    # 视差背景：farShapes 光斑 + midShapes 旋转形状（mulberry 种子生成）
+├── index.ts  # barrel 导出
+├── physics.ts  # 双物理模式（tuned / classic）、RUN/SPRINT/JUMP_H/MAP_W/MAP_H
+├── level.ts  # 多地图描述符 maps[]/currentMap/loadMap/initECSFromLevel：静态几何 + 实体生成描述
+├── background.ts  # 视差背景：farShapes 光斑 + midShapes 旋转形状（mulberry 种子生成）
+└── AGENT.md
 ```
 
 # 数据流

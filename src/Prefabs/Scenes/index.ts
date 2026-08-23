@@ -1,6 +1,6 @@
 /**
  * Prefabs/Scenes —— 场景道具预制体 barrel 导出。
- * `systems/world/defs.ts` 为本目录的薄委托，调用方通过 defs 引用。
+ * `systems/game` 通过本 barrel 直接引用绘制函数。
  */
 export { drawSolids, drawMovers, drawBorder, drawDecos, drawGrid } from './platforms';
 export { drawSpikes, drawLasers } from './hazards';

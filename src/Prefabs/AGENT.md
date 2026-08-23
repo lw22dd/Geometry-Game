@@ -8,25 +8,15 @@
 
 ```
 Prefabs/
-├── Enemy/             # 敌人预制体（含 boss；预留，未建模）
-├── NPC/               # NPC 预制体（预留）
-├── Player/            # 玩家角色建模（已实现）
-│   ├── index.ts       #   drawPlayer(style?) —— 玩家绘制实现
-│   └── characters/    #   角色样式注册表
-│       ├── index.ts   #     CHARACTERS / DEFAULT_CHARACTER
-│       └── default.ts #   默认角色「霓虹跑者」样式数据
-├── Scenes/            # 场景道具建模（已实现）
-│   ├── index.ts       #   barrel 导出
-│   ├── platforms.ts   #   长方形：solids / movers / border / decos / grid
-│   ├── hazards.ts     #   三角形尖刺 + 激光栅栏
-│   ├── items.ts       #   光球 / 检查点 / NOVA 星
-│   └── atmosphere.ts  #   视差 / 曳光 / 粒子 / 文字提示
-├── Entities/          # ECS 实体工厂（已实现）
-│   ├── orb.ts         #   光球实体：Position + Collectible + Renderable
-│   ├── checkpoint.ts  #   检查点实体：Position + Checkpoint + Renderable
-│   ├── nova.ts        #   NOVA 星实体：Position + WinTrigger + Renderable
-│   └── playerEntity.ts#   玩家实体：Position + Velocity + PlayerTag（引用 P）
-└── WeaponVis/         # 武器外观预制体（预留）
+├── Enemy/  # 敌人预制体（含 boss；预留，未建模）
+├── NPC/  # NPC 预制体（预留）
+├── Player/  # 玩家角色建模（已实现）
+│   └── characters/  # 角色样式注册表
+├── Scenes/  # 场景道具建模（已实现）
+├── Entities/  # ECS 实体工厂（已实现）
+├── Fx/  # 特效发射预制体（已实现）
+├── WeaponVis/  # 武器外观预制体（预留）
+└── AGENT.md
 ```
 
 # 数据流
@@ -39,8 +29,8 @@ Prefabs/
 2. 本模块：经过 Prefabs 做了什么
 
 
-实体模板工厂——将逻辑数据（platform Rect、spike 坐标、orb 属性、player 状态）转化为 Canvas 2D 绘制命令。角色样式参数化（drawPlayer 接受 CharacterStyle），场景道具按类型分组模块（platforms / hazards / items / atmosphere）。`systems/*/defs.ts` 是本层到 systems 的薄委托入口。
+实体模板工厂——将逻辑数据（platform Rect、spike 坐标、orb 属性、player 状态）转化为 Canvas 2D 绘制命令。角色样式参数化（drawPlayer 接受 CharacterStyle），场景道具按类型分组模块（platforms / hazards / items / atmosphere），特效按 FX 预设表 + spawnFx 统一发射。systems 直接导入本层 drawXxx 函数调用。
 
 3. 输出：流出的方向和目的
 
-纯绘制函数 → `systems/world/defs.ts` 和 `systems/player/defs.ts` → `systems/game/index.ts` 渲染编排。在每帧 render() 中按顺序调用各 drawXxx() 函数将画面绘制到 canvas 上。
+纯绘制函数 → `systems/game/index.ts` render() 直接调用（按顺序绘制各 drawXxx）。`spawnFx` + FX 预设 → `systems/player` / `CheckpointSystem` / `NovaSystem` 发射粒子到 `systems/particles` 粒子池。

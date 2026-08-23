@@ -4,154 +4,89 @@
   "meta": {
     "title": "NEON ASCENT 客户端架构",
     "output": "dash-architecture.html",
-    "quality_profile": "showcase",
-    "viewBox": [1580, 820],
+    "quality_profile": "standard",
+    "viewBox": [1460, 1000],
     "views": [
       {
-        "id": "boot",
-        "label": "启动与主循环",
-        "focus": ["browser", "entry", "core", "game", "player", "world", "ui"],
+        "id": "boot", "label": "启动与主循环",
+        "focus": ["browser", "entry", "game", "player", "world", "ui"],
         "note": "入口 → 底座初始化 → 主循环 → 渲染管线"
       },
       {
-        "id": "interaction",
-        "label": "玩法与数据",
-        "focus": ["player", "pickups", "config", "prefabs", "core", "ui"],
-        "note": "玩家物理 → 交互系统 → 配置注册表 → 预制体工厂"
+        "id": "interaction", "label": "玩法与数据",
+        "focus": ["player", "config", "prefabs", "core", "ui"],
+        "note": "玩家物理 → 配置注册表 → 预制体工厂 → ECS 注册"
       },
       {
-        "id": "net-reserved",
-        "label": "网络预留",
-        "focus": ["entry", "netbus", "netstack"],
-        "note": "组合根装配 netBus → NetClient，事件通路预留"
+        "id": "net-reserved", "label": "网络预留",
+        "focus": ["game", "netbus", "netstack"],
+        "note": "netBus stub → NetClient，事件通路预留"
       }
     ]
   },
   "components": [
-    {
-      "id": "browser",
-      "type": "external",
-      "label": "浏览器",
-      "sublabel": "index.html · Canvas 2D",
-      "pos": [840, 660],
-      "size": [150, 60]
-    },
-    {
-      "id": "entry",
-      "type": "frontend",
-      "label": "入口组合根",
-      "sublabel": "src/main.ts",
-      "pos": [560, 470],
-      "size": [150, 66]
-    },
-    {
-      "id": "core",
-      "type": "frontend",
-      "label": "核心底座",
-      "sublabel": "core/ · canvas·input·audio·camera·math·ECS",
-      "pos": [560, 660],
-      "size": [170, 66]
-    },
-    {
-      "id": "config",
-      "type": "frontend",
-      "label": "配置注册表",
-      "sublabel": "config/ · 物理·关卡·背景",
-      "pos": [840, 470],
-      "size": [150, 66]
-    },
-    {
-      "id": "game",
-      "type": "frontend",
-      "label": "调度中枢",
-      "sublabel": "systems/game · 主循环·状态",
-      "pos": [560, 80],
-      "size": [150, 66]
-    },
-    {
-      "id": "player",
-      "type": "frontend",
-      "label": "玩家系统",
-      "sublabel": "systems/player · 物理·碰撞·生死",
-      "pos": [840, 80],
-      "size": [150, 66]
-    },
-    {
-      "id": "world",
-      "type": "frontend",
-      "label": "世界系统",
-      "sublabel": "systems/world · 粒子·绘制委托",
-      "pos": [1120, 80],
-      "size": [150, 66]
-    },
-    {
-      "id": "pickups",
-      "type": "frontend",
-      "label": "交互系统",
-      "sublabel": "systems · 收集·检查点·NOVA",
-      "pos": [1120, 270],
-      "size": [150, 66]
-    },
-    {
-      "id": "ui",
-      "type": "frontend",
-      "label": "界面系统",
-      "sublabel": "systems/ui · HUD·菜单·小地图",
-      "pos": [840, 270],
-      "size": [150, 66]
-    },
-    {
-      "id": "netbus",
-      "type": "messagebus",
-      "label": "事件总线",
-      "sublabel": "core/netBus · 桩",
-      "pos": [560, 270],
-      "size": [150, 66]
-    },
-    {
-      "id": "prefabs",
-      "type": "frontend",
-      "label": "预制体",
-      "sublabel": "Prefabs/ · 实体工厂·绘制",
-      "pos": [1120, 660],
-      "size": [150, 66]
-    },
-    {
-      "id": "netstack",
-      "type": "backend",
-      "label": "网络层",
-      "sublabel": "netBridge + net/ · NetClient·session",
-      "pos": [1360, 470],
-      "size": [150, 66]
-    }
+    { "id": "browser", "type": "external", "label": "浏览器", "sublabel": "Canvas 2D", "pos": [80, 830], "size": [180, 60] },
+    { "id": "entry", "type": "frontend", "label": "入口组合根", "sublabel": "src/main.ts", "pos": [80, 140], "size": [180, 68] },
+    { "id": "core", "type": "frontend", "label": "核心底座", "sublabel": "core/ · canvas·input·audio·camera·math·ECS", "pos": [640, 830], "size": [180, 68] },
+    { "id": "config", "type": "frontend", "label": "配置注册表", "sublabel": "config/ · 物理·关卡·背景", "pos": [920, 570], "size": [180, 68] },
+    { "id": "game", "type": "frontend", "label": "调度中枢", "sublabel": "systems/game · 主循环·状态", "pos": [360, 140], "size": [180, 68] },
+    { "id": "player", "type": "frontend", "label": "玩家系统", "sublabel": "systems/player · 物理·碰撞·生死", "pos": [640, 140], "size": [180, 68] },
+    { "id": "world", "type": "frontend", "label": "世界系统", "sublabel": "systems/world · 粒子·绘制委托", "pos": [920, 140], "size": [180, 68] },
+    { "id": "pickups", "type": "frontend", "label": "交互系统", "sublabel": "systems · 收集·检查点·NOVA", "pos": [920, 350], "size": [180, 68] },
+    { "id": "ui", "type": "frontend", "label": "界面系统", "sublabel": "systems/ui · HUD·菜单·小地图", "pos": [640, 350], "size": [180, 68] },
+    { "id": "netbus", "type": "messagebus", "label": "事件总线", "sublabel": "core/netBus · 桩", "pos": [360, 350], "size": [180, 68] },
+    { "id": "prefabs", "type": "frontend", "label": "预制体", "sublabel": "Prefabs/ · 实体工厂·绘制", "pos": [640, 570], "size": [180, 68] },
+    { "id": "netstack", "type": "backend", "label": "网络层", "sublabel": "netBridge + net/ · NetClient", "pos": [360, 570], "size": [180, 68] }
   ],
   "boundaries": [
-    {
-      "kind": "region",
-      "label": "src/ · 客户端单一进程（Vite + TS Bundle）",
-      "wraps": ["entry", "core", "config", "game", "player", "world", "pickups", "ui", "netbus", "prefabs", "netstack"]
-    }
+    { "kind": "region", "label": "src/ · 客户端单一进程（Vite + TS Bundle）", "wraps": ["entry", "core", "config", "game", "player", "world", "pickups", "ui", "netbus", "prefabs", "netstack"] }
   ],
   "connections": [
-    { "from": "browser", "to": "entry", "label": "Vite 构建加载", "variant": "emphasis" },
-    { "from": "entry", "to": "core", "label": "初始化 底座" },
-    { "from": "entry", "to": "config", "label": "initECSFromLevel()" },
+    { "from": "browser", "to": "entry", "label": "Vite 构建加载", "variant": "emphasis", "labelAt": [170, 580] },
     { "from": "entry", "to": "game", "label": "startLoop()" },
-    { "from": "entry", "to": "netstack", "label": "装配组合根" },
     { "from": "game", "to": "player", "label": "stepPlayer(dt)" },
-    { "from": "game", "to": "world", "label": "粒子步进 · 渲染" },
-    { "from": "game", "to": "ui", "label": "drawHUD · drawMenu" },
-    { "from": "game", "to": "netbus", "label": "预留事件", "variant": "dashed" },
-    { "from": "player", "to": "pickups", "label": "update*System" },
-    { "from": "player", "to": "config", "label": "PHYS · 碰撞数据" },
-    { "from": "player", "to": "world", "label": "曳光 · 粒子" },
-    { "from": "world", "to": "prefabs", "label": "绘制委托" },
-    { "from": "config", "to": "prefabs", "label": "实例化实体" },
-    { "from": "prefabs", "to": "core", "label": "World 注册" },
-    { "from": "pickups", "to": "core", "label": "world.query" },
-    { "from": "ui", "to": "core", "label": "world.query" },
-    { "from": "ui", "to": "config", "label": "PHYS · MAP 尺寸" },
-    { "from": "netbus", "to": "netstack", "label": "事件转发" }
+    { "from": "player", "to": "world", "label": "曳光 · 粒子", "labelAt": [830, 220] },
+    {
+      "from": "game", "to": "world",
+      "label": "粒子步进 · 渲染",
+      "fromSide": "top", "toSide": "top",
+      "via": [[450, 50], [1010, 50]],
+      "labelAt": [730, 40]
+    },
+    {
+      "from": "entry", "to": "config",
+      "label": "initECSFromLevel()",
+      "fromSide": "bottom", "toSide": "right",
+      "via": [[170, 250], [600, 250], [600, 920], [1120, 920], [1120, 604]],
+      "labelAt": [1120, 760]
+    },
+    { "from": "config", "to": "prefabs", "label": "实例化实体", "fromSide": "left", "toSide": "right" },
+    { "from": "prefabs", "to": "core", "label": "World 注册", "labelAt": [730, 652] },
+    {
+      "from": "entry", "to": "core",
+      "label": "初始化 底座",
+      "fromSide": "bottom", "toSide": "bottom",
+      "via": [[170, 260], [600, 260], [600, 920], [730, 920]],
+      "labelAt": [730, 910]
+    },
+    {
+      "from": "world", "to": "prefabs",
+      "label": "绘制委托",
+      "fromSide": "bottom", "toSide": "top",
+      "via": [[1010, 280], [1140, 280], [1140, 540], [730, 540]],
+      "labelAt": [1150, 420]
+    },
+    { "from": "game", "to": "ui", "label": "drawHUD · drawMenu", "fromSide": "bottom", "toSide": "top" },
+    { "from": "player", "to": "pickups", "label": "update*System", "fromSide": "bottom", "toSide": "top" },
+    {
+      "from": "player", "to": "config",
+      "label": "PHYS · 碰撞数据",
+      "fromSide": "bottom", "toSide": "right",
+      "via": [[730, 290], [1120, 290], [1120, 604]],
+      "labelAt": [1180, 652]
+    },
+    { "from": "game", "to": "netbus", "label": "预留事件", "variant": "dashed", "labelAt": [400, 222] },
+    { "from": "netbus", "to": "netstack", "label": "事件转发", "labelAt": [450, 432] }
   ],
   "cards": [
     {
@@ -169,7 +104,7 @@
       "items": [
         "types/ 不依赖任何模块，全项目共享类型定义",
         "net/ 只经 core/netBus 与 systems 通信，绝不直接 import systems",
-        "netBridge 是 systems ↔ net 唯一合法交界"
+        "netBridge 组合根装配 netBus → NetClient（预留桩）"
       ]
     },
     {

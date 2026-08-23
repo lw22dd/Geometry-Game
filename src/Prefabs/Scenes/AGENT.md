@@ -20,13 +20,13 @@ Prefabs/Scenes/
 1. 依赖：流入的方向和原因
 
 
-`core/canvas`（ctx/VW/VH）、`core/camera`（sx/sy/view）、`core/math`（clamp）、`config`（所有关卡数据：solids/movers/spikes/lasers/orbs/cps/NOVA/hints/decos/farShapes/midShapes）、`systems/game/state`（gs.time/gs.win）、`systems/player`（P.sprint/P.dead/P.face/P.x/P.y）、`systems/world/particles`（trail/particles）。需要这些来将世界坐标转换为像素绘制、读取游戏状态控制动画。
+`core/canvas`（ctx/VW/VH）、`core/camera`（sx/sy/view）、`core/math`（clamp）、`config`（当前地图 currentMap：solids/spikes/decos/hints）、`core/ecs`（world 查询移动平台/激光/光球/检查点/NOVA 实体）、`systems/level`（colliderWorldRect）、`systems/game/state`（gs.time/gs.win）、`systems/player`（P.sprint/P.dead/P.face/P.x/P.y）、`systems/particles`（trail/particles）。需要这些来将世界坐标转换为像素绘制、读取游戏状态控制动画。
 
 2. 本模块：经过 Prefabs/Scenes 做了什么
 
 
-场景道具模板工厂——将配置数据（Rect/Mover/Spike/Laser/Orb/Checkpoint/Deco/FarShape/MidShape）转换为 Canvas 2D 绘制命令。每个 drawXxx() 函数独立负责一类道具的完整绘制（可见性裁剪、坐标换算、颜色/发光/阴影/动画）。
+场景道具模板工厂——静态几何（Rect/Spike/Deco/FarShape/MidShape）直接从当前地图读取，动态实体（移动平台/激光/光球/检查点/NOVA）经 `world.query()` 读取组件后绘制。每个 drawXxx() 函数独立负责一类道具的完整绘制（可见性裁剪、坐标换算、颜色/发光/阴影/动画）。
 
 3. 输出：流出的方向和目的
 
-绘制函数 → `systems/world/defs.ts`（薄委托）→ `systems/game` render() 按顺序调用（drawParallax → drawGrid → drawBorder → drawDecos → drawSolids → drawMovers → drawCheckpoints → drawSpikes → drawLasers → drawOrbs → drawNOVA → drawTrail → drawParticles → drawHints）。
+绘制函数 → `systems/game` render() 直接调用（drawParallax → drawGrid → drawBorder → drawDecos → drawSolids → drawMovers → drawCheckpoints → drawSpikes → drawLasers → drawOrbs → drawNOVA → drawTrail → drawParticles → drawHints）。

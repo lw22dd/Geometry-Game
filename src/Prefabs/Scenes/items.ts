@@ -1,15 +1,15 @@
 /**
  * 场景预制体 —— 收集品 / 终点建模。
  * 光球、检查点、NOVA 星。
- * 数据从 ECS World 查询（Position + Collectible/Checkpoint/WinTrigger + Renderable）。
+ * 数据从 ECS World 查询（Position + Collider/Collectible/RespawnPoint/Goal + Renderable）。
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
 import { world } from '../../core/ecs';
 import { Position } from '../../components/Position';
 import { Collectible } from '../../components/Collectible';
-import { Checkpoint } from '../../components/Checkpoint';
-import { WinTrigger } from '../../components/WinTrigger';
+import { RespawnPoint } from '../../components/RespawnPoint';
+import { Goal } from '../../components/Goal';
 import { Renderable } from '../../components/Renderable';
 import { gs } from '../../systems/game/state';
 
@@ -48,20 +48,20 @@ export function drawOrbs(): void {
 
 /** 检查点光柱 */
 export function drawCheckpoints(p: number): void {
-  for (const e of world.query(Position, Checkpoint, Renderable)) {
+  for (const e of world.query(Position, RespawnPoint, Renderable)) {
     const pos = world.get<Position>(e, Position);
-    const cp = world.get<Checkpoint>(e, Checkpoint);
+    const rp = world.get<RespawnPoint>(e, RespawnPoint);
     const px = sx(pos.x);
     if (px < -40 || px > VW + 40) continue;
     const py = sy(pos.y);
     const g = ctx.createLinearGradient(0, py, 0, py - 6.5 * view.SZ);
-    g.addColorStop(0, cp.active ? 'rgba(125,249,255,' + (0.28 + 0.2 * p) + ')' : 'rgba(140,130,255,.10)');
+    g.addColorStop(0, rp.active ? 'rgba(125,249,255,' + (0.28 + 0.2 * p) + ')' : 'rgba(140,130,255,.10)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.fillRect(px - 0.28 * view.SZ, py - 6.5 * view.SZ, 0.56 * view.SZ, 6.5 * view.SZ);
-    ctx.fillStyle = cp.active ? 'rgba(125,249,255,.9)' : 'rgba(140,130,255,.55)';
-    ctx.shadowColor = cp.active ? '#7df9ff' : '#8a82ff';
-    ctx.shadowBlur = cp.active ? 12 : 4;
+    ctx.fillStyle = rp.active ? 'rgba(125,249,255,.9)' : 'rgba(140,130,255,.55)';
+    ctx.shadowColor = rp.active ? '#7df9ff' : '#8a82ff';
+    ctx.shadowBlur = rp.active ? 12 : 4;
     ctx.fillRect(px - 0.9 * view.SZ, sy(pos.y + 0.3), 1.8 * view.SZ, 0.3 * view.SZ);
     ctx.shadowBlur = 0;
   }
@@ -69,7 +69,7 @@ export function drawCheckpoints(p: number): void {
 
 /** NOVA 星（终点） */
 export function drawNOVA(p: number): void {
-  const nova = world.queryOne(Position, WinTrigger);
+  const nova = world.queryOne(Position, Goal);
   if (!nova) return;
   const pos = world.get<Position>(nova, Position);
   const ren = world.get<Renderable>(nova, Renderable);

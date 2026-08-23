@@ -16,7 +16,7 @@ systems/combat/
 1. 依赖：流入的方向和原因
 
 
-（预留）将依赖 `core`（输入/音效/数学）、`config`（武器数据）、`types`（战斗相关类型）、`systems/player`（玩家状态）、`systems/world`（粒子特效）。
+（预留）将依赖 `core`（输入/音效/数学）、`config`（武器数据）、`types`（战斗相关类型）、`systems/player`（玩家状态）、`systems/particles`（粒子特效）。
 
 2. 本模块：经过 combat 做了什么
 
@@ -25,4 +25,4 @@ systems/combat/
 
 3. 输出：流出的方向和目的
 
-（预留）战斗事件 → `systems/game` 主循环；投射物/爆炸粒子 → `systems/world` 粒子系统；伤害 → `systems/player` 生命值。
+（预留）战斗事件 → `systems/game` 主循环；投射物/爆炸粒子 → `systems/particles` 粒子系统；伤害 → `systems/player` 生命值。

@@ -15,8 +15,17 @@ core/
 ├── audio.ts        # WebAudio 合成音效：AU 上下文、tone/nz 合成器、sfx 音效表、MUS 低音循环
 ├── camera.ts       # 相机世界坐标 cam、视口变换 view（SL/SB/SZ）、sx/sy 坐标换算、updateCamera
 ├── netBus.ts       # 事件总线（systems↔net 交界，当前为桩）
-└── ecs/            # 实体池遍历器
-    └── entityPool.ts  # EntityPool<T> 泛型类：updateAll / drawAll / depthList
+├── ecs/            # ECS 底座：Entity / World / EntityPool 实体池
+│   ├── Entity.ts       # Entity 定义（组件式实体）
+│   ├── World.ts        # World 定义（实体容器）
+│   ├── entityPool.ts   # EntityPool<T> 泛型类：push / updateAll / drawAll / depthList
+│   └── index.ts        # barrel 导出
+└── uiComponent/             # UI 框架：UIManager 场景管理 + Button / TextInput 组件
+    ├── index.ts        # barrel 导出
+    ├── manager.ts      # UIManager 单例：register / show / handleClick / handleMove / handleKey / draw
+    ├── Button.ts       # Button 组件（label / variant / onClick / hover）
+    ├── TextInput.ts    # TextInput 组件（label / value / focus / 文本编辑）
+    └── types.ts        # UIWidget / UIScene / UISceneName 接口定义
 ```
 
 # 数据流
@@ -33,4 +42,4 @@ core/
 
 3. 输出：流出的方向和目的
 
-`ctx` / `VW` / `VH` / `DPR` → `systems/` 渲染和 `Prefabs/` 绘制。`keys` 状态表 → `systems/player` 读取输入。`sfx` / `MUS` / `musicTick` → `systems/game` 播放音效和音乐。`cam` / `view` / `sx` / `sy` → 所有绘制函数。`EntityPool` → `systems/world/particles` 管理粒子池。`netBus` → `netBridge.ts` 装配网络。
+`ctx` / `VW` / `VH` / `DPR` → `systems/` 渲染和 `Prefabs/` 绘制。`keys` 状态表 → `systems/player` 读取输入。`sfx` / `MUS` / `musicTick` → `systems/game` 播放音效和音乐。`cam` / `view` / `sx` / `sy` → 所有绘制函数。`EntityPool` / `World` → `systems/` 管理粒子池与 ECS 实体。`netBus` → `netBridge.ts` 装配网络。`ui`（UIManager）→ `systems/ui/scenes.ts` 注册场景，`main.ts` 每帧分发事件与绘制。

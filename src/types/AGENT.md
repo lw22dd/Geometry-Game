@@ -3,7 +3,7 @@
 <details>
 <summary>types — 全项目统一共享类型声明</summary>
 
-本目录定义跨模块共享的 TypeScript 类型：矩形刚体、移动平台、尖刺、激光、光球、检查点、粒子、玩家状态、相机状态、游戏全局状态、netBus 事件载荷等。所有模块（config / core / systems / Prefabs / net）依赖本目录。
+本目录定义跨模块共享的 TypeScript 类型：矩形刚体、移动平台生成数据、尖刺、激光生成数据、粒子、玩家状态、相机状态、游戏全局状态、地图描述符、netBus 事件载荷等。所有模块（config / core / systems / Prefabs / net）依赖本目录。
 </details>
 
 ```

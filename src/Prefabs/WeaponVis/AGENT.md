@@ -25,4 +25,4 @@ Prefabs/WeaponVis/
 
 3. 输出：流出的方向和目的
 
-（预留）drawXxx() 绘制函数 → `systems/player/defs.ts`（薄委托）→ `systems/game` render() 调用。
+（预留）drawXxx() 绘制函数 → `systems/game` render() 直接调用。

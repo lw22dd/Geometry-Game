@@ -8,14 +8,19 @@
 
 ```
 components/
-├── Position.ts       # 位置组件（x / y 坐标）
-├── Velocity.ts       # 速度组件（vx / vy）
-├── Renderable.ts     # 可渲染组件（绘制引用）
-├── Collectible.ts    # 可收集组件（光球）
-├── Checkpoint.ts     # 检查点组件
-├── PlayerTag.ts      # 玩家标记组件
-├── WinTrigger.ts     # 胜利触发组件（NOVA 终点）
-└── index.ts          # barrel 导出
+├── Position.ts  # 位置组件（x / y 坐标）
+├── Velocity.ts  # 速度组件（vx / vy）
+├── Renderable.ts  # 可渲染组件（绘制引用）
+├── Collectible.ts  # 可收集组件（光球）
+├── PlayerTag.ts  # 玩家标记组件
+├── index.ts  # barrel 导出
+├── AGENT.md
+├── Collider.ts
+├── Goal.ts
+├── Hazard.ts
+├── PathMotion.ts
+├── RespawnPoint.ts
+└── Timer.ts
 ```
 
 # 数据流
@@ -28,7 +33,7 @@ components/
 2. 本模块：经过 components 做了什么
 
 
-定义实体的数据属性集合——位置、速度、渲染、收集、检查点、无敌、玩家标记、形变、胜利触发。为 ECS 实体组装提供标准组件。
+定义实体的数据属性集合——位置、速度、碰撞箱、路径运动、计时、危险、渲染、收集、复活点、终点、玩家标记。为 ECS 实体组装提供标准能力组件。
 
 3. 输出：流出的方向和目的
 

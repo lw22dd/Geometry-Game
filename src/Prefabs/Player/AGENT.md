@@ -28,4 +28,4 @@ Prefabs/Player/
 
 3. 输出：流出的方向和目的
 
-drawPlayer(style?) → `systems/player/defs.ts`（薄委托）→ `systems/game` render() 每帧调用。CHARACTERS/DEFAULT_CHARACTER → `systems/player/defs.ts` re-export 供选择角色界面使用。
+drawPlayer(style?) → `systems/game` render() 每帧直接调用。CHARACTERS/DEFAULT_CHARACTER → `systems/ui` 角色选择界面（当前未实现，预留）。

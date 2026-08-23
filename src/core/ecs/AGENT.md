@@ -28,4 +28,4 @@ core/ecs/
 
 3. 输出：流出的方向和目的
 
-`EntityPool<T>` → `systems/world/particles.ts` 管理粒子池（推入、反向遍历剔除超龄粒子）。Entity/World 供后续 ECS 化重构使用。
+`EntityPool<T>` → `systems/particles` 管理粒子池（推入、反向遍历剔除超龄粒子）。Entity/World 供 Prefabs/Entities 装配实体，由 systems/ 各系统逐帧读写。

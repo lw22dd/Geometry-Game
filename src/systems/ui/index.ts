@@ -1,17 +1,24 @@
 /**
  * 界面系统 —— HUD / 小地图 / 开始菜单。
+ * 菜单/暂停/大厅场景通过 UIManager 统一管理。
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { cam } from '../../core/camera';
 import { rr, fmt } from '../../core/math';
-import { solids, movers, spikes, lasers, MAP_W, MAP_H, PHYS } from '../../config';
+import { currentMap, PHYS } from '../../config';
 import { world } from '../../core/ecs';
 import { Position } from '../../components/Position';
+import { Collider } from '../../components/Collider';
+import { PathMotion } from '../../components/PathMotion';
+import { Timer } from '../../components/Timer';
 import { Collectible } from '../../components/Collectible';
-import { Checkpoint } from '../../components/Checkpoint';
-import { WinTrigger } from '../../components/WinTrigger';
+import { RespawnPoint } from '../../components/RespawnPoint';
+import { Goal } from '../../components/Goal';
 import { gs, getMode } from '../game/state';
 import { P } from '../player';
+import { colliderWorldRect } from '../level';
+import { Button, UI_SCENE } from '../../core/uiComponent';
+import type { UIScene } from '../../core/uiComponent';
 
 /** 光球总数（ECS 实体数量） */
 const orbTotal = (): number => world.query(Collectible).length;
@@ -21,10 +28,6 @@ const orbTotal = (): number => world.query(Collectible).length;
 /** 菜单本地计时（入场动画用，独立于游戏时间） */
 let _menuT = 0;
 let _menuLast = 0;
-
-/** 按钮区域（供 checkMenuClick 检测） */
-let _btn = { x: 0, y: 0, w: 0, h: 0 };
-let _hover = false;
 
 /* ---------- 小工具 ---------- */
 const _lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -440,92 +443,6 @@ function _menuGoal(t: number, en: number): void {
   ctx.restore();
 }
 
-/* ---------- 开始按钮 ---------- */
-function _menuButton(t: number, en: number): void {
-  const bw = 270, bh = 64;
-  const bx = VW / 2 - bw / 2, by = VH / 2 + 178;
-  _btn = { x: bx, y: by, w: bw, h: bh };
-  if (en <= 0) return;
-
-  const scale = .85 + .15 * en + (_hover ? .04 : 0);
-  const cx = bx + bw / 2, cy2 = by + bh / 2;
-  const pulse = .7 + .3 * Math.sin(t * 3);
-
-  ctx.save();
-  ctx.globalAlpha = en;
-  ctx.translate(cx, cy2);
-  ctx.scale(scale, scale);
-  ctx.translate(-cx, -cy2);
-
-  // 外发光 + 渐变底
-  ctx.shadowColor = _hover ? 'rgba(140,230,255,.9)' : 'rgba(100,180,255,' + (.3 + .5 * pulse) + ')';
-  ctx.shadowBlur = _hover ? 36 : 22;
-  const g = ctx.createLinearGradient(0, by, 0, by + bh);
-  g.addColorStop(0, 'rgba(46,26,110,.95)');
-  g.addColorStop(.5, 'rgba(22,12,60,.95)');
-  g.addColorStop(1, 'rgba(14,8,40,.98)');
-  rr(ctx, bx, by, bw, bh, 14);
-  ctx.fillStyle = g;
-  ctx.fill();
-  ctx.shadowBlur = 0;
-
-  // 边框 + 内高光
-  ctx.strokeStyle = 'hsla(197,100%,' + (66 + 12 * pulse) + '%,' + (.75 + .25 * pulse) + ')';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  rr(ctx, bx + 3, by + 3, bw - 6, bh - 6, 11);
-  ctx.strokeStyle = 'rgba(160,220,255,.25)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  const g2 = ctx.createLinearGradient(0, by + 3, 0, by + 16);
-  g2.addColorStop(0, 'rgba(180,230,255,.28)');
-  g2.addColorStop(1, 'rgba(180,230,255,0)');
-  rr(ctx, bx + 6, by + 4, bw - 12, 12, 8);
-  ctx.fillStyle = g2;
-  ctx.fill();
-
-  // 周期性流光扫过（裁剪在按钮内）
-  const q2 = (t % 2.8) / 2.8;
-  if (q2 < .5) {
-    const u = q2 / .5;
-    const sx = bx - 70 + u * (bw + 140);
-    ctx.save();
-    rr(ctx, bx, by, bw, bh, 14);
-    ctx.clip();
-    const sg = ctx.createLinearGradient(sx - 36, 0, sx + 36, 0);
-    sg.addColorStop(0, 'rgba(255,255,255,0)');
-    sg.addColorStop(.5, 'rgba(200,240,255,.16)');
-    sg.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = sg;
-    ctx.fillRect(sx - 36, by, 72, bh);
-    ctx.restore();
-  }
-
-  // 文字
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = '800 24px "Segoe UI","Microsoft YaHei",Arial';
-  ctx.shadowColor = 'rgba(140,200,255,.8)';
-  ctx.shadowBlur = 12;
-  ctx.fillStyle = '#f2fbff';
-  ctx.fillText('开 始 游 戏', cx, cy2 - 4);
-  ctx.shadowBlur = 0;
-  ctx.font = '600 11px "Segoe UI",Arial';
-  ctx.fillStyle = 'rgba(150,200,255,.55)';
-  ctx.fillText('ENTER ⏎', cx, by + bh - 11);
-  ctx.restore();
-
-  // 按钮下方呼吸提示
-  ctx.save();
-  ctx.globalAlpha = en;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
-  ctx.font = '500 14px "Segoe UI","Microsoft YaHei",Arial';
-  ctx.fillStyle = 'rgba(140,246,255,' + (.5 + .35 * Math.sin(t * 3.2)) + ')';
-  ctx.fillText('— 按任意键开始 · 点击进入 —', VW / 2, by + bh + 30);
-  ctx.restore();
-}
-
 /* ---------- 页脚 ---------- */
 function _menuFooter(t: number): void {
   ctx.save();
@@ -539,8 +456,20 @@ function _menuFooter(t: number): void {
   ctx.restore();
 }
 
-/** 绘制开始菜单画面 */
-export function drawMenu(): void {
+/* ---------- 按钮下方呼吸提示 ---------- */
+function _menuHint(t: number): void {
+  const by = VH / 2 + 178;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '500 14px "Segoe UI","Microsoft YaHei",Arial';
+  ctx.fillStyle = 'rgba(140,246,255,' + (.5 + .35 * Math.sin(t * 3.2)) + ')';
+  ctx.fillText('— 按任意键开始 · 点击进入 —', VW / 2, by + 64 + 30);
+  ctx.restore();
+}
+
+/** 菜单背景绘制（场景 draw，不含按钮——按钮是独立组件） */
+function drawMenuScene(_t: number): void {
   const nowMs = performance.now();
   if (_menuLast) _menuT += Math.min(.05, (nowMs - _menuLast) / 1000);
   _menuLast = nowMs;
@@ -551,28 +480,37 @@ export function drawMenu(): void {
   _menuTitle(t, _ease(t / .7));
   _menuCard(t, _ease((t - .22) / .6));
   _menuGoal(t, _ease((t - .45) / .6));
-  _menuButton(t, _ease((t - .6) / .55));
+  _menuHint(t);
   _menuFooter(t);
 }
 
-/** 菜单期间鼠标移动时调用（main.ts 的 mousemove，传逻辑坐标）——驱动按钮悬停效果 */
-export function updateMenuHover(lx: number, ly: number): void {
-  _hover = lx >= _btn.x && lx <= _btn.x + _btn.w && ly >= _btn.y && ly <= _btn.y + _btn.h;
-  const c = ctx.canvas;
-  if (c) c.style.cursor = _hover ? 'pointer' : 'default';
-}
+/* ==================== UI 场景构建 ==================== */
 
-/** 开始游戏后调用一次：复位悬停与光标 */
-export function menuClosed(): void {
-  _hover = false;
-  const c = ctx.canvas;
-  if (c) c.style.cursor = 'default';
-}
+/**
+ * 构建菜单场景（由组合根 scenes.ts 注入 onStart 回调，避免 ui↔game 循环依赖）。
+ */
+export function buildMenuScene(onStart: () => void): UIScene {
+  const menuBtn = new Button({
+    id: 'menu_start',
+    label: '开 始 游 戏',
+    subLabel: 'ENTER ⏎',
+    variant: 'primary',
+    x: VW / 2 - 135, y: VH / 2 + 178, w: 270, h: 64,
+    enterDelay: 0.6,
+    onClick: onStart,
+  });
 
-/** 检测菜单中点击是否落在「开始游戏」按钮上（逻辑坐标，由 main.ts 调用） */
-export function checkMenuClick(lx: number, ly: number): boolean {
-  return lx >= _btn.x && lx <= _btn.x + _btn.w &&
-         ly >= _btn.y && ly <= _btn.y + _btn.h;
+  return {
+    name: UI_SCENE.MENU,
+    widgets: [menuBtn],
+    draw: drawMenuScene,
+    onExit: () => {
+      // 复位 hover 与光标（修复原 menuClosed 未被调用的问题）
+      menuBtn.hover = false;
+      const c = ctx.canvas;
+      if (c) c.style.cursor = 'default';
+    },
+  };
 }
 
 /* ==================== HUD ==================== */
@@ -655,7 +593,7 @@ export function drawHUD(): void {
 
 /** 小地图 */
 export function drawMinimap(vw: number, vh: number): void {
-  const mmW = 252, k = mmW / MAP_W, mmH = MAP_H * k, pad = 10, mx = VW - mmW - 22, my = 46;
+  const mmW = 252, k = mmW / currentMap.width, mmH = currentMap.height * k, pad = 10, mx = VW - mmW - 22, my = 46;
   rr(ctx, mx - pad, my - pad - 16, mmW + pad * 2, mmH + pad * 2 + 24, 9);
   ctx.fillStyle = 'rgba(8,6,26,.72)';
   ctx.fill();
@@ -664,22 +602,28 @@ export function drawMinimap(vw: number, vh: number): void {
   ctx.stroke();
   ctx.font = '600 11px Arial';
   ctx.fillStyle = 'rgba(170,190,255,.8)';
-  ctx.fillText('MAP · 240 × 72 · ' + (P.x | 0) + ',' + (P.y | 0), mx, my - 6);
+  ctx.fillText('MAP · ' + currentMap.width + ' × ' + currentMap.height + ' · ' + (P.x | 0) + ',' + (P.y | 0), mx, my - 6);
 
   const X = (x: number) => mx + x * k;
   const Y = (y: number) => my + mmH - y * k;
 
   ctx.fillStyle = 'rgba(120,140,255,.4)';
-  for (const r of solids) ctx.fillRect(X(r.x), Y(r.top), Math.max(1, r.w * k), Math.max(1, r.h * k));
-  for (const m of movers) {
+  for (const r of currentMap.solids) ctx.fillRect(X(r.x), Y(r.top), Math.max(1, r.w * k), Math.max(1, r.h * k));
+  for (const e of world.query(Position, Collider, PathMotion)) {
+    const pos = world.get<Position>(e, Position);
+    const col = world.get<Collider>(e, Collider);
+    const r = colliderWorldRect(pos, col);
     ctx.fillStyle = 'rgba(160,200,255,.75)';
-    ctx.fillRect(X(m.x), Y(m.y + m.h), Math.max(1.5, m.w * k), Math.max(1, m.h * k));
+    ctx.fillRect(X(r.x), Y(r.top), Math.max(1.5, r.w * k), Math.max(1, r.h * k));
   }
   ctx.fillStyle = 'rgba(255,138,222,.9)';
-  for (const s of spikes) ctx.fillRect(X(s.x + 0.5) - 1, Y(5) - 1, 2, 2);
-  for (const l of lasers) {
+  for (const s of currentMap.spikes) ctx.fillRect(X(s.x + 0.5) - 1, Y(5) - 1, 2, 2);
+  for (const e of world.query(Position, Collider, Timer)) {
+    const pos = world.get<Position>(e, Position);
+    const col = world.get<Collider>(e, Collider);
+    const r = colliderWorldRect(pos, col);
     ctx.fillStyle = 'rgba(255,90,160,.8)';
-    ctx.fillRect(X(l.x) - 0.5, Y(l.y0 + l.len), 1, l.len * k);
+    ctx.fillRect(X(pos.x) - 0.5, Y(r.top), 1, r.h * k);
   }
   for (const e of world.query(Position, Collectible)) {
     const pos = world.get<Position>(e, Position);
@@ -688,15 +632,15 @@ export function drawMinimap(vw: number, vh: number): void {
     ctx.fillStyle = '#8ff6ff';
     ctx.beginPath(); ctx.arc(X(pos.x), Y(pos.y), 1.8, 0, 6.283); ctx.fill();
   }
-  for (const e of world.query(Position, Checkpoint)) {
+  for (const e of world.query(Position, RespawnPoint)) {
     const pos = world.get<Position>(e, Position);
-    const cp = world.get<Checkpoint>(e, Checkpoint);
-    ctx.fillStyle = cp.active ? '#7df9ff' : 'rgba(150,150,255,.7)';
+    const rp = world.get<RespawnPoint>(e, RespawnPoint);
+    ctx.fillStyle = rp.active ? '#7df9ff' : 'rgba(150,150,255,.7)';
     ctx.fillRect(X(pos.x) - 1.5, Y(4) - 3, 3, 3);
   }
   ctx.fillStyle = '#ffd76b';
   ctx.save();
-  const nova = world.queryOne(Position, WinTrigger);
+  const nova = world.queryOne(Position, Goal);
   if (nova) {
     const npos = world.get<Position>(nova, Position);
     ctx.translate(X(npos.x), Y(npos.y));

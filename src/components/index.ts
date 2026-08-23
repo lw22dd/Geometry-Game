@@ -4,8 +4,12 @@
  */
 export { Position } from './Position';
 export { Velocity } from './Velocity';
+export { Collider } from './Collider';
+export { PathMotion } from './PathMotion';
+export { Timer } from './Timer';
+export { Hazard } from './Hazard';
 export { Collectible } from './Collectible';
-export { Checkpoint } from './Checkpoint';
-export { WinTrigger } from './WinTrigger';
+export { RespawnPoint } from './RespawnPoint';
+export { Goal } from './Goal';
 export { Renderable } from './Renderable';
 export { PlayerTag } from './PlayerTag';
