@@ -13,7 +13,7 @@ import { PathMotion } from '../../components/PathMotion';
 export function createMovingPlatform(d: MoverSpawnData): EntityId {
   const e = world.createEntity();
   world.add(e, Position, { x: d.x0, y: d.y });
-  world.add(e, Collider, { w: d.w, h: d.h, trigger: false, ox: d.w / 2, oy: d.h / 2 });
+  world.add(e, Collider, { w: d.w, h: d.h, solid: true, ox: d.w / 2, oy: d.h / 2 });
   world.add(e, PathMotion, { x0: d.x0, range: d.range, spd: d.spd, ph: d.ph, dx: 0 });
   return e;
 }

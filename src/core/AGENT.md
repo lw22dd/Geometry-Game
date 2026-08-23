@@ -15,6 +15,7 @@ core/
 ├── audio.ts        # WebAudio 合成音效：AU 上下文、tone/nz 合成器、sfx 音效表、MUS 低音循环
 ├── camera.ts       # 相机世界坐标 cam、视口变换 view（SL/SB/SZ）、sx/sy 坐标换算、updateCamera
 ├── netBus.ts       # 事件总线（systems↔net 交界，当前为桩）
+├── collisionBus.ts # 碰撞事件总线（发布/订阅）：CollisionSystem emit，CollisionHooks 订阅
 ├── ecs/            # ECS 底座：Entity / World / EntityPool 实体池
 │   ├── Entity.ts       # Entity 定义（组件式实体）
 │   ├── World.ts        # World 定义（实体容器）

@@ -10,10 +10,10 @@ import { room } from '../../net/room';
 export const remotes = new Map<number, RemotePlayer>();
 
 /** 客机输入缓冲（房主用：playerId → 最新输入） */
-export const clientInputs = new Map<number, { seq: number; keys: InputKeys }>();
+const clientInputs = new Map<number, { seq: number; keys: InputKeys }>();
 
 /** 客机序列号 → 最近收到的序列号（用于丢弃乱序/过期输入） */
-export const clientSeq = new Map<number, number>();
+const clientSeq = new Map<number, number>();
 
 /** 重置远程玩家（断线/新会话） */
 export function resetRemotes(): void {

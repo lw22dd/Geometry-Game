@@ -1,6 +1,6 @@
 /**
  * 激光预制体工厂 —— 创建 ECS 实体。
- * 组装 Position(底) + Collider(trigger) + Timer + Hazard。
+ * 组装 Position(底) + Collider(触发) + Timer + Hazard。
  * Position = 光束底部（等同旧 Laser.x/.y0）；Timer.on 由 LaserTimerSystem 每帧更新。
  */
 import { world } from '../../core/ecs';
@@ -24,7 +24,7 @@ const LASER_ON_DUR = 1.15;
 export function createLaser(d: LaserSpawnData, period: number = LASER_PERIOD, onDur: number = LASER_ON_DUR): EntityId {
   const e = world.createEntity();
   world.add(e, Position, { x: d.x, y: d.y0 });
-  world.add(e, Collider, { w: 1.12, h: d.len, trigger: true, oy: d.len / 2 });
+  world.add(e, Collider, { w: 1.12, h: d.len, solid: false, oy: d.len / 2 });
   world.add(e, Timer, { period, onDur, ph: d.ph, on: false });
   world.add(e, Hazard, { damage: 1 });
   return e;

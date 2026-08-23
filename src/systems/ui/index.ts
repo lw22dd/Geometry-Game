@@ -11,6 +11,7 @@ import { Position } from '../../components/Position';
 import { Collider } from '../../components/Collider';
 import { PathMotion } from '../../components/PathMotion';
 import { Timer } from '../../components/Timer';
+import { Hazard } from '../../components/Hazard';
 import { Collectible } from '../../components/Collectible';
 import { RespawnPoint } from '../../components/RespawnPoint';
 import { Goal } from '../../components/Goal';
@@ -545,7 +546,11 @@ export function drawMinimap(vw: number, vh: number): void {
     ctx.fillRect(X(r.x), Y(r.top), Math.max(1.5, r.w * k), Math.max(1, r.h * k));
   }
   ctx.fillStyle = 'rgba(255,138,222,.9)';
-  for (const s of currentMap.spikes) ctx.fillRect(X(s.x + 0.5) - 1, Y(5) - 1, 2, 2);
+  for (const e of world.query(Position, Collider, Hazard)) {
+    if (world.has(e, Timer)) continue; // 激光由下方绘制
+    const pos = world.get<Position>(e, Position);
+    ctx.fillRect(X(pos.x + 0.5) - 1, Y(5) - 1, 2, 2);
+  }
   for (const e of world.query(Position, Collider, Timer)) {
     const pos = world.get<Position>(e, Position);
     const col = world.get<Collider>(e, Collider);

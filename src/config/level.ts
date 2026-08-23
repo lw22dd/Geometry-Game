@@ -9,6 +9,7 @@ import { createCheckpoint } from '../Prefabs/Entities/checkpoint';
 import { createNova } from '../Prefabs/Entities/nova';
 import { createMovingPlatform } from '../Prefabs/Entities/movingPlatform';
 import { createLaser } from '../Prefabs/Entities/laser';
+import { createSpike } from '../Prefabs/Entities/spike';
 import { initPlayerEntity } from '../Prefabs/Entities/playerEntity';
 
 const R = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h, top: y + h });
@@ -134,4 +135,8 @@ export function initECSFromLevel(): void {
     createCheckpoint(x, y);
   }
   createNova(s.nova.x, s.nova.y);
+  // 尖刺（静态几何 → ECS 实体）
+  for (const sp of currentMap.spikes) {
+    createSpike(sp.x, sp.y);
+  }
 }

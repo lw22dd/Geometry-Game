@@ -7,7 +7,7 @@ import type { FrameSignals, PlayerAnimState, PlayerState } from '../../../types'
 export type AnimState = PlayerAnimState;
 
 /** FSM 每帧的输入上下文 */
-export interface AnimTransitionContext {
+interface AnimTransitionContext {
   player: PlayerState;
   /** 当前状态持续时长（秒） */
   stateTime: number;
@@ -25,7 +25,7 @@ export interface AnimTransitionContext {
   signals?: FrameSignals;
 }
 
-export interface AnimTransition {
+interface AnimTransition {
   to: AnimState;
   when: (ctx: AnimTransitionContext) => boolean;
 }

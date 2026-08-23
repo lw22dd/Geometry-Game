@@ -10,7 +10,7 @@ import { currentMap, PHYS } from '../../config';
 import { gs, getMode, setMode } from './state';
 import { P, stepPlayer, stepPlayerGeneric, respawn } from '../player';
 import { stepParticles } from '../particles';
-import { updateMotion, updateLaserTimer } from '../level';
+import { updateMotion, updateLaserTimer, updateCollisionSystem } from '../level';
 import {
   drawParallax, drawGrid, drawBorder, drawDecos, drawSolids, drawMovers,
   drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawNOVA,
@@ -31,7 +31,7 @@ import type { FrameSignals, InputKeys, NetPlayerState, NetOrbState, RemotePlayer
 import { world } from '../../core/ecs';
 import { Position } from '../../components/Position';
 import { Collectible } from '../../components/Collectible';
-import { updateCollectSystem, updateRespawnPointSystem, updateGoalSystem } from '../interactions';
+import { initCollisionHooks, updateCollectSystem, updateRespawnPointSystem } from '../interactions';
 
 /* ==================== 网络状态序号 ==================== */
 let _netSeq = 0;
@@ -56,7 +56,7 @@ let acc = 0;
 const FDT = 1 / 120;
 
 /** 逐帧步进（固定时间步长 1/120s） */
-export function step(dt: number): void {
+function step(dt: number): void {
   // 1. 时间
   gs.time += dt;
 
@@ -98,9 +98,11 @@ export function step(dt: number): void {
     net.sendInput(inputKeys);
     const signals: FrameSignals = {};
     stepPlayerGeneric(P, inputKeys, dt, true, signals);
+    updateCollisionSystem(signals as Record<string, boolean>);
     stepPlayerAnimation(P, dt, signals);
   } else {
     // ── 单机/房主模式：正常物理 ──
+    // stepPlayer 内部已调用 stepPlayerGeneric + updateCollisionSystem + stepPlayerAnimation
     stepPlayer(dt);
   }
 
@@ -135,7 +137,8 @@ function stepRemoteClients(dt: number): void {
     }
     const input = getClientInput(id);
     const signals: FrameSignals = {};
-    stepPlayerGeneric(rp, input, dt, false, signals);
+    // checkHazards=true：远程玩家无 ECS 实体，危险物检测行内处理
+    stepPlayerGeneric(rp, input, dt, false, signals, true);
 
     // 远程玩家收集光球检测（共享光球，任何人收集即计数）
     if (updateCollectSystem(rp.x, rp.y)) signals.collected = true;
@@ -192,7 +195,7 @@ function collectOrbStates(): NetOrbState[] {
 }
 
 /** 提取本地按键为输入快照 */
-export function getLocalInputKeys(): InputKeys {
+function getLocalInputKeys(): InputKeys {
   return {
     left: keys.ArrowLeft || keys.KeyA,
     right: keys.ArrowRight || keys.KeyD,
@@ -337,7 +340,7 @@ function applyOrbStates(orbs: NetOrbState[]): void {
 /* ==================== 渲染 ==================== */
 
 /** 逐帧渲染 */
-export function render(dt: number): void {
+function render(dt: number): void {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
   // 1. 同步 UI 场景（menu/pause/lobby 由 UIManager 统一管理）
@@ -449,7 +452,7 @@ function drawRemotePlayer(rp: RemotePlayer, dt: number): void {
 
 /* ==================== 帧回调 ==================== */
 
-export function frame(nowMs: number): void {
+function frame(nowMs: number): void {
   requestAnimationFrame(frame);
   tickFPS(nowMs);
   let dt = (nowMs - last) / 1000;
@@ -466,6 +469,8 @@ export function frame(nowMs: number): void {
 /** 启动主循环 */
 export function startLoop(): void {
   wireNetEvents();
+  // 注册碰撞事件处理器（幂等）
+  initCollisionHooks();
   requestAnimationFrame(frame);
 }
 

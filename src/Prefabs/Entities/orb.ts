@@ -1,6 +1,6 @@
 /**
  * 光球预制体工厂 —— 创建 ECS 实体。
- * 组装 Position + Collider(trigger) + Collectible + Renderable。
+ * 组装 Position + Collider(触发) + Collectible + Renderable。
  */
 import { world } from '../../core/ecs';
 import type { EntityId } from '../../core/ecs/Entity';
@@ -12,7 +12,7 @@ import { Renderable } from '../../components/Renderable';
 export function createOrb(x: number, y: number, phase: number): EntityId {
   const e = world.createEntity();
   world.add(e, Position, { x, y });
-  world.add(e, Collider, { w: 2.6, h: 2.6, trigger: true });
+  world.add(e, Collider, { w: 2.6, h: 2.6, solid: false });
   world.add(e, Collectible, { collected: false });
   world.add(e, Renderable, {
     radius: 0.4,

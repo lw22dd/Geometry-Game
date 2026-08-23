@@ -4,7 +4,7 @@
  */
 import type { NetRole, RemotePlayerInfo } from '../types';
 
-export interface RoomState {
+interface RoomState {
   /** 角色：standalone 单机 / host 房主 / client 客机 */
   role: NetRole;
   /** 本机玩家 ID（服务器分配） */

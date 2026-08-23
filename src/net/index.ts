@@ -11,10 +11,10 @@ import type {
   InputKeys, NetOrbState, NetPlayerState, RemotePlayerInfo,
 } from '../types';
 
-export type SessionState = 'idle' | 'connecting' | 'ready' | 'closed';
+type SessionState = 'idle' | 'connecting' | 'ready' | 'closed';
 
 /** session 状态机 */
-export const session = {
+const session = {
   state: 'idle' as SessionState,
 
   connect(): void {
@@ -32,7 +32,7 @@ export const session = {
 
 /* ==================== 网络事件类型 ==================== */
 
-export interface NetEvents {
+interface NetEvents {
   /** 连接成功，收到 room_info */
   connected: (role: 'host' | 'client', playerId: number, players: RemotePlayerInfo[]) => void;
   /** 新玩家加入 */
@@ -60,7 +60,7 @@ function emit<K extends keyof NetEvents>(event: K, ...payload: Parameters<NetEve
 }
 
 /** 网络客户端（WebSocket 实现） */
-export class NetClient {
+class NetClient {
   private ws: WebSocket | null = null;
   /** 主机地址（IP 或 localhost） */
   host = '';

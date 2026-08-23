@@ -431,7 +431,7 @@ const ITEMS_PER_PAGE = 6;
 const COLS = 3;
 const ROWS = 2;
 
-export interface GalleryActions {
+interface GalleryActions {
   onBack: () => void;
 }
 

@@ -6,11 +6,12 @@
 import { world } from '../../core/ecs';
 import { Position } from '../../components/Position';
 import { Velocity } from '../../components/Velocity';
+import { Collider } from '../../components/Collider';
 import { PlayerTag } from '../../components/PlayerTag';
 import { P } from '../../systems/player';
 
 /** 玩家实体 ID（全局唯一） */
-export const playerEntity: number = world.createEntity();
+const playerEntity: number = world.createEntity();
 
 /** 注册玩家实体（幂等：重复调用不会重复创建） */
 export function initPlayerEntity(): void {
@@ -20,4 +21,11 @@ export function initPlayerEntity(): void {
   // P 对象本身作为组件数据 —— 物理系统继续直接读写 P
   world.add(playerEntity, Position, P);
   world.add(playerEntity, Velocity, P);
+  // 玩家碰撞箱 0.84×0.84（half=0.42 → 2*0.42），solid=false（触发区）
+  world.add(playerEntity, Collider, { w: 0.84, h: 0.84, solid: false });
+}
+
+/** 获取玩家实体 ID */
+export function getPlayerEntity(): number {
+  return playerEntity;
 }

@@ -5,7 +5,7 @@
  */
 import type { GameState } from '../../types';
 
-export type PhysicsKey = 'tuned' | 'classic';
+type PhysicsKey = 'tuned' | 'classic';
 
 /** 可变的游戏全局状态 */
 export const gs: GameState = {

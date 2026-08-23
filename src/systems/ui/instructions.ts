@@ -76,7 +76,7 @@ const ROWS: [string, string][] = [
   ['ENTER', '开始游戏'],
 ];
 
-export interface InstructionsActions {
+interface InstructionsActions {
   onBack: () => void;
 }
 

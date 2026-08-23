@@ -13,7 +13,7 @@ import type { UIScene } from '../../core/uiComponent';
 let _pauseT = 0;
 let _pauseLast = 0;
 
-export interface PauseActions {
+interface PauseActions {
   onResume: () => void;
   onCreateRoom: () => void;
   onJoinRoom: () => void;

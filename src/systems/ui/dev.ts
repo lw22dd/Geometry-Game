@@ -11,7 +11,7 @@ import { rr } from '../../core/math';
 
 /* ==================== 状态 ==================== */
 
-export const dev = {
+const dev = {
   showGrid: false,
   showDebug: false,
 };
@@ -32,7 +32,7 @@ export function tickFPS(nowMs: number): void {
 }
 
 /** 当前 FPS（平滑值） */
-export function getFPS(): number {
+function getFPS(): number {
   return _fps;
 }
 
@@ -186,7 +186,7 @@ export function drawDebugHUD(): void {
 
 /* ==================== 开发者设置场景 ==================== */
 
-export interface DevActions {
+interface DevActions {
   onBack: () => void;
 }
 

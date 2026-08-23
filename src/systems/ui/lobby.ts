@@ -9,7 +9,7 @@ import { net } from '../../net';
 import { Button, TextInput, UI_SCENE } from '../../core/uiComponent';
 import type { UIScene } from '../../core/uiComponent';
 
-export type LobbyMode = 'none' | 'create' | 'join';
+type LobbyMode = 'none' | 'create' | 'join';
 
 /** 当前大厅状态（mode 由外部 controlling 显示/隐藏） */
 export const lobby = {
@@ -25,7 +25,7 @@ let _lobbyLast = 0;
 const _ease = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
 const DEFAULT_NAME = '玩家' + Math.floor(Math.random() * 900 + 100);
 
-export interface LobbyActions {
+interface LobbyActions {
   /** 连接成功后进入游戏（房主/客机都调用） */
   onEnterGame: () => void;
   /** 返回暂停（关闭大厅） */
@@ -210,29 +210,19 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
 /* ==================== 大厅状态控制 ==================== */
 
 /** 打开创建房间界面 */
-export function openCreateLobby(): void {
+function openCreateLobby(): void {
   lobby.mode = 'create';
 }
 
 /** 打开加入房间界面 */
-export function openJoinLobby(): void {
+function openJoinLobby(): void {
   lobby.mode = 'join';
-}
-
-/** 关闭大厅 */
-export function closeLobby(): void {
-  lobby.mode = 'none';
-}
-
-/** 大厅是否打开 */
-export function lobbyOpen(): boolean {
-  return lobby.mode !== 'none';
 }
 
 /* ==================== 连接逻辑 ==================== */
 
 /** 执行创建/加入（由 buildLobbyScene 内部闭包调用，直接读组件值） */
-export async function connectLobby(
+async function connectLobby(
   getValues: () => { name: string; ip: string; port: string },
   onEnterGame?: () => void,
 ): Promise<void> {

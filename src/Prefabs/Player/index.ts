@@ -2,7 +2,7 @@
  * 玩家预制体 —— 统一出口：步进动画、绘制本地/远程玩家、角色样式注册。
  * system 只通过本模块的 API 与预制体体系交互。
  */
-import type { AnimOutput, FrameSignals, PlayerState } from '../../types';
+import type { FrameSignals, PlayerState } from '../../types';
 import { getPrefab } from './registry';
 import type { PlayerPrefab } from './types';
 import { DEFAULT_CHARACTER, type CharacterStyle } from './characters';
@@ -32,16 +32,6 @@ export function stepPlayerAnimation(
   const prefab = getPrefab(prefabId);
   const state = getAnimState(player, prefab);
   prefab.step(state, player, dt, signals);
-}
-
-/** 获取一个玩家的动画输出参数 */
-export function getPlayerAnimOutput(
-  player: PlayerState,
-  prefabId?: string,
-): AnimOutput {
-  const prefab = getPrefab(prefabId);
-  const state = getAnimState(player, prefab);
-  return prefab.getOutput(state, player);
 }
 
 /** 绘制本地玩家 */

@@ -4,4 +4,5 @@
  */
 export { updateMotion } from './MotionSystem';
 export { updateLaserTimer } from './LaserTimerSystem';
-export { colliderWorldRect, pointInCollider } from './OverlapUtils';
+export { updateCollisionSystem } from './CollisionSystem';
+export { colliderWorldRect, pointInCollider, aabbOverlap, rectFromEntity } from './OverlapUtils';

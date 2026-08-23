@@ -16,7 +16,7 @@ export interface Rect {
 }
 
 /** 平台携带引用 —— 只需每帧位移增量 dx */
-export interface PlatRef {
+interface PlatRef {
   dx: number;
 }
 
@@ -51,10 +51,10 @@ export interface LaserSpawnData {
 }
 
 /** HUD 提示（x, y, 文案） */
-export type Hint = [number, number, string];
+type Hint = [number, number, string];
 
 /** 装饰方块（x, y, 尺寸, 旋转速度） */
-export type Deco = [number, number, number, number];
+type Deco = [number, number, number, number];
 
 /** 视差背景远层圆（mulberry 生成） */
 export interface FarShape {
@@ -103,12 +103,6 @@ export interface PlayerState {
   sprint: boolean;
   wasSpr: boolean;
   inv: number;
-}
-
-/** 相机状态 */
-export interface CameraState {
-  x: number;
-  y: number;
 }
 
 /** 曳光轨迹点 */
@@ -263,17 +257,6 @@ export interface NetPlayerState {
 export interface NetOrbState {
   entityId: number;
   collected: boolean;
-}
-
-/** 房主权威状态消息 */
-export interface NetHostState {
-  seq: number;
-  players: NetPlayerState[];
-  orbs: NetOrbState[];
-  gt: number;
-  gotN: number;
-  deaths: number;
-  win: boolean;
 }
 
 /** 远程玩家（房主模拟权威状态 + 客机渲染，含 PlayerState 全字段） */

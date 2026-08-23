@@ -2,6 +2,9 @@
  * 玩家系统 —— 物理 / 碰撞 / 生死。
  * 注册表 export：P, die, respawn, stepPlayer, stepRemotePlayer, buildSolids, boxHit。
  *
+ * 物理分辨率（平台推挤）保留在此，触发事件（致死/收集/检查点/终点）
+ * 已迁至 systems/level/CollisionSystem + systems/interactions/CollisionHooks。
+ *
  * 联机模式下：
  *   房主：stepPlayer() 为本地玩家，stepRemotePlayer() 为每个客机
  *   客机：stepPlayer() 为本地预测 + 后续被权威状态矫正
@@ -11,7 +14,6 @@ import { keys } from '../../core/input';
 import { clamp } from '../../core/math';
 import { sfx } from '../../core/audio';
 import { netBus } from '../../core/netBus';
-import { room } from '../../net/room';
 import {
   PHYS, RUN, SPRINT, currentMap, cpPoint,
   type PhysicsKey,
@@ -25,10 +27,7 @@ import { Collider } from '../../components/Collider';
 import { PathMotion } from '../../components/PathMotion';
 import { Timer } from '../../components/Timer';
 import { Hazard } from '../../components/Hazard';
-import { colliderWorldRect } from '../level';
-import { updateCollectSystem } from '../interactions';
-import { updateRespawnPointSystem } from '../interactions';
-import { updateGoalSystem } from '../interactions';
+import { colliderWorldRect, aabbOverlap, updateCollisionSystem } from '../level';
 import { stepPlayerAnimation } from '../../Prefabs/Player';
 
 /** 本地玩家状态 */
@@ -42,7 +41,7 @@ export const P: PlayerState = {
 const solidsNow: Rect[] = [];
 
 /** 构建本帧碰撞体（静态平台 + ECS 移动平台当前位置） */
-export function buildSolids(): void {
+function buildSolids(): void {
   solidsNow.length = 0;
   for (const s of currentMap.solids) solidsNow.push(s);
   for (const e of world.query(Position, Collider, PathMotion)) {
@@ -56,7 +55,7 @@ export function buildSolids(): void {
 }
 
 /** AABB 碰撞检测（对 P 使用） */
-export function boxHit(s: Rect): boolean {
+function boxHit(s: Rect): boolean {
   return (
     P.x - P.half < s.x + s.w &&
     P.x + P.half > s.x &&
@@ -66,7 +65,7 @@ export function boxHit(s: Rect): boolean {
 }
 
 /** AABB 碰撞检测（通用版，对任意玩家状态） */
-export function boxHitFor(p: PlayerState, s: Rect): boolean {
+function boxHitFor(p: PlayerState, s: Rect): boolean {
   return (
     p.x - p.half < s.x + s.w &&
     p.x + p.half > s.x &&
@@ -107,6 +106,8 @@ export function respawn(): void {
 export function stepPlayer(dt: number): void {
   const signals: FrameSignals = {};
   stepPlayerGeneric(P, null, dt, true, signals);
+  // 触发事件检测（碰撞事件 → CollisionHooks 处理）
+  updateCollisionSystem(signals as Record<string, boolean>);
   stepPlayerAnimation(P, dt, signals);
 }
 
@@ -114,11 +115,16 @@ export function stepPlayer(dt: number): void {
 
 /**
  * 通用玩家物理步。
+ * 只处理物理分辨率（加速度/跳跃/重力/平台推挤）。
+ * 触发事件（致死/收集/检查点/终点）：
+ *   - 本地玩家由 CollisionSystem + CollisionHooks 处理
+ *   - 远程玩家（host 模拟）通过 checkHazards 参数启用行内检测
  * @param p      玩家状态（读写）
  * @param input  外部输入（null 则从本地 keys 表读取）
  * @param dt     帧时间
- * @param isLocal 是否为本地玩家（控制音效/粒子/收集系统触发）
- * @param outSignals 可选输出参数，物理步内按碰撞/交互结果写入信号
+ * @param isLocal 是否为本地玩家（控制音效/粒子触发）
+ * @param outSignals 可选输出参数，物理步内写入 wallBump 信号
+ * @param checkHazards 是否行内检测危险物（host 模拟远程玩家时使用）
  */
 export function stepPlayerGeneric(
   p: PlayerState,
@@ -126,6 +132,7 @@ export function stepPlayerGeneric(
   dt: number,
   isLocal: boolean,
   outSignals?: FrameSignals,
+  checkHazards?: boolean,
 ): void {
   buildSolids();
 
@@ -160,10 +167,7 @@ export function stepPlayerGeneric(
   p.vx += Math.abs(dv) <= st ? dv : Math.sign(dv) * st;
 
   // 跳跃缓冲 & 土狼时间
-  // 注意：客机输入不含 jbuf，由 jumpPressed 的上升沿处理
-  // 如果 input 驱动，则 jumpPressed 持续 true 即为按住
   if (input !== null) {
-    // 外部输入模式：jumpPressed 即按住跳跃
     p.jbuf = jumpPressed ? ph.jb : 0;
     p.coyote -= dt;
   } else {
@@ -238,16 +242,30 @@ export function stepPlayerGeneric(
     trail.push({ x: p.x - p.face * 0.12, y: p.y, age: 0 });
   }
 
-  // 尖刺 / 激光 / 坠落
-  if (p.inv <= 0 && !p.dead) {
-    for (const s of currentMap.spikes) {
-      if (p.x + p.half > s.x + 0.3 && p.x - p.half < s.x + 0.7 &&
-          p.y - p.half < s.y + 0.55 && p.y + p.half > s.y) {
-        if (isLocal) die();
-        else p.dead = true;
+  // 坠落死亡
+  if (!p.dead && p.y < -8) {
+    if (isLocal) die();
+    else p.dead = true;
+  }
+
+  // ── 远程玩家行内危险物检测（host 模拟远程玩家时启用）──
+  // 本地玩家的危险物检测由 CollisionSystem + CollisionHooks 处理
+  if (checkHazards && !p.dead && p.inv <= 0) {
+    // 尖刺（ECS 实体：Position + Collider + Hazard，无 Timer）
+    for (const e of world.query(Position, Collider, Hazard)) {
+      if (world.has(e, Timer)) continue; // 激光带 Timer，下方处理
+      const pos = world.get<Position>(e, Position);
+      const col = world.get<Collider>(e, Collider);
+      const r = colliderWorldRect(pos, col);
+      if (aabbOverlap(
+        { x: p.x - p.half, y: p.y - p.half, w: p.half * 2, h: p.half * 2, top: p.y + p.half },
+        r,
+      )) {
+        p.dead = true;
         break;
       }
     }
+    // 激光（ECS 实体：Position + Collider + Timer + Hazard）
     if (!p.dead) {
       for (const e of world.query(Position, Collider, Timer, Hazard)) {
         const t = world.get<Timer>(e, Timer);
@@ -255,39 +273,25 @@ export function stepPlayerGeneric(
         const pos = world.get<Position>(e, Position);
         const col = world.get<Collider>(e, Collider);
         const r = colliderWorldRect(pos, col);
-        if (Math.abs(p.x - pos.x) < 0.56 &&
-            p.y + p.half > r.y + 0.1 && p.y - p.half < r.top) {
-          if (isLocal) die();
-          else p.dead = true;
+        if (aabbOverlap(
+          { x: p.x - p.half, y: p.y - p.half, w: p.half * 2, h: p.half * 2, top: p.y + p.half },
+          r,
+        )) {
+          p.dead = true;
           break;
         }
       }
     }
   }
-  if (!p.dead && p.y < -8) {
-    if (isLocal) die();
-    else p.dead = true;
-  }
 
-  // 收集品 / 检查点 / 终点（仅本地玩家；客机模式下权威逻辑在房主端，本地不执行）
-  if (!p.dead && isLocal && room.role !== 'client') {
-    if (updateCollectSystem()) {
-      if (outSignals) outSignals.collected = true;
-    }
-    if (updateRespawnPointSystem()) {
-      if (outSignals) outSignals.checkpointHit = true;
-    }
-    if (updateGoalSystem()) {
-      if (outSignals) outSignals.goalReached = true;
-    }
-  }
+  // 触发事件（收集/检查点/终点）已由 CollisionSystem + CollisionHooks 处理
 }
 
 /**
  * 步进远程玩家（房主用：为每个客机模拟物理）。
  * 简化版：不触发音效/粒子/收集系统，仅物理同步。
  */
-export function stepRemotePlayer(p: PlayerState, input: InputKeys | null, dt: number): void {
+function stepRemotePlayer(p: PlayerState, input: InputKeys | null, dt: number): void {
   // 用临时 PlayerState 执行物理
   const tmp: PlayerState = {
     x: p.x, y: p.y, vx: p.vx, vy: p.vy, half: 0.42,
@@ -297,7 +301,7 @@ export function stepRemotePlayer(p: PlayerState, input: InputKeys | null, dt: nu
   };
 
   const signals: FrameSignals = {};
-  stepPlayerGeneric(tmp, input, dt, false, signals);
+  stepPlayerGeneric(tmp, input, dt, false, signals, true);
 
   // 写回
   p.x = tmp.x; p.y = tmp.y;

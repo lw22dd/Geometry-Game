@@ -4,23 +4,26 @@
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
-import { currentMap } from '../../config';
 import { gs } from '../../systems/game/state';
 import { world } from '../../core/ecs';
 import { Position } from '../../components/Position';
 import { Collider } from '../../components/Collider';
 import { Timer } from '../../components/Timer';
+import { Hazard } from '../../components/Hazard';
 import { colliderWorldRect } from '../../systems/level';
 
-/** 尖刺（三角形，合并路径一次描边发光） */
+/** 尖刺（三角形，合并路径一次描边发光；ECS 实体：Position + Collider + Hazard） */
 export function drawSpikes(): void {
   ctx.beginPath();
-  for (const s of currentMap.spikes) {
-    const px = sx(s.x);
+  for (const e of world.query(Position, Collider, Hazard)) {
+    const pos = world.get<Position>(e, Position);
+    // 激光也带 Hazard，按是否有 Timer 区分（激光用 drawLasers 绘制）
+    if (world.has(e, Timer)) continue;
+    const px = sx(pos.x);
     if (px < -40 || px > VW + 40) continue;
-    ctx.moveTo(px, sy(s.y));
-    ctx.lineTo(px + view.SZ, sy(s.y));
-    ctx.lineTo(px + view.SZ * 0.5, sy(s.y + 1));
+    ctx.moveTo(px, sy(pos.y));
+    ctx.lineTo(px + view.SZ, sy(pos.y));
+    ctx.lineTo(px + view.SZ * 0.5, sy(pos.y + 1));
     ctx.closePath();
   }
   ctx.fillStyle = 'rgba(30,12,50,.95)';
