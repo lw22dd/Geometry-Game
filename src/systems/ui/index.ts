@@ -682,15 +682,15 @@ export function drawMinimap(vw: number, vh: number): void {
     ctx.fillRect(X(l.x) - 0.5, Y(l.y0 + l.len), 1, l.len * k);
   }
   for (const e of world.query(Position, Collectible)) {
-    const pos = world.get<Position>(e);
-    const col = world.get<Collectible>(e);
+    const pos = world.get<Position>(e, Position);
+    const col = world.get<Collectible>(e, Collectible);
     if (col.collected) continue;
     ctx.fillStyle = '#8ff6ff';
     ctx.beginPath(); ctx.arc(X(pos.x), Y(pos.y), 1.8, 0, 6.283); ctx.fill();
   }
   for (const e of world.query(Position, Checkpoint)) {
-    const pos = world.get<Position>(e);
-    const cp = world.get<Checkpoint>(e);
+    const pos = world.get<Position>(e, Position);
+    const cp = world.get<Checkpoint>(e, Checkpoint);
     ctx.fillStyle = cp.active ? '#7df9ff' : 'rgba(150,150,255,.7)';
     ctx.fillRect(X(pos.x) - 1.5, Y(4) - 3, 3, 3);
   }
@@ -698,7 +698,7 @@ export function drawMinimap(vw: number, vh: number): void {
   ctx.save();
   const nova = world.queryOne(Position, WinTrigger);
   if (nova) {
-    const npos = world.get<Position>(nova);
+    const npos = world.get<Position>(nova, Position);
     ctx.translate(X(npos.x), Y(npos.y));
   }
   ctx.rotate(0.785);

@@ -13,11 +13,11 @@ import { sfx } from '../core/audio';
 export function updateNovaSystem(): void {
   const player = world.queryOne(PlayerTag, Position);
   if (!player) return;
-  const pp = world.get<Position>(player);
+  const pp = world.get<Position>(player, Position);
 
   for (const e of world.query(Position, WinTrigger)) {
-    const pos = world.get<Position>(e);
-    const wt = world.get<WinTrigger>(e);
+    const pos = world.get<Position>(e, Position);
+    const wt = world.get<WinTrigger>(e, WinTrigger);
     if (wt.triggered) continue;
 
     const nx = pp.x - pos.x, ny = pp.y - pos.y;

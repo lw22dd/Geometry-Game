@@ -13,11 +13,11 @@ import { sfx } from '../core/audio';
 export function updateCheckpointSystem(): void {
   const player = world.queryOne(PlayerTag, Position);
   if (!player) return;
-  const pp = world.get<Position>(player);
+  const pp = world.get<Position>(player, Position);
 
   for (const e of world.query(Position, Checkpoint)) {
-    const pos = world.get<Position>(e);
-    const cp = world.get<Checkpoint>(e);
+    const pos = world.get<Position>(e, Position);
+    const cp = world.get<Checkpoint>(e, Checkpoint);
     if (cp.active) continue;
 
     if (Math.abs(pp.x - pos.x) < 1.1 && pp.y < pos.y + 2.4 && pp.y > pos.y - 1) {

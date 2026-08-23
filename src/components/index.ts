@@ -1,12 +1,11 @@
 /**
  * 组件 barrel 导出。
+ * 每个组件模块同时导出 interface（类型）和 const（运行时 key）。
  */
-export type { Position } from './Position';
-export type { Velocity } from './Velocity';
-export type { Collectible } from './Collectible';
-export type { Checkpoint } from './Checkpoint';
-export type { WinTrigger } from './WinTrigger';
-export type { Renderable } from './Renderable';
-export type { PlayerTag } from './PlayerTag';
-export type { Invincible } from './Invincible';
-export type { Squash } from './Squash';
+export { Position } from './Position';
+export { Velocity } from './Velocity';
+export { Collectible } from './Collectible';
+export { Checkpoint } from './Checkpoint';
+export { WinTrigger } from './WinTrigger';
+export { Renderable } from './Renderable';
+export { PlayerTag } from './PlayerTag';

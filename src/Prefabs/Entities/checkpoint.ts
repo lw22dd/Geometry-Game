@@ -1,11 +1,11 @@
 /**
  * 检查点预制体工厂 —— 创建 ECS 实体，组装 Position + Checkpoint + Renderable。
  */
-import { world } from '../core/ecs';
-import type { EntityId } from '../core/ecs/Entity';
-import { Position } from '../components/Position';
-import { Checkpoint } from '../components/Checkpoint';
-import { Renderable } from '../components/Renderable';
+import { world } from '../../core/ecs';
+import type { EntityId } from '../../core/ecs/Entity';
+import { Position } from '../../components/Position';
+import { Checkpoint } from '../../components/Checkpoint';
+import { Renderable } from '../../components/Renderable';
 
 export function createCheckpoint(x: number, y: number): EntityId {
   const e = world.createEntity();

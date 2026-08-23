@@ -1,11 +1,11 @@
 /**
  * 光球预制体工厂 —— 创建 ECS 实体，组装 Position + Collectible + Renderable。
  */
-import { world } from '../core/ecs';
-import type { EntityId } from '../core/ecs/Entity';
-import { Position } from '../components/Position';
-import { Collectible } from '../components/Collectible';
-import { Renderable } from '../components/Renderable';
+import { world } from '../../core/ecs';
+import type { EntityId } from '../../core/ecs/Entity';
+import { Position } from '../../components/Position';
+import { Collectible } from '../../components/Collectible';
+import { Renderable } from '../../components/Renderable';
 
 export function createOrb(x: number, y: number, phase: number): EntityId {
   const e = world.createEntity();

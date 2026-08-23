@@ -3,10 +3,10 @@
  * 只依赖 types（及 physics 的 MAP 常量）。
  */
 import type { Rect, Mover, Spike, Laser, Hint, Deco } from '../types';
-import { createOrb } from '../prefabs/orb';
-import { createCheckpoint } from '../prefabs/checkpoint';
-import { createNova } from '../prefabs/nova';
-import { initPlayerEntity } from '../prefabs/player';
+import { createOrb } from '../Prefabs/Entities/orb';
+import { createCheckpoint } from '../Prefabs/Entities/checkpoint';
+import { createNova } from '../Prefabs/Entities/nova';
+import { initPlayerEntity } from '../Prefabs/Entities/playerEntity';
 
 const R = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h, top: y + h });
 

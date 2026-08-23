@@ -1,11 +1,28 @@
-# AGENT.md — NPC
+# NPC 文件夹 — NPC 预制体
 
-本目录是 Neon Ascent（霓虹攀升）项目的组成部分，位于 `src/Prefabs/NPC/`。
+<details>
+<summary>Prefabs/NPC — NPC 绘制建模（预留，未实现）</summary>
 
-## 职责
+本目录预留用于存放 NPC（非玩家角色）的绘制实现。当前游戏为纯平台跑酷，尚未实现 NPC。
+</details>
 
-（请在此处描述本目录的职责与包含的模块。）
+```
+Prefabs/NPC/
+（空目录，预留）
+```
 
-## 依赖方向
+# 数据流
 
-（请在此处说明本目录允许或不依赖哪些其他模块。）
+1. 依赖：流入的方向和原因
+
+
+（预留）将依赖 `core/canvas`（ctx）、`core/camera`（sx/sy/view）、`config`（NPC 数据）、`systems/game/state`（gs.time）、`systems/game/npcs`（NPC 行为状态）等。
+
+2. 本模块：经过 Prefabs/NPC 做了什么
+
+
+（预留）NPC 预制体工厂——定义每种 NPC 的几何体/颜色/对话气泡/动画。
+
+3. 输出：流出的方向和目的
+
+（预留）drawXxx() 绘制函数 → `systems/game/npcs/defs.ts`（薄委托）→ `systems/game` render() 调用。

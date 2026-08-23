@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "NEON ASCENT 客户端架构",
+    "output": "dash-architecture.html",
+    "quality_profile": "showcase",
+    "viewBox": [1580, 820],
+    "views": [
+      {
+        "id": "boot",
+        "label": "启动与主循环",
+        "focus": ["browser", "entry", "core", "game", "player", "world", "ui"],
+        "note": "入口 → 底座初始化 → 主循环 → 渲染管线"
+      },
+      {
+        "id": "interaction",
+        "label": "玩法与数据",
+        "focus": ["player", "pickups", "config", "prefabs", "core", "ui"],
+        "note": "玩家物理 → 交互系统 → 配置注册表 → 预制体工厂"
+      },
+      {
+        "id": "net-reserved",
+        "label": "网络预留",
+        "focus": ["entry", "netbus", "netstack"],
+        "note": "组合根装配 netBus → NetClient，事件通路预留"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "browser",
+      "type": "external",
+      "label": "浏览器",
+      "sublabel": "index.html · Canvas 2D",
+      "pos": [840, 660],
+      "size": [150, 60]
+    },
+    {
+      "id": "entry",
+      "type": "frontend",
+      "label": "入口组合根",
+      "sublabel": "src/main.ts",
+      "pos": [560, 470],
+      "size": [150, 66]
+    },
+    {
+      "id": "core",
+      "type": "frontend",
+      "label": "核心底座",
+      "sublabel": "core/ · canvas·input·audio·camera·math·ECS",
+      "pos": [560, 660],
+      "size": [170, 66]
+    },
+    {
+      "id": "config",
+      "type": "frontend",
+      "label": "配置注册表",
+      "sublabel": "config/ · 物理·关卡·背景",
+      "pos": [840, 470],
+      "size": [150, 66]
+    },
+    {
+      "id": "game",
+      "type": "frontend",
+      "label": "调度中枢",
+      "sublabel": "systems/game · 主循环·状态",
+      "pos": [560, 80],
+      "size": [150, 66]
+    },
+    {
+      "id": "player",
+      "type": "frontend",
+      "label": "玩家系统",
+      "sublabel": "systems/player · 物理·碰撞·生死",
+      "pos": [840, 80],
+      "size": [150, 66]
+    },
+    {
+      "id": "world",
+      "type": "frontend",
+      "label": "世界系统",
+      "sublabel": "systems/world · 粒子·绘制委托",
+      "pos": [1120, 80],
+      "size": [150, 66]
+    },
+    {
+      "id": "pickups",
+      "type": "frontend",
+      "label": "交互系统",
+      "sublabel": "systems · 收集·检查点·NOVA",
+      "pos": [1120, 270],
+      "size": [150, 66]
+    },
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "界面系统",
+      "sublabel": "systems/ui · HUD·菜单·小地图",
+      "pos": [840, 270],
+      "size": [150, 66]
+    },
+    {
+      "id": "netbus",
+      "type": "messagebus",
+      "label": "事件总线",
+      "sublabel": "core/netBus · 桩",
+      "pos": [560, 270],
+      "size": [150, 66]
+    },
+    {
+      "id": "prefabs",
+      "type": "frontend",
+      "label": "预制体",
+      "sublabel": "Prefabs/ · 实体工厂·绘制",
+      "pos": [1120, 660],
+      "size": [150, 66]
+    },
+    {
+      "id": "netstack",
+      "type": "backend",
+      "label": "网络层",
+      "sublabel": "netBridge + net/ · NetClient·session",
+      "pos": [1360, 470],
+      "size": [150, 66]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "src/ · 客户端单一进程（Vite + TS Bundle）",
+      "wraps": ["entry", "core", "config", "game", "player", "world", "pickups", "ui", "netbus", "prefabs", "netstack"]
+    }
+  ],
+  "connections": [
+    { "from": "browser", "to": "entry", "label": "Vite 构建加载", "variant": "emphasis" },
+    { "from": "entry", "to": "core", "label": "初始化 底座" },
+    { "from": "entry", "to": "config", "label": "initECSFromLevel()" },
+    { "from": "entry", "to": "game", "label": "startLoop()" },
+    { "from": "entry", "to": "netstack", "label": "装配组合根" },
+    { "from": "game", "to": "player", "label": "stepPlayer(dt)" },
+    { "from": "game", "to": "world", "label": "粒子步进 · 渲染" },
+    { "from": "game", "to": "ui", "label": "drawHUD · drawMenu" },
+    { "from": "game", "to": "netbus", "label": "预留事件", "variant": "dashed" },
+    { "from": "player", "to": "pickups", "label": "update*System" },
+    { "from": "player", "to": "config", "label": "PHYS · 碰撞数据" },
+    { "from": "player", "to": "world", "label": "曳光 · 粒子" },
+    { "from": "world", "to": "prefabs", "label": "绘制委托" },
+    { "from": "config", "to": "prefabs", "label": "实例化实体" },
+    { "from": "prefabs", "to": "core", "label": "World 注册" },
+    { "from": "pickups", "to": "core", "label": "world.query" },
+    { "from": "ui", "to": "core", "label": "world.query" },
+    { "from": "ui", "to": "config", "label": "PHYS · MAP 尺寸" },
+    { "from": "netbus", "to": "netstack", "label": "事件转发" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "启动与主循环",
+      "items": [
+        "main.ts 依次初始化 core → netBridge → ECS，再启动 rAF 主循环",
+        "固定时间步 1/120s：step() 累加、render() 绘制",
+        "gs 全局状态单例（systems/game/state）供各系统共享"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "依赖规则",
+      "items": [
+        "types/ 不依赖任何模块，全项目共享类型定义",
+        "net/ 只经 core/netBus 与 systems 通信，绝不直接 import systems",
+        "netBridge 是 systems ↔ net 唯一合法交界"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "ECS 与预制体",
+      "items": [
+        "core/ecs World 单例：实体/组件注册 + 按组件索引查询",
+        "Prefabs/ 提供实体工厂（orb/checkpoint/nova）与场景绘制委托",
+        "玩家实体把既有 P 对象本身注册为 Position/Velocity 组件数据"
+      ]
+    }
+  ]
+}

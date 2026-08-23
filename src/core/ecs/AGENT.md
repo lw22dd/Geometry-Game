@@ -1,11 +1,31 @@
-# AGENT.md — ecs
+# ECS 文件夹 — 实体池遍历器
 
-本目录是 Neon Ascent（霓虹攀升）项目的组成部分，位于 `src/core/ecs/`。
+<details>
+<summary>core/ecs — 实体池 + 组件式实体遍历（EntityPool）</summary>
 
-## 职责
+本目录存放 ECS 基础底座：泛型实体池容器 EntityPool 与组件定义。当前粒子系统使用 EntityPool 管理粒子池。
+</details>
 
-（请在此处描述本目录的职责与包含的模块。）
+```
+core/ecs/
+├── entityPool.ts   # EntityPool<T> 泛型类：push / updateAll / drawAll / depthList
+├── index.ts        # barrel 导出
+├── Entity.ts       # Entity 定义（组件式实体）
+└── World.ts        # World 定义（实体容器）
+```
 
-## 依赖方向
+# 数据流
 
-（请在此处说明本目录允许或不依赖哪些其他模块。）
+1. 依赖：流入的方向和原因
+
+
+`types`（共享类型）。需要类型参数 T 来构造泛型实体池；Entity/World 组件模式为实体行为组合提供基础。
+
+2. 本模块：经过 core/ecs 做了什么
+
+
+实体池遍历器——管理实体数组的生命周期（增删），提供逐帧更新（updateAll）、批量绘制（drawAll）、深度排序（depthList）。为游戏实体提供统一的容器与遍历协议。
+
+3. 输出：流出的方向和目的
+
+`EntityPool<T>` → `systems/world/particles.ts` 管理粒子池（推入、反向遍历剔除超龄粒子）。Entity/World 供后续 ECS 化重构使用。

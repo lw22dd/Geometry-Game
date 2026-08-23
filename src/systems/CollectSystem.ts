@@ -13,13 +13,13 @@ import { sfx } from '../core/audio';
 export function updateCollectSystem(): void {
   const player = world.queryOne(PlayerTag, Position);
   if (!player) return;
-  const pp = world.get<Position>(player);
+  const pp = world.get<Position>(player, Position);
 
   const totalOrbs = world.query(Collectible).length;
 
   for (const e of world.query(Position, Collectible)) {
-    const pos = world.get<Position>(e);
-    const col = world.get<Collectible>(e);
+    const pos = world.get<Position>(e, Position);
+    const col = world.get<Collectible>(e, Collectible);
     if (col.collected) continue;
 
     const dx = pp.x - pos.x, dy = pp.y - pos.y;

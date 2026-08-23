@@ -1,11 +1,11 @@
 /**
  * NOVA 星预制体工厂 —— 创建 ECS 实体，组装 Position + WinTrigger + Renderable。
  */
-import { world } from '../core/ecs';
-import type { EntityId } from '../core/ecs/Entity';
-import { Position } from '../components/Position';
-import { WinTrigger } from '../components/WinTrigger';
-import { Renderable } from '../components/Renderable';
+import { world } from '../../core/ecs';
+import type { EntityId } from '../../core/ecs/Entity';
+import { Position } from '../../components/Position';
+import { WinTrigger } from '../../components/WinTrigger';
+import { Renderable } from '../../components/Renderable';
 
 export function createNova(x: number, y: number): EntityId {
   const e = world.createEntity();

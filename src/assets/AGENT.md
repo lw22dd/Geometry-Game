@@ -1,11 +1,28 @@
-# AGENT.md — assets
+# Assets 文件夹 — 静态资源
 
-本目录是 Neon Ascent（霓虹攀升）项目的组成部分，位于 `src/assets/`。
+<details>
+<summary>assets — 图片、图集等运行期加载的静态资源（预留，当前空）</summary>
 
-## 职责
+本目录存放运行期加载的静态资源文件：图片、图集、字体等。当前游戏所有视觉效果均为 Canvas 2D 代码绘制，无外部图片资源。后续如需纹理/精灵图/UI 图标，放置于此。
+</details>
 
-（请在此处描述本目录的职责与包含的模块。）
+```
+assets/
+（空目录，预留）
+```
 
-## 依赖方向
+# 数据流
 
-（请在此处说明本目录允许或不依赖哪些其他模块。）
+1. 依赖：流入的方向和原因
+
+
+（预留）将依赖 Vite 静态资源导入机制（`import logo from './assets/logo.png'` 返回 URL）。
+
+2. 本模块：经过 assets 做了什么
+
+
+（预留）提供静态资源文件供游戏代码引用。Vite 构建时自动哈希、复制到 dist 目录。
+
+3. 输出：流出的方向和目的
+
+（预留）资源 URL → `config/`（注册表配置 sprite 路径）、`Prefabs/`（绘制时通过 ctx.drawImage 渲染）、`systems/ui/`（UI 图标）。

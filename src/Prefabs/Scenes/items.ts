@@ -16,9 +16,9 @@ import { gs } from '../../systems/game/state';
 /** 光球 */
 export function drawOrbs(): void {
   for (const e of world.query(Position, Collectible, Renderable)) {
-    const pos = world.get<Position>(e);
-    const col = world.get<Collectible>(e);
-    const ren = world.get<Renderable>(e);
+    const pos = world.get<Position>(e, Position);
+    const col = world.get<Collectible>(e, Collectible);
+    const ren = world.get<Renderable>(e, Renderable);
     if (col.collected) continue;
     const px = sx(pos.x);
     if (px < -60 || px > VW + 60) continue;
@@ -49,8 +49,8 @@ export function drawOrbs(): void {
 /** 检查点光柱 */
 export function drawCheckpoints(p: number): void {
   for (const e of world.query(Position, Checkpoint, Renderable)) {
-    const pos = world.get<Position>(e);
-    const cp = world.get<Checkpoint>(e);
+    const pos = world.get<Position>(e, Position);
+    const cp = world.get<Checkpoint>(e, Checkpoint);
     const px = sx(pos.x);
     if (px < -40 || px > VW + 40) continue;
     const py = sy(pos.y);
@@ -71,8 +71,8 @@ export function drawCheckpoints(p: number): void {
 export function drawNOVA(p: number): void {
   const nova = world.queryOne(Position, WinTrigger);
   if (!nova) return;
-  const pos = world.get<Position>(nova);
-  const ren = world.get<Renderable>(nova);
+  const pos = world.get<Position>(nova, Position);
+  const ren = world.get<Renderable>(nova, Renderable);
   const px = sx(pos.x);
   if (px < -160 || px > VW + 160) return;
   const py = sy(pos.y);
