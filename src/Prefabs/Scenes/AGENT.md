@@ -20,7 +20,7 @@ Prefabs/Scenes/
 1. 依赖：流入的方向和原因
 
 
-`core/canvas`（ctx/VW/VH）、`core/camera`（sx/sy/view）、`core/math`（clamp）、`config`（当前地图 currentMap：solids/spikes/decos/hints）、`core/ecs`（world 查询移动平台/激光/光球/检查点/NOVA 实体）、`systems/level`（colliderWorldRect）、`systems/game/state`（gs.time/gs.win）、`systems/player`（P.sprint/P.dead/P.face/P.x/P.y）、`systems/particles`（trail/particles）。需要这些来将世界坐标转换为像素绘制、读取游戏状态控制动画。
+`core/canvas`（ctx/VW/VH）、`core/camera`（sx/sy/view）、`core/math`（clamp）、`config`（当前地图 currentMap：solids/spikes/decos/hints）、`core/ecs`（world 查询移动平台/激光/光球/检查点/NOVA 实体）、`systems/level`（colliderWorldRect）、`systems/game/gameState`（gs.time/gs.win）、`systems/player`（playerController.getState()：sprint/dead/face/x/y）、`systems/particles`（trail/particles）。需要这些来将世界坐标转换为像素绘制、读取游戏状态控制动画。
 
 2. 本模块：经过 Prefabs/Scenes 做了什么
 

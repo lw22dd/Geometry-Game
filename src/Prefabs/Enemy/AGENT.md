@@ -16,7 +16,7 @@ Prefabs/Enemy/
 1. 依赖：流入的方向和原因
 
 
-（预留）将依赖 `core/canvas`（ctx）、`core/camera`（sx/sy/view）、`config`（敌人属性数据）、`systems/game/state`（gs.time）、`systems/player`（P 玩家位置）等。
+（预留）将依赖 `core/canvas`（ctx）、`core/camera`（sx/sy/view）、`config`（敌人属性数据）、`systems/game/gameState`（gs.time）、`systems/player`（playerController 玩家位置）等。
 
 2. 本模块：经过 Prefabs/Enemy 做了什么
 

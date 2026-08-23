@@ -7,7 +7,7 @@ import { Collider } from '../../components/Collider';
 import { Goal } from '../../components/Goal';
 import { Collectible } from '../../components/Collectible';
 import { PlayerTag } from '../../components/PlayerTag';
-import { gs } from '../game/state';
+import { gs } from '../game/gameState';
 import { spawnFx, FX } from '../../Prefabs/Fx';
 import { sfx } from '../../core/audio';
 import { netBus } from '../../core/netBus';

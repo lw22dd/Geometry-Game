@@ -4,7 +4,7 @@
  */
 import { ctx } from '../../../core/canvas';
 import { sx, sy, view } from '../../../core/camera';
-import { gs } from '../../../systems/game/state';
+import { gs } from '../../../systems/game/gameState';
 import type { AnimOutput, PlayerState } from '../../../types';
 import type { CharacterStyle } from '../characters';
 

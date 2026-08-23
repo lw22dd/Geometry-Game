@@ -16,7 +16,7 @@ systems/quest/
 1. 依赖：流入的方向和原因
 
 
-（预留）将依赖 `core`（事件/数学）、`config`（任务定义）、`types`（任务类型）、`systems/player`（玩家行为）、`systems/game/state`（全局状态）。
+（预留）将依赖 `core`（事件/数学）、`config`（任务定义）、`types`（任务类型）、`systems/player`（玩家行为）、`systems/game/gameState`（全局状态）。
 
 2. 本模块：经过 quest 做了什么
 

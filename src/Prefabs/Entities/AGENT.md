@@ -14,7 +14,7 @@ Prefabs/Entities/
 ├── movingPlatform.ts # 移动平台实体：Position + Collider(实体) + PathMotion
 ├── laser.ts          # 激光实体：Position + Collider(触发) + Timer + Hazard
 ├── spike.ts          # 尖刺实体：Position + Collider(触发) + Hazard（4×0.55，与旧硬编码一致）
-└── playerEntity.ts   # 玩家实体：Position + Velocity + Collider(0.84×0.84) + PlayerTag（引用 P）
+└── playerEntity.ts   # 玩家实体：Position + Velocity + Collider(0.84×0.84) + PlayerTag（引用 playerController.getState() 的 PlayerState 对象）
 ```
 
 # 数据流
@@ -27,7 +27,7 @@ Prefabs/Entities/
 2. 本模块：经过 Prefabs/Entities 做了什么
 
 
-定义实体工厂函数：每个工厂创建对应的组件实例并装配成 Entity，将纯数据实体加入 `core/ecs` 的 world 实体池（移动平台/激光/尖刺/光球/检查点/NOVA 星）或供玩家系统使用（playerEntity 引用 P 状态 + Collider 供碰撞系统检测）。
+定义实体工厂函数：每个工厂创建对应的组件实例并装配成 Entity，将纯数据实体加入 `core/ecs` 的 world 实体池（移动平台/激光/尖刺/光球/检查点/NOVA 星）或供玩家系统使用（playerEntity 用 `playerController.getState()` 的 PlayerState 对象直接作为 Position/Velocity 组件数据 + Collider 供碰撞系统检测）。
 
 3. 输出：流出的方向和目的
 

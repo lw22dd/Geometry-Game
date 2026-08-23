@@ -17,8 +17,8 @@ import { Collectible } from '../../components/Collectible';
 import { RespawnPoint } from '../../components/RespawnPoint';
 import { Goal } from '../../components/Goal';
 import { collisionBus } from '../../core/collisionBus';
-import { gs } from '../game/state';
-import { P, die } from '../player';
+import { gs } from '../game/gameState';
+import { playerController } from '../player';
 import { spawnFx, FX } from '../../Prefabs/Fx';
 import { sfx } from '../../core/audio';
 import { cpPoint } from '../../config';
@@ -43,8 +43,8 @@ export function initCollisionHooks(): void {
       if (!t.on) return;
     }
     // 无敌帧保护
-    if (P.inv > 0 || P.dead) return;
-    die();
+    if (playerController.getState().inv > 0 || playerController.isDead()) return;
+    playerController.die();
   };
   collisionBus.on('enter:player:hazard', hazardHandler);
   collisionBus.on('stay:player:hazard', hazardHandler);
@@ -94,7 +94,7 @@ export function initCollisionHooks(): void {
     gs.win = true;
     gs.winTime = gs.gt;
     sfx.win();
-    spawnFx(FX.confetti, P.x, P.y);
+    spawnFx(FX.confetti, playerController.getState().x, playerController.getState().y);
     gs.shake = 0.5;
     netBus.emit({ type: 'game:win', time: gs.winTime, orbs: gs.gotN, total: world.query(Collectible).length });
     if (signals) signals.goalReached = true;

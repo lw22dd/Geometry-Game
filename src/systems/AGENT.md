@@ -8,9 +8,8 @@
 
 ```
 systems/
-├── game/  # 调度中枢：state / 主循环 step/render/frame，含 directors/
-│   └── directors/  # 空目录
-├── player/  # 玩家控制：物理 / 碰撞 / 生死 + remote 联机
+├── game/  # 调度中枢：gameState（gs）+ gameMode（物理模式）/ 主循环 step/render/frame
+├── player/  # 玩家控制：PlayerController 生命周期 + 物理引擎（stepPlayerGeneric）+ remote 联机
 ├── level/  # 关卡级系统：路径运动（MotionSystem）、激光计时（LaserTimerSystem）、碰撞箱工具（OverlapUtils）
 ├── interactions/  # 玩法交互触发系统：Collect（光球）/ RespawnPoint（检查点）/ Goal（登顶）
 │     # 三个系统通过 level/OverlapUtils 的 pointInCollider 检测触发，支持传目标坐标供远程玩家复用

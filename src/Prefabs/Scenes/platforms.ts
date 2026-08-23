@@ -6,7 +6,7 @@ import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
 import { clamp } from '../../core/math';
 import { currentMap } from '../../config';
-import { gs } from '../../systems/game/state';
+import { gs } from '../../systems/game/gameState';
 import { world } from '../../core/ecs';
 import { Position } from '../../components/Position';
 import { Collider } from '../../components/Collider';

@@ -5,8 +5,8 @@
 import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
 import { farShapes, midShapes, currentMap, TLIFE } from '../../config';
-import { gs } from '../../systems/game/state';
-import { P } from '../../systems/player';
+import { gs } from '../../systems/game/gameState';
+import { playerController } from '../../systems/player';
 import { trail, particles } from '../../systems/particles';
 
 /** 视差远层光斑 + 中层旋转形状 */
@@ -53,16 +53,17 @@ export function drawTrail(): void {
     ctx.fillStyle = 'hsla(' + (195 + 95 * (1 - a)) + ',100%,66%,' + (0.3 * a) + ')';
     ctx.beginPath(); ctx.arc(sx(q.x), sy(q.y), r, 0, 6.283); ctx.fill();
   }
-  if (P.sprint && !P.dead) {
+  const p = playerController.getState();
+  if (p.sprint && !p.dead) {
     ctx.strokeStyle = 'rgba(150,220,255,.14)';
     ctx.lineWidth = 2;
     for (let i = 0; i < 5; i++) {
       const off = ((i * 47 + gs.time * 260) % 80) - 40;
-      const yy = sy(P.y) + off;
-      const xx = sx(P.x) - P.face * (26 + i * 20);
+      const yy = sy(p.y) + off;
+      const xx = sx(p.x) - p.face * (26 + i * 20);
       ctx.beginPath();
       ctx.moveTo(xx, yy);
-      ctx.lineTo(xx - P.face * 24, yy);
+      ctx.lineTo(xx - p.face * 24, yy);
       ctx.stroke();
     }
   }

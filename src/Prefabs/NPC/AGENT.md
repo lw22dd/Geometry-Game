@@ -16,7 +16,7 @@ Prefabs/NPC/
 1. 依赖：流入的方向和原因
 
 
-（预留）将依赖 `core/canvas`（ctx）、`core/camera`（sx/sy/view）、`config`（NPC 数据）、`systems/game/state`（gs.time）、`Prefabs/Entities`（NPC 实体装配）等。
+（预留）将依赖 `core/canvas`（ctx）、`core/camera`（sx/sy/view）、`config`（NPC 数据）、`systems/game/gameState`（gs.time）、`Prefabs/Entities`（NPC 实体装配）等。
 
 2. 本模块：经过 Prefabs/NPC 做了什么
 

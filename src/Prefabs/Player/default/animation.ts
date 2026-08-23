@@ -4,7 +4,7 @@
  */
 import type { AnimOutput, FrameSignals, PlayerState } from '../../../types';
 import { clamp } from '../../../core/math';
-import { gs } from '../../../systems/game/state';
+import { gs } from '../../../systems/game/gameState';
 import { ANIM_TRANSITIONS, type AnimState } from './states';
 
 export interface DefaultAnimState {

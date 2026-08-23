@@ -4,7 +4,7 @@
  */
 import { world } from '../../core/ecs';
 import { Timer } from '../../components/Timer';
-import { gs } from '../game/state';
+import { gs } from '../game/gameState';
 
 export function updateLaserTimer(): void {
   for (const e of world.query(Timer)) {

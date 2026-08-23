@@ -7,10 +7,13 @@ import { updateCamera, sx, sy, view } from '../../core/camera';
 import { musicTick, MUS, sfx, AU } from '../../core/audio';
 import { keys } from '../../core/input';
 import { currentMap, PHYS } from '../../config';
-import { gs, getMode, setMode } from './state';
-import { P, stepPlayer, stepPlayerGeneric, respawn } from '../player';
+import { gs } from './gameState';
+import { getMode, setMode } from './gameMode';
+import { playerController } from '../player';
+import { stepPlayerGeneric } from '../player';
+import { spawnFx, FX } from '../../Prefabs/Fx';
 import { stepParticles } from '../particles';
-import { updateMotion, updateLaserTimer, updateCollisionSystem } from '../level';
+import { updateMotion, updateLaserTimer } from '../level';
 import {
   drawParallax, drawGrid, drawBorder, drawDecos, drawSolids, drawMovers,
   drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawNOVA,
@@ -23,6 +26,7 @@ import { ui } from '../../core/uiComponent';
 import { drawDevGrid, drawDebugHUD, tickFPS } from '../ui/dev';
 import { room, isHost, inSession } from '../../net/room';
 import { net } from '../../net';
+import { netBus } from '../../core/netBus';
 import {
   remotes, resetRemotes, registerRemote, removeRemote,
   setClientInput, getClientInput, applyNetPlayers, getSelfAuthority,
@@ -76,35 +80,30 @@ function step(dt: number): void {
   // 6. 游戏计时
   gs.gt += dt;
 
-  // 7. 死亡计时
-  if (P.dead) {
+  // 7. 死亡计时 & 8. 玩家物理（PlayerController 管理）
+  const pState = playerController.getState();
+  if (pState.dead) {
     if (inSession() && !isHost()) {
       // 客机：死亡由房主权威裁决复活，本地保持死亡视觉等待
-      P.deadT = 0.85;
+      playerController.maintainDeathVisual();
       return;
     }
-    P.deadT -= dt;
-    if (P.deadT <= 0) {
-      respawn();
-    }
+    // 房主/单机：控制器内部倒计时死亡并复活
+    playerController.step(dt, getMode(), true);
     return;
   }
 
-  // 8. 玩家物理（根据角色分支）
+  // 注入输入（单机/房主/客机统一从本地 keys 表提取）
+  const inputKeys = getLocalInputKeys();
+  playerController.setInput(inputKeys);
+
   if (inSession() && !isHost()) {
-    // ── 客机模式：本地预测 ──
-    // 收集本地输入 → 发送 → 预测物理
-    const inputKeys = getLocalInputKeys();
+    // 客机模式：发送输入 + 本地预测（随后被权威状态矫正）
     net.sendInput(inputKeys);
-    const signals: FrameSignals = {};
-    stepPlayerGeneric(P, inputKeys, dt, true, signals);
-    updateCollisionSystem(signals as Record<string, boolean>);
-    stepPlayerAnimation(P, dt, signals);
-  } else {
-    // ── 单机/房主模式：正常物理 ──
-    // stepPlayer 内部已调用 stepPlayerGeneric + updateCollisionSystem + stepPlayerAnimation
-    stepPlayer(dt);
   }
+
+  // 物理 + 碰撞 + 动画（单机/房主/客机统一走 controller.step）
+  playerController.step(dt, getMode(), true);
 
   // 9. 房主模式：模拟所有客机物理 + 广播状态
   if (isHost()) {
@@ -159,12 +158,13 @@ function broadcastHostState(): void {
   _netSeq++;
 
   // 本地玩家
+  const pS = playerController.getState();
   const players: NetPlayerState[] = [{
     playerId: room.playerId,
-    x: P.x, y: P.y, vx: P.vx, vy: P.vy,
-    face: P.face, grounded: P.grounded, dead: P.dead,
-    sprint: P.sprint, inv: P.inv,
-    hasPlat: P.plat !== null, platDx: P.plat ? P.plat.dx : 0,
+    x: pS.x, y: pS.y, vx: pS.vx, vy: pS.vy,
+    face: pS.face, grounded: pS.grounded, dead: pS.dead,
+    sprint: pS.sprint, inv: pS.inv,
+    hasPlat: pS.plat !== null, platDx: pS.plat ? pS.plat.dx : 0,
   }];
 
   // 远程玩家
@@ -221,31 +221,32 @@ function wireNetEvents(): void {
     // 客机：找自己的权威状态
     const self = getSelfAuthority(players);
     if (self) {
-      const dx = P.x - self.x;
-      const dy = P.y - self.y;
+      const pS = playerController.getState();
+      const dx = pS.x - self.x;
+      const dy = pS.y - self.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > 0.5) {
         // 硬矫正：偏差大于 0.5 格
-        P.x = self.x;
-        P.y = self.y;
-        P.vx = players.find(p => p.playerId === room.playerId)?.vx ?? P.vx;
-        P.vy = players.find(p => p.playerId === room.playerId)?.vy ?? P.vy;
+        const selfPs = players.find(p => p.playerId === room.playerId);
+        playerController.applyCorrection(
+          self.x, self.y,
+          selfPs?.vx ?? pS.vx,
+          selfPs?.vy ?? pS.vy,
+          selfPs?.face ?? pS.face,
+          selfPs?.grounded ?? pS.grounded,
+        );
       }
       // 偏差小于 0.5 格：保持本地预测，不做矫正（手感优先）
 
       // 死亡同步（权威为准）
       const selfPs = players.find(p => p.playerId === room.playerId);
       if (selfPs) {
-        if (selfPs.dead && !P.dead) {
+        if (selfPs.dead && !playerController.isDead()) {
           // 房主权威判定死亡 → 本地播放死亡
-          P.dead = true;
-          P.deadT = 0.85;
-        } else if (!selfPs.dead && P.dead) {
+          playerController.applyDeathAuthority(true, selfPs.x, selfPs.y, pS.inv);
+        } else if (!selfPs.dead && playerController.isDead()) {
           // 房主已复活 → 本地复位
-          P.dead = false;
-          P.x = selfPs.x;
-          P.y = selfPs.y;
-          P.inv = 1.2;
+          playerController.applyDeathAuthority(false, selfPs.x, selfPs.y, 1.2);
         }
       }
     }
@@ -373,7 +374,8 @@ function render(dt: number): void {
 
 /** 渲染游戏画面（暂停时复用） */
 function renderGame(dt: number): void {
-  updateCamera(dt, P, gs, currentMap.width, currentMap.height);
+  const pS = playerController.getState();
+  updateCamera(dt, pS, gs, currentMap.width, currentMap.height);
 
   const vw = VW / (PPM * view.zoom);
   const vh = VH / (PPM * view.zoom);
@@ -403,7 +405,7 @@ function renderGame(dt: number): void {
   drawParticles();
 
   // 绘制所有玩家（本地 + 远程）
-  drawPlayer(P);
+  drawPlayer(pS);
   for (const [, rp] of remotes) {
     drawRemotePlayer(rp, dt);
   }
@@ -424,8 +426,8 @@ function renderGame(dt: number): void {
     ctx.fillRect(0, 0, VW, VH);
   }
 
-  if (P.dead) {
-    ctx.fillStyle = 'rgba(15,2,25,' + (0.4 * (1 - P.deadT / 0.85)) + ')';
+  if (pS.dead) {
+    ctx.fillStyle = 'rgba(15,2,25,' + (0.4 * (1 - pS.deadT / 0.85)) + ')';
     ctx.fillRect(0, 0, VW, VH);
   }
 
@@ -471,7 +473,41 @@ export function startLoop(): void {
   wireNetEvents();
   // 注册碰撞事件处理器（幂等）
   initCollisionHooks();
+  // 订阅 PlayerController 事件（玩家生命周期 → gs / sfx / 粒子 / 网络）
+  wirePlayerEvents();
   requestAnimationFrame(frame);
+}
+
+/** 订阅 PlayerController 事件（幂等） */
+function wirePlayerEvents(): void {
+  playerController.onEvent = (event) => {
+    switch (event.type) {
+      case 'died':
+        gs.deaths = event.deaths;
+        gs.shake = 1;
+        gs.flash = 0.6;
+        spawnFx(FX.death, playerController.getState().x, playerController.getState().y);
+        sfx.die();
+        netBus.emit({ type: 'game:death', deaths: event.deaths });
+        break;
+      case 'jumped':
+        sfx.jump();
+        break;
+      case 'dashed':
+        sfx.dash();
+        break;
+      case 'landed':
+        if (event.impact > 7.5) {
+          const s = playerController.getState();
+          spawnFx(FX.dust, s.x, s.y - s.half, 6);
+          sfx.land(event.impact * 0.02);
+        }
+        break;
+      case 'respawned':
+        // 复活无全局副作用（trail 清理在 controller 内部）
+        break;
+    }
+  };
 }
 
 /* ==================== 输入回调 ==================== */
@@ -502,16 +538,16 @@ export function handleKeyDown(e: KeyboardEvent): void {
 
   // 游戏中操作
   if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') {
-    P.jbuf = PHYS[getMode()].jb;
+    playerController.setJumpBuffer(PHYS[getMode()].jb);
   }
 
-  if (e.code === 'KeyR') respawn();
+  if (e.code === 'KeyR') playerController.respawn();
 
   if (e.code === 'KeyP') {
     const cur = getMode();
     const next = cur === 'tuned' ? 'classic' : 'tuned';
     const old = PHYS[cur], nw = PHYS[next];
-    P.vy *= nw.JV / old.JV;
+    playerController.getState().vy *= nw.JV / old.JV;
     setMode(next);
     gs.toast = '物理 · ' + nw.name;
     gs.toastT = 2;

@@ -5,7 +5,7 @@
 import { world } from '../../core/ecs';
 import { Position } from '../../components/Position';
 import { PathMotion } from '../../components/PathMotion';
-import { gs } from '../game/state';
+import { gs } from '../game/gameState';
 
 export function updateMotion(): void {
   for (const e of world.query(Position, PathMotion)) {

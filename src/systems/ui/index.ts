@@ -15,8 +15,9 @@ import { Hazard } from '../../components/Hazard';
 import { Collectible } from '../../components/Collectible';
 import { RespawnPoint } from '../../components/RespawnPoint';
 import { Goal } from '../../components/Goal';
-import { gs, getMode } from '../game/state';
-import { P } from '../player';
+import { gs } from '../game/gameState';
+import { getMode } from '../game/gameMode';
+import { playerController } from '../player';
 import { colliderWorldRect } from '../level';
 import { Button, UI_SCENE } from '../../core/uiComponent';
 import type { UIScene } from '../../core/uiComponent';
@@ -446,6 +447,7 @@ export function buildMenuScene(onStart: () => void): UIScene {
 
 /** HUD 面板 */
 export function drawHUD(): void {
+  const pPl = playerController.getState();
   ctx.font = '600 15px "Segoe UI","Microsoft YaHei",Arial';
   rr(ctx, 16, 16, 232, 178, 10);
   ctx.fillStyle = 'rgba(10,8,30,.55)';
@@ -457,13 +459,13 @@ export function drawHUD(): void {
   ctx.fillStyle = '#8ff6ff';
   ctx.fillText('光球 ORBS  ' + gs.gotN + ' / ' + orbTotal(), 30, 42);
   ctx.fillStyle = '#cfe6ff';
-  ctx.fillText('速度 SPEED  ' + Math.abs(P.vx).toFixed(1) + ' m/s', 30, 63);
+  ctx.fillText('速度 SPEED  ' + Math.abs(pPl.vx).toFixed(1) + ' m/s', 30, 63);
   ctx.fillStyle = '#cfe6ff';
   ctx.fillText('跳高 JUMP   3.2 格', 30, 84);
   ctx.fillStyle = '#c77dff';
   ctx.fillText('物理 PHYS   ' + PHYS[getMode()].name, 30, 105);
-  ctx.fillStyle = P.sprint ? '#ffd27d' : '#7f89b8';
-  ctx.fillText('加速 BOOST  ' + (P.sprint ? '⚡ 曳光中' : '--'), 30, 126);
+  ctx.fillStyle = pPl.sprint ? '#ffd27d' : '#7f89b8';
+  ctx.fillText('加速 BOOST  ' + (pPl.sprint ? '⚡ 曳光中' : '--'), 30, 126);
   ctx.fillStyle = '#cfe6ff';
   ctx.fillText('用时 TIME   ' + fmt(gs.win ? gs.winTime : gs.gt), 30, 147);
   ctx.fillStyle = '#ffb0d9';
@@ -522,6 +524,7 @@ export function drawHUD(): void {
 
 /** 小地图 */
 export function drawMinimap(vw: number, vh: number): void {
+  const pMm = playerController.getState();
   const mmW = 252, k = mmW / currentMap.width, mmH = currentMap.height * k, pad = 10, mx = VW - mmW - 22, my = 46;
   rr(ctx, mx - pad, my - pad - 16, mmW + pad * 2, mmH + pad * 2 + 24, 9);
   ctx.fillStyle = 'rgba(8,6,26,.72)';
@@ -531,7 +534,7 @@ export function drawMinimap(vw: number, vh: number): void {
   ctx.stroke();
   ctx.font = '600 11px Arial';
   ctx.fillStyle = 'rgba(170,190,255,.8)';
-  ctx.fillText('MAP · ' + currentMap.width + ' × ' + currentMap.height + ' · ' + (P.x | 0) + ',' + (P.y | 0), mx, my - 6);
+  ctx.fillText('MAP · ' + currentMap.width + ' × ' + currentMap.height + ' · ' + (pMm.x | 0) + ',' + (pMm.y | 0), mx, my - 6);
 
   const X = (x: number) => mx + x * k;
   const Y = (y: number) => my + mmH - y * k;
@@ -584,7 +587,7 @@ export function drawMinimap(vw: number, vh: number): void {
   ctx.shadowColor = '#fff';
   ctx.shadowBlur = 6;
   ctx.fillStyle = '#ffffff';
-  ctx.beginPath(); ctx.arc(X(P.x), Y(P.y), 2.6, 0, 6.283); ctx.fill();
+  ctx.beginPath(); ctx.arc(X(pMm.x), Y(pMm.y), 2.6, 0, 6.283); ctx.fill();
   ctx.shadowBlur = 0;
   const cx = X(cam.x - vw / 2), cy = Y(cam.y + vh / 2), cw = vw * k, chh = vh * k;
   ctx.strokeStyle = '#ffb3f0';

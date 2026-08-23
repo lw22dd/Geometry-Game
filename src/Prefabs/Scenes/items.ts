@@ -11,7 +11,7 @@ import { Collectible } from '../../components/Collectible';
 import { RespawnPoint } from '../../components/RespawnPoint';
 import { Goal } from '../../components/Goal';
 import { Renderable } from '../../components/Renderable';
-import { gs } from '../../systems/game/state';
+import { gs } from '../../systems/game/gameState';
 
 /** 光球 */
 export function drawOrbs(): void {

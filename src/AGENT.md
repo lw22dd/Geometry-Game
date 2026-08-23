@@ -37,8 +37,7 @@ src/
 ├── systems/  # 玩法逻辑：game / player / level / ui / interactions / combat / enemy / quest + 粒子运行时
 │   ├── combat/  # 空目录（预留）
 │   ├── enemy/  # 空目录（预留）
-│   ├── game/  # 调度中枢：state / 主循环 step/render/frame
-│   │   └── directors/  # 空目录（预留）
+│   ├── game/  # 调度中枢：gameState / gameMode / 主循环 step/render/frame
 │   ├── interactions/  # 玩法交互触发系统：Collect（光球）/ RespawnPoint（复活点）/ Goal（登顶）
 │   ├── player/  # 玩家控制：物理 / 碰撞 / 生死 + remote 联机
 │   ├── ui/  # 界面：HUD / 小地图 / 菜单 / 暂停 / 大厅

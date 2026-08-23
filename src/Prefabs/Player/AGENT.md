@@ -25,7 +25,7 @@ Prefabs/Player/
 
 1. 依赖：流入的方向和原因
 
-- `core/canvas`（ctx）、`core/camera`（sx/sy/view）、`core/math`（clamp）、`systems/game/state`（gs.time）、`systems/player`（P 本地玩家）、`systems/player/remote`（RemotePlayer）。需要这些将玩家物理状态转换为动画输出与像素绘制。
+- `core/canvas`（ctx）、`core/camera`（sx/sy/view）、`core/math`（clamp）、`systems/game/gameState`（gs.time）、`systems/player`（playerController / P 本地玩家）、`systems/player/remote`（RemotePlayer）。需要这些将玩家物理状态转换为动画输出与像素绘制。
 - 物理状态由 `systems/player` 产生（grounded/vy/sprint/dead/face/inv），动画 FSM 只读这些事实 + 自身记忆（previous* 边沿检测），不碰输入与碰撞。
 
 2. 本模块：经过 Prefabs/Player 做了什么

@@ -20,7 +20,7 @@ systems/interactions/
 1. 依赖：流入的方向和原因
 
 
-`core/collisionBus`（订阅碰撞事件）、`core/ecs`（world 实体查询）、`components`（Hazard/Timer/Collectible/RespawnPoint/Goal）、`systems/game/state`（gs）、`systems/player`（P + die）、`core/audio`（sfx）、`Prefabs/Fx`（spawnFx）、`core/netBus`（联机广播）。需要这些来响应碰撞事件并执行玩法逻辑。
+`core/collisionBus`（订阅碰撞事件）、`core/ecs`（world 实体查询）、`components`（Hazard/Timer/Collectible/RespawnPoint/Goal）、`systems/game/gameState`（gs）、`systems/player`（playerController 状态 + die）、`core/audio`（sfx）、`Prefabs/Fx`（spawnFx）、`core/netBus`（联机广播）。需要这些来响应碰撞事件并执行玩法逻辑。
 
 2. 本模块：经过 systems/interactions 做了什么
 

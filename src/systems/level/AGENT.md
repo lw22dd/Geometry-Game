@@ -25,7 +25,7 @@ systems/level/
 2. 本模块：经过 systems/level 做了什么
 
 
-每帧由 `systems/game` 调用：updateMotion 更新移动平台位置 → updateLaserTimer 更新激光开关 → stepPlayer 内调用 updateCollisionSystem 检测玩家 vs 所有 Collider 实体的 AABB 重叠，跟踪 enter/exit 状态，通过 collisionBus 发射 `enter:player:hazard` / `enter:player:collectible` / `enter:player:respawn` / `enter:player:goal` 等事件。
+每帧由 `systems/game` 调用：updateMotion 更新移动平台位置 → updateLaserTimer 更新激光开关 → PlayerController.step 内调用 updateCollisionSystem 检测玩家 vs 所有 Collider 实体的 AABB 重叠，跟踪 enter/exit 状态，通过 collisionBus 发射 `enter:player:hazard` / `enter:player:collectible` / `enter:player:respawn` / `enter:player:goal` 等事件。
 
 3. 输出：流出的方向和目的
 

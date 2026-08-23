@@ -16,7 +16,7 @@ Prefabs/WeaponVis/
 1. 依赖：流入的方向和原因
 
 
-（预留）将依赖 `core/canvas`（ctx）、`core/camera`（sx/sy/view）、`config`（武器属性数据）、`systems/player`（玩家武器状态）、`systems/game/state`（gs.time）等。
+（预留）将依赖 `core/canvas`（ctx）、`core/camera`（sx/sy/view）、`config`（武器属性数据）、`systems/player`（玩家武器状态）、`systems/game/gameState`（gs.time）等。
 
 2. 本模块：经过 Prefabs/WeaponVis 做了什么
 

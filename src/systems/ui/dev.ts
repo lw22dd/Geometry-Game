@@ -6,7 +6,7 @@ import { sx, sy, view } from '../../core/camera';
 import { PPM } from '../../core/canvas';
 import { Toggle, Button, UI_SCENE } from '../../core/uiComponent';
 import type { UIScene } from '../../core/uiComponent';
-import { P } from '../player';
+import { playerController } from '../player';
 import { rr } from '../../core/math';
 
 /* ==================== 状态 ==================== */
@@ -154,7 +154,8 @@ export function drawDebugHUD(): void {
   if (!dev.showDebug) return;
 
   const fps = getFPS();
-  const wx = P.x, wy = P.y;
+  const pDev = playerController.getState();
+  const wx = pDev.x, wy = pDev.y;
   const px = sx(wx), py = sy(wy);
 
   const x = 16, y = VH - 110;

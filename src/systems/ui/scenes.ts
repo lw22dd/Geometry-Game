@@ -2,7 +2,7 @@
  * UI 场景组合根 —— 注册所有 UI 场景到 UIManager。
  * 不依赖 game 循环，通过回调注入防循环依赖。
  */
-import { gs } from '../game/state';
+import { gs } from '../game/gameState';
 import { startGame } from '../game';
 import { ui } from '../../core/uiComponent';
 import { buildMenuScene } from './index';
