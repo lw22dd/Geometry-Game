@@ -1,15 +1,15 @@
 /**
- * mapCodec —— 数据契约：标准地图数据 ⇄ 游戏 MapDefinition。
+ * mapCodec —— 数据契约：标准地图数据 v2 ⇄ 游戏 MapDefinition。
  *
- * 「标准地图数据」= 版本化 JSON（MapData：实例列表），是编辑器的唯一产出物。
- * 本文件只有两个纯函数：
- *   - decompile(MapDefinition) → MapData   游戏现有地图 → 编辑器格式（可逆向编辑）
- *   - compile(MapData)         → MapDefinition  编辑器格式 → 游戏可消费格式
+ * 两层结构：
+ *   - layers.geometry（rect + rotation）→ 游戏的 solids（仅 rotation≈0）
+ *   - layers.objects → 游戏的 spikes/decos/hints/entitySpawners
  *
- * 两个函数都只做数据变换，运行在编辑器内；
- * 对游戏侧仅 `import type`（编译期擦除，零运行时依赖），不修改游戏源码。
+ * 注意：游戏当前不支持旋转矩形（rect 无 rotation 字段）——
+ * rotation≠0 的矩形在编译时跳过并计入警告，但标准 JSON 完整保留。
  */
-import type { MapData, MapInstance } from './mapTypes';
+import type { MapData, GeometryItem, ObjectInstance } from './mapTypes';
+import { createEmptyMapData, migrateMapData } from './mapTypes';
 import type {
   MapDefinition,
   MoverSpawnData,
@@ -19,145 +19,134 @@ import type {
   Rect,
 } from '@game/types';
 
-/* ==================== decompile：游戏 → 编辑器 ==================== */
+/* ==================== decompile：游戏 → 编辑器 v2 ==================== */
 
 /**
  * 将游戏现有的 MapDefinition（如 config/level.ts 中的地图）转换
- * 为编辑器的标准地图数据，使已有地图可以逆向编辑。
+ * 为编辑器的标准地图数据 v2，使已有地图可以逆向编辑。
  */
 export function decompileMapDefinition(def: MapDefinition): MapData {
-  const instances: MapInstance[] = [];
+  const data = createEmptyMapData(def.id, def.name);
+  data.width = def.width;
+  data.height = def.height;
+  data.playerSpawn = { x: def.playerSpawn.x, y: def.playerSpawn.y };
 
-  // ── 静态几何 ──
+  // ── 静态几何 → geometry 层 ──
   for (const r of def.solids) {
-    instances.push({ type: 'solid', x: r.x, y: r.y, w: r.w, h: r.h });
+    data.layers.geometry.push({ type: 'rect', x: r.x, y: r.y, w: r.w, h: r.h, rotation: 0 });
   }
+
+  // ── 其余 → objects 层 ──
   for (const s of def.spikes) {
-    instances.push({ type: 'spike', x: s.x, y: s.y });
+    data.layers.objects.push({ type: 'spike', x: s.x, y: s.y });
   }
   for (const d of def.decos) {
-    instances.push({ type: 'deco', x: d[0], y: d[1], size: d[2], rotSpeed: d[3] });
+    data.layers.objects.push({ type: 'deco', x: d[0], y: d[1], size: d[2], rotSpeed: d[3] });
   }
   for (const h of def.hints) {
-    instances.push({ type: 'hint', x: h[0], y: h[1], text: h[2] });
+    data.layers.objects.push({ type: 'hint', x: h[0], y: h[1], text: h[2] });
   }
-
-  // ── 实体生成描述 ──
   for (const m of def.entitySpawners.movers) {
-    const inst: MapInstance = { type: 'mover', x0: m.x0, y: m.y, w: m.w, h: m.h, range: m.range, spd: m.spd, ph: m.ph };
+    const inst: ObjectInstance = {
+      type: 'mover', x0: m.x0, y: m.y, w: m.w, h: m.h,
+      range: m.range, spd: m.spd, ph: m.ph,
+    };
     if (m.axis) (inst as any).axis = m.axis;
     if (m.yRange !== undefined) (inst as any).yRange = m.yRange;
-    instances.push(inst);
+    data.layers.objects.push(inst);
   }
   for (const sp of def.entitySpawners.springPads) {
-    instances.push({
+    data.layers.objects.push({
       type: 'springPad', x: sp.x, y: sp.y, w: sp.w, h: sp.h,
       forceX: sp.forceX, forceY: sp.forceY, duration: sp.duration,
     });
   }
   for (const l of def.entitySpawners.lasers) {
-    instances.push({ type: 'laser', x: l.x, y0: l.y0, len: l.len, ph: l.ph });
+    data.layers.objects.push({ type: 'laser', x: l.x, y0: l.y0, len: l.len, ph: l.ph });
   }
   for (const o of def.entitySpawners.orbs) {
-    instances.push({ type: 'orb', x: o[0], y: o[1] });
+    data.layers.objects.push({ type: 'orb', x: o[0], y: o[1] });
   }
   for (const jb of def.entitySpawners.jumpBoosts) {
-    instances.push({ type: 'jumpBoost', x: jb[0], y: jb[1] });
+    data.layers.objects.push({ type: 'jumpBoost', x: jb[0], y: jb[1] });
   }
   for (const c of def.entitySpawners.checkpoints) {
-    instances.push({ type: 'checkpoint', x: c[0], y: c[1] });
+    data.layers.objects.push({ type: 'checkpoint', x: c[0], y: c[1] });
   }
-  // nova（MapDefinition 是单数，编辑器是实例）
   const n = def.entitySpawners.nova;
-  instances.push({ type: 'nova', x: n.x, y: n.y });
+  data.layers.objects.push({ type: 'nova', x: n.x, y: n.y });
 
-  return {
-    version: 1,
-    id: def.id,
-    name: def.name,
-    width: def.width,
-    height: def.height,
-    playerSpawn: { x: def.playerSpawn.x, y: def.playerSpawn.y },
-    instances,
-  };
+  return data;
 }
 
-/* ==================== compile：编辑器 → 游戏 ==================== */
+/* ==================== compile：编辑器 v2 → 游戏 ==================== */
 
-/** 具名访问器：多数点状实例共享 x/y 字段 */
-function xy(inst: MapInstance): { x: number; y: number } {
-  switch (inst.type) {
-    case 'solid':   return { x: inst.x, y: inst.y };
-    case 'spike':   return { x: inst.x, y: inst.y };
-    case 'deco':    return { x: inst.x, y: inst.y };
-    case 'hint':    return { x: inst.x, y: inst.y };
-    case 'mover':   return { x: inst.x0, y: inst.y };
-    case 'laser':   return { x: inst.x, y: inst.y0 };
-    case 'orb':     return { x: inst.x, y: inst.y };
-    case 'jumpBoost': return { x: inst.x, y: inst.y };
-    case 'checkpoint': return { x: inst.x, y: inst.y };
-    case 'nova':    return { x: inst.x, y: inst.y };
-    case 'springPad': return { x: inst.x, y: inst.y };
-  }
+function hasRotation(item: GeometryItem): boolean {
+  return item.type === 'rect' && Math.abs(item.rotation) > 1e-6;
 }
 
 /**
  * 将编辑器的标准地图数据编译为游戏可消费的 MapDefinition。
- * 输出的形状与 config/level.ts 中手写的地图完全一致。
+ * rotation≈0 的矩形 → solids；rotation≠0 的跳过（计入 skippedRotated）。
  */
-export function compileMapData(data: MapData): MapDefinition {
-  const { instances } = data;
+export function compileMapData(data: MapData): {
+  map: MapDefinition;
+  skippedRotated: number;
+} {
+  const { geometry, objects } = data.layers;
 
-  // ── 静态几何 ──
-  const solids: Rect[] = instances
-    .filter((i): i is MapInstance & { type: 'solid'; w: number; h: number } => i.type === 'solid')
-    .map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h, top: r.y + r.h }));
-  const spikes: Spike[] = instances
-    .filter((i): i is MapInstance & { type: 'spike' } => i.type === 'spike')
-    .map(s => ({ x: s.x, y: s.y }));
-  const decos = instances
-    .filter((i): i is MapInstance & { type: 'deco'; size: number; rotSpeed: number } => i.type === 'deco')
-    .map(d => [d.x, d.y, d.size, d.rotSpeed] as [number, number, number, number]);
-  const hints = instances
-    .filter((i): i is MapInstance & { type: 'hint'; text: string } => i.type === 'hint')
-    .map(h => [h.x, h.y, h.text] as [number, number, string]);
+  const solids: Rect[] = [];
+  let skippedRotated = 0;
+  for (const g of geometry) {
+    if (g.type !== 'rect') continue;
+    if (hasRotation(g)) {
+      skippedRotated++;
+      continue;
+    }
+    solids.push({ x: g.x, y: g.y, w: g.w, h: g.h, top: g.y + g.h });
+  }
 
-  // ── 实体生成描述 ──
-  const movers: MoverSpawnData[] = instances
-    .filter((i): i is MapInstance & { type: 'mover' } => i.type === 'mover')
-    .map(m => {
-      const base: MoverSpawnData = {
-        x0: m.x0, y: m.y, w: m.w, h: m.h,
-        range: m.range, spd: m.spd, ph: m.ph,
-      };
-      if (m.axis) base.axis = m.axis;
-      if (m.yRange !== undefined) base.yRange = m.yRange;
-      return base;
-    });
-  const springPads: SpringPadSpawnData[] = instances
-    .filter((i): i is MapInstance & { type: 'springPad' } => i.type === 'springPad')
-    .map(s => ({
-      x: s.x, y: s.y, w: s.w, h: s.h,
-      forceX: s.forceX, forceY: s.forceY, duration: s.duration,
-    }));
-  const lasers: LaserSpawnData[] = instances
-    .filter((i): i is MapInstance & { type: 'laser' } => i.type === 'laser')
-    .map(l => ({ x: l.x, y0: l.y0, len: l.len, ph: l.ph }));
-  const orbs: [number, number][] = instances
-    .filter((i): i is MapInstance & { type: 'orb' } => i.type === 'orb')
-    .map(o => [o.x, o.y]);
-  const jumpBoosts: [number, number][] = instances
-    .filter((i): i is MapInstance & { type: 'jumpBoost' } => i.type === 'jumpBoost')
-    .map(j => [j.x, j.y]);
-  const checkpoints: [number, number][] = instances
-    .filter((i): i is MapInstance & { type: 'checkpoint' } => i.type === 'checkpoint')
-    .map(c => [c.x, c.y]);
-  const novaInstances = instances.filter(i => i.type === 'nova');
-  const nova = novaInstances.length > 0
-    ? xy(novaInstances[0])
-    : { x: 0, y: 0 };
+  const spikes: Spike[] = [];
+  const decos: [number, number, number, number][] = [];
+  const hints: [number, number, string][] = [];
+  const movers: MoverSpawnData[] = [];
+  const springPads: SpringPadSpawnData[] = [];
+  const lasers: LaserSpawnData[] = [];
+  const orbs: [number, number][] = [];
+  const jumpBoosts: [number, number][] = [];
+  const checkpoints: [number, number][] = [];
+  let nova: { x: number; y: number } = { x: 0, y: 0 };
 
-  return {
+  for (const inst of objects) {
+    switch (inst.type) {
+      case 'spike': spikes.push({ x: inst.x, y: inst.y }); break;
+      case 'deco': decos.push([inst.x, inst.y, inst.size, inst.rotSpeed]); break;
+      case 'hint': hints.push([inst.x, inst.y, inst.text]); break;
+      case 'mover': {
+        const base: MoverSpawnData = {
+          x0: inst.x0, y: inst.y, w: inst.w, h: inst.h,
+          range: inst.range, spd: inst.spd, ph: inst.ph,
+        };
+        if (inst.axis) base.axis = inst.axis;
+        if (inst.yRange !== undefined) base.yRange = inst.yRange;
+        movers.push(base);
+        break;
+      }
+      case 'springPad':
+        springPads.push({
+          x: inst.x, y: inst.y, w: inst.w, h: inst.h,
+          forceX: inst.forceX, forceY: inst.forceY, duration: inst.duration,
+        });
+        break;
+      case 'laser': lasers.push({ x: inst.x, y0: inst.y0, len: inst.len, ph: inst.ph }); break;
+      case 'orb': orbs.push([inst.x, inst.y]); break;
+      case 'jumpBoost': jumpBoosts.push([inst.x, inst.y]); break;
+      case 'checkpoint': checkpoints.push([inst.x, inst.y]); break;
+      case 'nova': nova = { x: inst.x, y: inst.y }; break;
+    }
+  }
+
+  const map: MapDefinition = {
     id: data.id,
     name: data.name,
     width: data.width,
@@ -177,51 +166,58 @@ export function compileMapData(data: MapData): MapDefinition {
       nova,
     },
   };
+
+  return { map, skippedRotated };
 }
 
 /* ==================== 自检：round-trip 验证 ==================== */
 
 export interface RoundTripReport {
   ok: boolean;
-  instanceCount: number;
+  objectCount: number;
+  differenceCount: number;
   differences: string[];
 }
 
+const PUSH = (diffs: string[], label: string, a: unknown, b: unknown): void => {
+  if (JSON.stringify(a) !== JSON.stringify(b)) {
+    diffs.push(`${label}: 原 ${JSON.stringify(a)} ≠ 编译 ${JSON.stringify(b)}`);
+  }
+};
+
 /**
- * round-trip 验证：MapDefinition → decompile → compile → 与原定义比较。
- * 用于确认数据契约无损（供启动时自检 / 测试）。
+ * round-trip 验证：MapDefinition → decompile(v2) → compile → 与原定义比较。
+ * 现有地图全为 rotation=0，应无损通过。
  */
 export function verifyRoundTrip(def: MapDefinition): RoundTripReport {
   const diffs: string[] = [];
   const data = decompileMapDefinition(def);
-  const compiled = compileMapData(data);
+  const compiled = compileMapData(data).map;
 
-  const push = (label: string, a: unknown, b: unknown): void => {
-    const ja = JSON.stringify(a);
-    const jb = JSON.stringify(b);
-    if (ja !== jb) diffs.push(`${label}: 原 ${ja} ≠ 编译 ${jb}`);
-  };
-
-  push('id', def.id, compiled.id);
-  push('name', def.name, compiled.name);
-  push('width', def.width, compiled.width);
-  push('height', def.height, compiled.height);
-  push('playerSpawn', def.playerSpawn, compiled.playerSpawn);
-  push('solids', def.solids, compiled.solids);
-  push('spikes', def.spikes, compiled.spikes);
-  push('decos', def.decos, compiled.decos);
-  push('hints', def.hints, compiled.hints);
-  push('movers', def.entitySpawners.movers, compiled.entitySpawners.movers);
-  push('springPads', def.entitySpawners.springPads, compiled.entitySpawners.springPads);
-  push('lasers', def.entitySpawners.lasers, compiled.entitySpawners.lasers);
-  push('orbs', def.entitySpawners.orbs, compiled.entitySpawners.orbs);
-  push('jumpBoosts', def.entitySpawners.jumpBoosts, compiled.entitySpawners.jumpBoosts);
-  push('checkpoints', def.entitySpawners.checkpoints, compiled.entitySpawners.checkpoints);
-  push('nova', def.entitySpawners.nova, compiled.entitySpawners.nova);
+  PUSH(diffs, 'id', def.id, compiled.id);
+  PUSH(diffs, 'name', def.name, compiled.name);
+  PUSH(diffs, 'width', def.width, compiled.width);
+  PUSH(diffs, 'height', def.height, compiled.height);
+  PUSH(diffs, 'playerSpawn', def.playerSpawn, compiled.playerSpawn);
+  PUSH(diffs, 'solids', def.solids, compiled.solids);
+  PUSH(diffs, 'spikes', def.spikes, compiled.spikes);
+  PUSH(diffs, 'decos', def.decos, compiled.decos);
+  PUSH(diffs, 'hints', def.hints, compiled.hints);
+  PUSH(diffs, 'movers', def.entitySpawners.movers, compiled.entitySpawners.movers);
+  PUSH(diffs, 'springPads', def.entitySpawners.springPads, compiled.entitySpawners.springPads);
+  PUSH(diffs, 'lasers', def.entitySpawners.lasers, compiled.entitySpawners.lasers);
+  PUSH(diffs, 'orbs', def.entitySpawners.orbs, compiled.entitySpawners.orbs);
+  PUSH(diffs, 'jumpBoosts', def.entitySpawners.jumpBoosts, compiled.entitySpawners.jumpBoosts);
+  PUSH(diffs, 'checkpoints', def.entitySpawners.checkpoints, compiled.entitySpawners.checkpoints);
+  PUSH(diffs, 'nova', def.entitySpawners.nova, compiled.entitySpawners.nova);
 
   return {
     ok: diffs.length === 0,
-    instanceCount: data.instances.length,
+    objectCount: data.layers.geometry.length + data.layers.objects.length,
+    differenceCount: diffs.length,
     differences: diffs,
   };
 }
+
+// 保留 migrateMapData 的再导出（io.ts 使用）
+export { migrateMapData };

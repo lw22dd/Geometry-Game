@@ -20,7 +20,7 @@ import { keys } from '../../core/input';
 import { clamp } from '../../core/math';
 import {
   PHYS, RUN, SPRINT, currentMap,
-  TRACK_CAPTURE_RADIUS, TRACK_STOP_SPEED, TRACK_FRICTION, TRACK_MIN_SPEED,
+  TRACK_CAPTURE_RADIUS, TRACK_STOP_SPEED, TRACK_FRICTION,
 } from '../../config';
 import { getMode, type PhysicsKey } from '../game/gameMode';
 import { trail } from '../particles';
@@ -206,8 +206,11 @@ export function stepPlayerGeneric(
   p.x += p.vx * dt;
   for (const s of solidsNow) {
     if (boxHitFor(p, s)) {
-      // ── 墙壁弹簧（侧面碰撞）：触发弹射，不阻断速度 ──
-      if (s.springPad !== undefined) {
+      // 玩家脚底贴住固体顶面（站立 / 被移动平台携带 / 重力微沉）
+      // → 由垂直碰撞吸附，不做水平推挤（否则站在平台上会被推出边缘 → x 位移）
+      if (p.y - p.half >= s.top - 0.05) continue;
+      // ── 墙壁弹簧（细长 w<h，侧面碰撞）：触发弹射，不阻断速度 ──
+      if (s.springPad !== undefined && s.w < s.h) {
         const spring = world.get<SpringPad>(s.springPad, SpringPad);
         if (spring.cooldown <= 0) {
           spring.cooldown = spring.duration + 0.3;
@@ -217,8 +220,8 @@ export function stepPlayerGeneric(
           p.springX = spring.forceX;
           p.springY = spring.forceY;
           // 瞬间冲量：水平弹簧需要克服水平阻尼，直接给足速度
-          p.vx += spring.forceX * 3;
-          p.vy += spring.forceY * 3;
+          p.vx += spring.forceX;
+          p.vy += spring.forceY;
           // 首次触发时推挤到最近边缘（基于玩家位置，避免瞬移）
           if (p.x < s.x + s.w / 2) {
             p.x = s.x - p.half;      // 在左半边 → 推到左侧
@@ -257,7 +260,8 @@ export function stepPlayerGeneric(
         p.vy = 0;
         p.grounded = true;
         if (s.plat) p.plat = s.plat;
-        if (s.springPad !== undefined) springEnt = s.springPad;
+        // 扁宽弹簧（w >= h）只能从顶部踩触发
+        if (s.springPad !== undefined && s.w >= s.h) springEnt = s.springPad;
       } else {
         p.y = s.y - p.half;
         p.vy = 0;
@@ -419,10 +423,10 @@ function releaseFromTrack(p: PlayerState, t: TrackState): void {
 function tryEnterTrack(p: PlayerState, _dt: number, signals?: FrameSignals): void {
   if (p.track || p.dead) return;
   const sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
-  if (sp < TRACK_MIN_SPEED) return;
 
   for (const e of world.query(Position, Track)) {
     const tr = world.get<Track>(e, Track);
+    if (sp < tr.speedThreshold) continue;
     const dx = p.x - tr.entryX;
     const dy = p.y - tr.entryY;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -441,7 +445,7 @@ function tryEnterTrack(p: PlayerState, _dt: number, signals?: FrameSignals): voi
       segments: tr.segments,
       cumulative: cl,
       dist: tr.entryDist,
-      speed: Math.max(sp * dot, TRACK_MIN_SPEED),
+      speed: Math.max(sp * dot, tr.speedThreshold),
       totalLength: total,
       entryDist: tr.entryDist,
       exitDist: tr.exitDist,

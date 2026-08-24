@@ -1,16 +1,16 @@
 /**
  * 保存/加载/导出地图。
  *
- * 编辑器唯一产出物 = 标准地图数据（版本化 JSON，MapData 实例列表格式）。
+ * 编辑器唯一产出物 = 标准地图数据 v2（版本化 JSON，两层结构）。
  * MapDefinition TS 代码仅作为「兼容视图」供人工粘贴旧流程使用。
  */
 import type { EditorStore } from './store';
 import type { MapData } from './mapTypes';
-import { createEmptyMapData } from './mapTypes';
+import { createEmptyMapData, migrateMapData } from './mapTypes';
 import { compileMapData, decompileMapDefinition } from './mapCodec';
 import type { MapDefinition } from '@game/types';
 
-/* ==================== 保存（下载标准地图数据 JSON） ==================== */
+/* ==================== 保存（下载标准地图数据 JSON v2） ==================== */
 
 export function saveToFile(store: EditorStore): void {
   const data = store.mapSnapshot();
@@ -24,7 +24,7 @@ export function saveToFile(store: EditorStore): void {
   URL.revokeObjectURL(url);
 }
 
-/* ==================== 加载（从文件读取标准地图数据） ==================== */
+/* ==================== 加载（从文件读取，兼容 v1/v2） ==================== */
 
 export function loadFromFile(store: EditorStore): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -36,9 +36,11 @@ export function loadFromFile(store: EditorStore): Promise<void> {
       const reader = new FileReader();
       reader.onload = () => {
         try {
-          const data = JSON.parse(reader.result as string) as MapData;
-          if (data.version !== 1) throw new Error('不支持的版本号: ' + data.version);
-          store.loadMap(data);
+          const raw = JSON.parse(reader.result as string);
+          if (raw && raw.version !== 1 && raw.version !== 2) {
+            throw new Error('不支持的版本号: ' + raw?.version);
+          }
+          store.loadMap(migrateMapData(raw));
           resolve();
         } catch (e) {
           reject(e);
@@ -53,20 +55,24 @@ export function loadFromFile(store: EditorStore): Promise<void> {
 
 /* ==================== 导出 ==================== */
 
-/** 标准地图数据 JSON（编辑器唯一产出物） */
+/** 标准地图数据 JSON v2（编辑器唯一产出物） */
 export function standardMapDataJSON(store: EditorStore): string {
   return JSON.stringify(store.mapSnapshot(), null, 2);
 }
 
-/** MapDefinition TS 代码（兼容视图，供粘贴旧流程） */
+/** MapDefinition TS 代码（兼容视图；rotation≠0 的矩形跳过并注释） */
 export function mapDefinitionTSCode(store: EditorStore): string {
-  const map = compileMapData(store.mapSnapshot());
+  const { map, skippedRotated } = compileMapData(store.mapSnapshot());
   const fmt = (n: number) => parseFloat(n.toFixed(4)).toString();
   const indent = '    ';
   const R = (r: { x: number; y: number; w: number; h: number }) =>
     `R(${fmt(r.x)}, ${fmt(r.y)}, ${fmt(r.w)}, ${fmt(r.h)})`;
 
-  let out = `/**\n * 地图：${map.name}\n * 尺寸：${map.width} × ${map.height}\n */\n{\n`;
+  let out = `/**\n * 地图：${map.name}\n * 尺寸：${map.width} × ${map.height}\n`;
+  if (skippedRotated > 0) {
+    out += ` * ⚠ 警告：${skippedRotated} 个旋转矩形已跳过（游戏当前不支持旋转矩形）\n`;
+  }
+  out += ` */\n{\n`;
   out += `${indent}id: '${map.id}',\n`;
   out += `${indent}name: '${map.name}',\n`;
   out += `${indent}width: ${map.width},\n`;
@@ -80,27 +86,26 @@ export function mapDefinitionTSCode(store: EditorStore): string {
   out += `${indent}// ── 实体生成描述 ──\n`;
   out += `${indent}entitySpawners: {\n`;
   out += `${indent}${indent}movers: [\n${map.entitySpawners.movers.map(m => `${indent}${indent}${indent}{ x0: ${fmt(m.x0)}, y: ${fmt(m.y)}, w: ${fmt(m.w)}, h: ${fmt(m.h)}, range: ${fmt(m.range)}, spd: ${fmt(m.spd)}, ph: ${m.ph === Math.PI ? 'Math.PI' : fmt(m.ph)} },`).join('\n')}\n${indent}${indent}],\n`;
+  out += `${indent}${indent}springPads: [\n${map.entitySpawners.springPads.map(s => `${indent}${indent}${indent}{ x: ${fmt(s.x)}, y: ${fmt(s.y)}, w: ${fmt(s.w)}, h: ${fmt(s.h)}, forceX: ${fmt(s.forceX)}, forceY: ${fmt(s.forceY)}, duration: ${fmt(s.duration)} },`).join('\n')}\n${indent}${indent}],\n`;
   out += `${indent}${indent}lasers: [\n${map.entitySpawners.lasers.map(l => `${indent}${indent}${indent}{ x: ${fmt(l.x)}, y0: ${fmt(l.y0)}, len: ${fmt(l.len)}, ph: ${fmt(l.ph)} },`).join('\n')}\n${indent}${indent}],\n`;
   out += `${indent}${indent}orbs: [\n${map.entitySpawners.orbs.map(o => `${indent}${indent}${indent}[${fmt(o[0])}, ${fmt(o[1])}],`).join('\n')}\n${indent}${indent}],\n`;
+  out += `${indent}${indent}jumpBoosts: [\n${map.entitySpawners.jumpBoosts.map(j => `${indent}${indent}${indent}[${fmt(j[0])}, ${fmt(j[1])}],`).join('\n')}\n${indent}${indent}],\n`;
   out += `${indent}${indent}checkpoints: [\n${map.entitySpawners.checkpoints.map(c => `${indent}${indent}${indent}[${fmt(c[0])}, ${fmt(c[1])}],`).join('\n')}\n${indent}${indent}],\n`;
   out += `${indent}${indent}nova: { x: ${fmt(map.entitySpawners.nova.x)}, y: ${fmt(map.entitySpawners.nova.y)} },\n`;
   out += `${indent}},\n}`;
   return out;
 }
 
-/** 显示导出弹窗（默认展示标准地图数据） */
+/** 显示导出弹窗（默认展示标准地图数据 v2） */
 export function showExport(store: EditorStore): void {
-  const ta = document.getElementById('exportCode') as HTMLTextAreaElement;
   setExportTab(store, 'standard');
   document.getElementById('exportOverlay')!.classList.remove('hidden');
-  void ta;
 }
 
-/** 切换导出视图：'standard' 标准数据 JSON / 'ts' MapDefinition 代码 */
+/** 切换导出视图：'standard' 标准数据 / 'ts' MapDefinition 代码 */
 export function setExportTab(store: EditorStore, tab: 'standard' | 'ts'): void {
   const ta = document.getElementById('exportCode') as HTMLTextAreaElement;
   ta.value = tab === 'standard' ? standardMapDataJSON(store) : mapDefinitionTSCode(store);
-  // 高亮当前 tab
   document.querySelectorAll('#exportTabs .tab').forEach(el => {
     el.classList.toggle('active', (el as HTMLElement).dataset.tab === tab);
   });
@@ -110,12 +115,11 @@ export function setExportTab(store: EditorStore, tab: 'standard' | 'ts'): void {
 
 import { maps as gameMaps } from '@game/config/level';
 
-/** 游戏侧现有地图（只读，供导入） */
 export function getGameMaps(): MapDefinition[] {
   return gameMaps;
 }
 
-/** 按索引导入游戏地图（decompile 为编辑器格式） */
+/** 按索引导入游戏地图（decompile 为 v2） */
 export function importGameMap(store: EditorStore, index: number): void {
   const def = gameMaps[index];
   if (!def) return;
@@ -152,21 +156,20 @@ export function runSelfCheck(): string[] {
     const report = verifyRoundTrip(gameMaps[i]);
     results.push(
       report.ok
-        ? `✅ [${i}] ${gameMaps[i].name} — round-trip 无损（${report.instanceCount} 实例）`
+        ? `✅ [${i}] ${gameMaps[i].name} — round-trip 无损（${report.objectCount} 对象）`
         : `❌ [${i}] ${gameMaps[i].name} — ${report.differences.slice(0, 3).join('; ')}`,
     );
   }
   return results;
 }
 
-/* ==================== 自动保存（localStorage） ==================== */
+/* ==================== 自动保存（localStorage，v2） ==================== */
 
 const AUTO_SAVE_KEY = 'mapcreater.autosave';
 
 export function autoSave(store: EditorStore): void {
   try {
-    const data = store.mapSnapshot();
-    localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(data));
+    localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(store.mapSnapshot()));
   } catch { /* IO error, ignore */ }
 }
 
@@ -174,9 +177,9 @@ export function loadAutoSave(store: EditorStore): boolean {
   try {
     const raw = localStorage.getItem(AUTO_SAVE_KEY);
     if (!raw) return false;
-    const data = JSON.parse(raw) as MapData;
-    if (data.version === 1) {
-      store.loadMap(data);
+    const data = JSON.parse(raw);
+    if (data && (data.version === 1 || data.version === 2)) {
+      store.loadMap(migrateMapData(data));
       return true;
     }
     return false;

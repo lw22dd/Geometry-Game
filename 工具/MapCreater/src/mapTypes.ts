@@ -1,66 +1,87 @@
 /**
- * 地图实例类型 —— 编辑器内使用的数据格式。
+ * 地图数据模型 v2 —— 编辑器内使用的标准数据格式。
  *
- * 部分类型从游戏侧 `@game/types` 复用 spawn 数据形状，确保同步。
+ * 两层架构：
+ *   - layers.geometry：基础地图矢量层（矩形，xywh + 旋转）
+ *   - layers.objects：场景物品摆放层（预制体实例）
+ *
+ * 部分对象类型从游戏侧 `@game/types` 复用 spawn 数据形状，确保同步。
  */
 import type { MoverSpawnData, LaserSpawnData, SpringPadSpawnData } from '@game/types';
 
-/* ==================== 实例类型 ==================== */
+/* ==================== 几何图元（基础地图层） ==================== */
 
-export interface SolidInstance {
-  type: 'solid';
+/** 矩形图元：x,y = 左下角（与游戏 R(x,y,w,h) 一致），rotation 绕中心（度） */
+export interface RectItem {
+  type: 'rect';
   x: number; y: number; w: number; h: number;
+  /** 旋转角（度），绕矩形中心 */
+  rotation: number;
 }
+
+/** 几何图元联合（未来可扩展 polygon / line） */
+export type GeometryItem = RectItem;
+
+/* ==================== 对象实例（场景物品层） ==================== */
 
 export interface SpikeInstance {
   type: 'spike';
   x: number; y: number;
+  rotation?: number;
 }
 
 export interface DecoInstance {
   type: 'deco';
   x: number; y: number; size: number; rotSpeed: number;
+  rotation?: number;
 }
 
 export interface HintInstance {
   type: 'hint';
   x: number; y: number; text: string;
+  rotation?: number;
 }
 
 export interface MoverInstance extends MoverSpawnData {
   type: 'mover';
+  rotation?: number;
 }
 
 export interface LaserInstance extends LaserSpawnData {
   type: 'laser';
+  rotation?: number;
 }
 
 export interface OrbInstance {
   type: 'orb';
   x: number; y: number;
+  rotation?: number;
 }
 
 export interface JumpBoostInstance {
   type: 'jumpBoost';
   x: number; y: number;
+  rotation?: number;
 }
 
 export interface CheckpointInstance {
   type: 'checkpoint';
   x: number; y: number;
+  rotation?: number;
 }
 
 export interface NovaInstance {
   type: 'nova';
   x: number; y: number;
+  rotation?: number;
 }
 
 export interface SpringPadInstance extends SpringPadSpawnData {
   type: 'springPad';
+  rotation?: number;
 }
 
 export type MapInstance =
-  | SolidInstance
   | SpikeInstance
   | DecoInstance
   | HintInstance
@@ -72,38 +93,155 @@ export type MapInstance =
   | NovaInstance
   | SpringPadInstance;
 
+export type ObjectInstance = MapInstance;
 export type InstanceType = MapInstance['type'];
 
-/* ==================== 地图存档 ==================== */
+/* ==================== 地图存档 v2 ==================== */
+
+export interface MapLayers {
+  geometry: GeometryItem[];
+  objects: ObjectInstance[];
+}
 
 export interface MapData {
+  version: 2;
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  playerSpawn: { x: number; y: number };
+  layers: MapLayers;
+}
+
+export function createEmptyMapData(id = 'untitled', name = '未命名关卡'): MapData {
+  return {
+    version: 2,
+    id,
+    name,
+    width: 120,
+    height: 72,
+    playerSpawn: { x: 6, y: 4 },
+    layers: { geometry: [], objects: [] },
+  };
+}
+
+/* ==================== v1 → v2 迁移 ==================== */
+
+/** v1 存档形状（兼容读取） */
+interface MapDataV1 {
   version: 1;
   id: string;
   name: string;
   width: number;
   height: number;
   playerSpawn: { x: number; y: number };
-  instances: MapInstance[];
+  /** v1 的实例列表（含 solid） */
+  instances: (RectLike | any)[];
 }
 
-export function createEmptyMapData(id = 'untitled', name = '未命名关卡'): MapData {
-  return {
-    version: 1,
-    id,
-    name,
-    width: 120,
-    height: 72,
-    playerSpawn: { x: 6, y: 4 },
-    instances: [],
+interface RectLike {
+  type: 'solid';
+  x: number; y: number; w: number; h: number;
+}
+
+/**
+ * 任意版本 → 规范 v2。
+ * v1：solid → layers.geometry，其余 → layers.objects。
+ */
+export function migrateMapData(raw: unknown): MapData {
+  const src = raw as Partial<MapDataV1> & Partial<MapData>;
+
+  const base = {
+    id: src.id ?? 'untitled',
+    name: src.name ?? '未命名关卡',
+    width: src.width ?? 120,
+    height: src.height ?? 72,
+    playerSpawn: src.playerSpawn ?? { x: 6, y: 4 },
   };
+
+  // 已经是 v2
+  if (src.version === 2 && src.layers) {
+    return {
+      version: 2,
+      ...base,
+      layers: {
+        geometry: src.layers.geometry ?? [],
+        objects: src.layers.objects ?? [],
+      },
+    };
+  }
+
+  // v1 → v2
+  const geometry: GeometryItem[] = [];
+  const objects: ObjectInstance[] = [];
+  for (const inst of src.instances ?? []) {
+    if (inst && inst.type === 'solid') {
+      const r = inst as RectLike;
+      geometry.push({ type: 'rect', x: r.x, y: r.y, w: r.w, h: r.h, rotation: 0 });
+    } else if (inst && typeof inst.type === 'string') {
+      objects.push(inst as ObjectInstance);
+    }
+  }
+
+  return { version: 2, ...base, layers: { geometry, objects } };
 }
 
-/* ==================== 实例辅助函数 ==================== */
+/* ==================== 几何辅助函数 ==================== */
+
+/** 矩形中心（旋转轴） */
+export function rectCenter(r: RectItem): { x: number; y: number } {
+  return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+}
+
+/** 矩形旋转角 → 弧度 */
+export function rectRad(r: RectItem): number {
+  return (r.rotation * Math.PI) / 180;
+}
+
+/** 旋转后矩形的世界 AABB（用于渲染裁剪与选中框绘制） */
+export function rotatedRectBounds(r: RectItem): { x: number; y: number; w: number; h: number } {
+  const c = rectCenter(r);
+  const rad = rectRad(r);
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const hw = r.w / 2, hh = r.h / 2;
+  // 四个角（局部空间）
+  const corners = [
+    [-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh],
+  ].map(([lx, ly]) => ({
+    x: c.x + lx * cos - ly * sin,
+    y: c.y + lx * sin + ly * cos,
+  }));
+  const xs = corners.map(p => p.x), ys = corners.map(p => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
+/**
+ * 命中检测：鼠标世界点是否命中（逆旋转回局部坐标后做 AABB 判定）。
+ */
+export function hitTestRect(r: RectItem, mx: number, my: number, pad = 0.1): boolean {
+  const c = rectCenter(r);
+  const rad = rectRad(r);
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  // 世界 → 局部（逆旋转）
+  const dx = mx - c.x, dy = my - c.y;
+  const lx = dx * cos + dy * sin;
+  const ly = -dx * sin + dy * cos;
+  return Math.abs(lx) <= r.w / 2 + pad && Math.abs(ly) <= r.h / 2 + pad;
+}
+
+/** 移动几何图元（增量） */
+export function moveGeometry(item: GeometryItem, dx: number, dy: number): void {
+  item.x += dx;
+  item.y += dy;
+}
+
+/* ==================== 对象实例辅助函数 ==================== */
 
 /** 获取实例的「锚点」世界坐标（用于选中/移动/放置） */
 export function instancePosition(inst: MapInstance): { x: number; y: number } {
   switch (inst.type) {
-    case 'solid':   return { x: inst.x, y: inst.y };
     case 'spike':   return { x: inst.x, y: inst.y };
     case 'deco':    return { x: inst.x, y: inst.y };
     case 'hint':    return { x: inst.x, y: inst.y };
@@ -117,10 +255,9 @@ export function instancePosition(inst: MapInstance): { x: number; y: number } {
   }
 }
 
-/** 移动实例的锚点（增量） */
+/** 移动实例锚点（增量） */
 export function moveInstance(inst: MapInstance, dx: number, dy: number): void {
   switch (inst.type) {
-    case 'solid':   inst.x += dx; inst.y += dy; break;
     case 'spike':   inst.x += dx; inst.y += dy; break;
     case 'deco':    inst.x += dx; inst.y += dy; break;
     case 'hint':    inst.x += dx; inst.y += dy; break;
@@ -137,7 +274,6 @@ export function moveInstance(inst: MapInstance, dx: number, dy: number): void {
 /** 实例的显示标签 */
 export function instanceLabel(inst: MapInstance): string {
   switch (inst.type) {
-    case 'solid':   return `平台 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
     case 'spike':   return `尖刺 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
     case 'deco':    return `装饰 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
     case 'hint':    return `提示: ${inst.text}`;
@@ -153,13 +289,9 @@ export function instanceLabel(inst: MapInstance): string {
 
 /**
  * 实例的命中区域（世界坐标 AABB）—— 与渲染几何一致。
- * 这是「点击触发网格体」的唯一权威定义：
- * hitTest 用它做命中判定，render.ts 用它绘制选中/悬停框。
  */
 export function instanceHitBounds(inst: MapInstance, minSize = 0.6): { x: number; y: number; w: number; h: number } {
   switch (inst.type) {
-    case 'solid':
-      return { x: inst.x, y: inst.y, w: inst.w, h: inst.h };
     case 'spike': {
       const w = Math.max(1, minSize), h = Math.max(1, minSize);
       return { x: inst.x - 0.1, y: inst.y - 0.1, w: w + 0.2, h: h + 0.2 };
@@ -193,11 +325,7 @@ export function instanceHitBounds(inst: MapInstance, minSize = 0.6): { x: number
   }
 }
 
-/**
- * 命中检测：鼠标世界点 (mx,my) 是否命中实例。
- * 判定区域 = instanceHitBounds（与渲染几何一致），
- * 过小物体以最小像素点击尺寸兜底。
- */
+/** 命中检测：鼠标世界点是否命中实例 */
 export function hitTest(inst: MapInstance, mx: number, my: number, minSize = 0.6): boolean {
   const b = instanceHitBounds(inst, minSize);
   return mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h;
