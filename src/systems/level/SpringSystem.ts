@@ -3,7 +3,7 @@
  * animTimer > 0 时弹簧处于压缩/弹起动画中（与玩家加速时长同步）。
  */
 import { world } from '../../core/ecs';
-import { SpringPad } from '../../components/SpringPad';
+import { SpringPad } from '../../components/physics/SpringPad';
 
 export function updateSpringPads(dt: number): void {
   for (const e of world.query(SpringPad)) {

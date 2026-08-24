@@ -5,18 +5,20 @@
  * 处理：
  *   enter:player:hazard      → 尖刺/激光致死
  *   enter:player:collectible → 光球收集
- *   enter:player:respawn     → 检查点激活
+ *   enter:player:respawn     → 检查点进入（可交互标记）
+ *   exit:player:respawn      → 检查点离开
  *   enter:player:goal        → 终点登顶
  */
 import { world } from '../../core/ecs';
-import { Position } from '../../components/Position';
-import { Collider } from '../../components/Collider';
-import { Timer } from '../../components/Timer';
-import { Hazard } from '../../components/Hazard';
-import { Collectible } from '../../components/Collectible';
-import { JumpBoost } from '../../components/JumpBoost';
-import { RespawnPoint } from '../../components/RespawnPoint';
-import { Goal } from '../../components/Goal';
+import { Position } from '../../components/physics/Position';
+import { Collider } from '../../components/physics/Collider';
+import { Timer } from '../../components/gameplay/Timer';
+import { Hazard } from '../../components/gameplay/Hazard';
+import { Collectible } from '../../components/gameplay/Collectible';
+import { JumpBoost } from '../../components/gameplay/JumpBoost';
+import { RespawnPoint } from '../../components/gameplay/RespawnPoint';
+import { PlayerTag } from '../../components/gameplay/PlayerTag';
+import { Goal } from '../../components/gameplay/Goal';
 import { collisionBus } from '../../core/collisionBus';
 import { gs } from '../game/gameState';
 import { playerController } from '../player';
@@ -25,6 +27,8 @@ import { spawnParticles } from '../particles';
 import { sfx } from '../../core/audio';
 import { cpPoint } from '../../config';
 import { netBus } from '../../core/netBus';
+import { room } from '../../net/room';
+import { activateCheckpoint } from './RespawnPointSystem';
 
 /** 是否已初始化 */
 let _initialized = false;
@@ -89,23 +93,20 @@ export function initCollisionHooks(): void {
     netBus.emit({ type: 'game:jumpboost' });
     if (signals) signals.jumpBoostPicked = true;
 
-    gs.toast = '⚡ 二段跳激活！';
+    gs.toast = '二段跳激活！';
     gs.toastT = 2;
   });
 
-  // ── 检查点 ──
-  collisionBus.on('enter:player:respawn', ({ b, signals }) => {
+  // ── 检查点：进入触发区 → 可交互（nearby），按 E 激活 ──
+  collisionBus.on('enter:player:respawn', ({ b }) => {
     const rp = world.get<RespawnPoint>(b, RespawnPoint);
     if (rp.active) return;
+    rp.nearby = true;
+  });
 
-    rp.active = true;
-    const pos = world.get<Position>(b, Position);
-    cpPoint.x = pos.x;
-    cpPoint.y = pos.y;
-    spawnParticles(FX.cp, pos.x, pos.y);
-    sfx.cp();
-    netBus.emit({ type: 'game:checkpoint', x: pos.x, y: pos.y });
-    if (signals) signals.checkpointHit = true;
+  collisionBus.on('exit:player:respawn', ({ b }) => {
+    const rp = world.get<RespawnPoint>(b, RespawnPoint);
+    if (rp) rp.nearby = false;
   });
 
   // ── 终点（NOVA）──
@@ -117,11 +118,41 @@ export function initCollisionHooks(): void {
     gs.win = true;
     gs.winTime = gs.gt;
     sfx.win();
-    spawnParticles(FX.confetti, playerController.getState().x, playerController.getState().y);
+    const px = playerController.getState().x;
+    const py = playerController.getState().y;
+    spawnParticles(FX.confetti, px, py);
     gs.shake = 0.5;
-    netBus.emit({ type: 'game:win', time: gs.winTime, orbs: gs.gotN, total: world.query(Collectible).length });
+    netBus.emit({ type: 'game:win', time: gs.winTime, orbs: gs.gotN, total: world.query(Collectible).length, x: px, y: py, playerId: room.playerId });
     if (signals) signals.goalReached = true;
   });
+}
+
+/**
+ * 本地玩家按 E 交互：找最近的可交互检查点并激活。
+ * 可在 keydown 回调中安全调用。
+ */
+export function tryInteractCheckpoint(): void {
+  const player = world.queryOne(PlayerTag, Position, Collider);
+  if (!player) return;
+  const pp = world.get<Position>(player, Position);
+
+  // 找 nearby && !active && 玩家点在碰撞体内的检查点（取最近）
+  let best: number | null = null;
+  let bestD = Infinity;
+  for (const e of world.query(Position, Collider, RespawnPoint)) {
+    const rp = world.get<RespawnPoint>(e, RespawnPoint);
+    if (!rp.nearby || rp.active) continue;
+    const pos = world.get<Position>(e, Position);
+    const d = (pos.x - pp.x) ** 2 + (pos.y - pp.y) ** 2;
+    if (d < bestD) { bestD = d; best = e as number; }
+  }
+  if (best === null) return;
+
+  // 激活并设置本地复活点（cpPoint 由 activateCheckpoint 内部设置）
+  if (activateCheckpoint(best)) {
+    gs.toast = '◆ 检查点已激活';
+    gs.toastT = 1.5;
+  }
 }
 
 /** 重置碰撞事件处理器（用于重新加载时） */

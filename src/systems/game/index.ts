@@ -3,12 +3,14 @@
  * 联机模式：房主跑完整物理 + 广播权威状态；客机发输入 + 本地预测 + 矫正。
  */
 import { ctx, VW, VH, DPR, PPM } from '../../core/canvas';
-import { updateCamera, sx, sy, view } from '../../core/camera';
+import { updateCamera, sx, sy, view, cam } from '../../core/camera';
 import { musicTick, MUS, sfx, AU } from '../../core/audio';
 import { keys } from '../../core/input';
-import { currentMap, PHYS } from '../../config';
+import { currentMap, PHYS, setupLevel } from '../../config';
 import { gs } from './gameState';
 import { getMode, setMode } from './gameMode';
+import { prepare } from '../ui/prepare';
+import { lobby } from '../ui/lobby';
 import { playerController } from '../player';
 import { stepPlayerGeneric } from '../player';
 import { FX } from '../../Prefabs/Fx';
@@ -19,8 +21,8 @@ import {
   drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawJumpBoosts, drawNOVA,
   drawTrail, drawParticles, drawHints, drawTracks,
 } from '../../Prefabs/Scenes';
-import { drawPlayer, drawPlayerFor, stepPlayerAnimation, characterStyleForId } from '../../Prefabs/Player';
-import { drawHUD, drawMinimap } from '../ui';
+import { drawPlayer, drawPlayerFor, stepPlayerAnimation, getSelectedCharacter, getCharacterById, DEFAULT_CHARACTER } from '../../Prefabs/Player';
+import { drawHUD, drawMinimap } from '../ui/hud';
 import { syncUI } from '../ui/scenes';
 import { ui } from '../../core/uiComponent';
 import { drawDevGrid, drawDebugHUD, tickFPS } from '../ui/dev';
@@ -33,9 +35,9 @@ import {
 } from '../player/remote';
 import type { FrameSignals, InputKeys, NetPlayerState, NetOrbState, RemotePlayer, TrackState, PathSegment } from '../../types';
 import { world } from '../../core/ecs';
-import { Position } from '../../components/Position';
-import { Collectible } from '../../components/Collectible';
-import { initCollisionHooks, updateCollectSystem, updateRespawnPointSystem, updateJumpBoostSystem } from '../interactions';
+import { Position } from '../../components/physics/Position';
+import { Collectible } from '../../components/gameplay/Collectible';
+import { initCollisionHooks, updateCollectSystem, updateRespawnPointSystem, updateJumpBoostSystem, tryInteractCheckpoint } from '../interactions';
 import { buildCumulativeLengths, pathTotalLength } from '../../core/path';
 
 /* ==================== 轨道状态序列化辅助 ==================== */
@@ -69,15 +71,54 @@ let _netSeq = 0;
 let _stateTick = 0; // 房主状态广播计数器（每 2 帧广播一次，降低带宽）
 const STATE_INTERVAL = 2;
 
+/** 远程玩家上一帧 interact 状态（用于检测"按下沿"） */
+const remoteInteractPrev = new Map<number, boolean>();
+
 /* ==================== 开始游戏 ==================== */
 
+/**
+ * 切图进场串联（单机/房主/客机共用）：
+ * 清空旧 ECS 实体 → loadMap(id) → 重建实体 → 玩家复位 → gs 复位 → 相机复位。
+ */
+export function applyLevel(mapId: string): void {
+  setupLevel(mapId);
+  const sp = currentMap.playerSpawn;
+  playerController.resetToSpawn(sp.x, sp.y);
+  // gs 计数/计时复位
+  gs.gt = 0;
+  gs.gotN = 0;
+  gs.deaths = 0;
+  gs.win = false;
+  gs.winTime = 0;
+  gs.toast = '';
+  gs.toastT = 0;
+  // 相机复位到出生点（避免镜头从旧图边界缓移）
+  cam.x = sp.x;
+  cam.y = sp.y + 3;
+  const vwp = VW / (PPM * view.zoom);
+  const vhp = VH / (PPM * view.zoom);
+  view.SL = cam.x - vwp / 2;
+  view.SB = cam.y - vhp / 2;
+}
+
+/** 单机开始（准备界面确认后立即进场，用当前所选地图） */
 export function startGame(): void {
+  prepare.mode = 'prepare';
+  applyLevel(prepare.mapId);
   gs.screen = 'playing';
   gs.started = true;
   if (isHost()) {
     // 房主模式下，重置远程玩家
     resetRemotes();
   }
+}
+
+/** 联机房主开始：广播所选地图（level 事件）→ 稍候本地进场 */
+export function startMultiplayerGame(): void {
+  if (!isHost()) return;
+  net.sendHostEvent('level', { mapId: prepare.mapId });
+  // 给客机留出「收到 level → 重建世界」的时间，避免双方世界不一致
+  setTimeout(() => startGame(), 350);
 }
 
 /* ==================== 主循环 ==================== */
@@ -173,8 +214,8 @@ function stepRemoteClients(dt: number): void {
         rp.dead = false;
         rp.x = rp.cpX ?? 6;
         rp.y = (rp.cpY ?? 4) + 1.2;
-        rp.vx = 0;
-        rp.vy = 0;
+        rp.velocity.x = 0;
+        rp.velocity.y = 0;
         rp.inv = 1.2;
         rp.plat = null;
         rp.track = null;
@@ -183,13 +224,26 @@ function stepRemoteClients(dt: number): void {
     }
     const input = getClientInput(id);
     const signals: FrameSignals = {};
+    const wasDead = rp.dead;
     // checkHazards=true：远程玩家无 ECS 实体，危险物检测行内处理
     stepPlayerGeneric(rp, input, dt, false, signals, true);
 
+    // 远程玩家死亡：房主判定权威 → 本地播放 + 广播给客机
+    if (!wasDead && rp.dead) {
+      spawnParticles(FX.death, rp.x, rp.y);
+      netBus.emit({ type: 'fx:death', x: rp.x, y: rp.y, playerId: id });
+    }
+
     // 远程玩家收集光球检测（共享光球，任何人收集即计数）
     if (updateCollectSystem(rp.x, rp.y)) signals.collected = true;
-    // 远程玩家检查点激活（记录该玩家个人复活点）
-    const cp = updateRespawnPointSystem(rp.x, rp.y);
+    // 远程玩家检查点交互（记录该玩家个人复活点）
+    // 客机通过 InputKeys.interact 上报 E 键；房主检测"按下沿"（本帧按下、上帧未按）
+    const interactNow = input?.interact ?? false;
+    const interactPrev = remoteInteractPrev.get(id) ?? false;
+    remoteInteractPrev.set(id, interactNow);
+    const cp = interactNow && !interactPrev
+      ? updateRespawnPointSystem(rp.x, rp.y, true)
+      : updateRespawnPointSystem(rp.x, rp.y, false);
     if (cp) {
       rp.cpX = cp.x;
       rp.cpY = cp.y;
@@ -214,7 +268,7 @@ function broadcastHostState(): void {
   const pS = playerController.getState();
   const players: NetPlayerState[] = [{
     playerId: room.playerId,
-    x: pS.x, y: pS.y, vx: pS.vx, vy: pS.vy,
+    x: pS.x, y: pS.y, vx: pS.velocity.x, vy: pS.velocity.y,
     face: pS.face, grounded: pS.grounded, dead: pS.dead,
     sprint: pS.sprint, inv: pS.inv,
     hasPlat: pS.plat !== null, platDx: pS.plat ? pS.plat.dx : 0,
@@ -225,7 +279,7 @@ function broadcastHostState(): void {
   for (const [id, rp] of remotes) {
     players.push({
       playerId: id,
-      x: rp.x, y: rp.y, vx: rp.vx, vy: rp.vy,
+      x: rp.x, y: rp.y, vx: rp.velocity.x, vy: rp.velocity.y,
       face: rp.face, grounded: rp.grounded, dead: rp.dead,
       sprint: rp.sprint, inv: rp.inv,
       hasPlat: false, platDx: 0,
@@ -256,6 +310,7 @@ function getLocalInputKeys(): InputKeys {
     right: keys.ArrowRight || keys.KeyD,
     jump: keys.Space || keys.KeyW || keys.ArrowUp,
     sprint: keys.ShiftLeft || keys.ShiftRight,
+    interact: keys.KeyE,
   };
 }
 
@@ -285,8 +340,8 @@ function wireNetEvents(): void {
         const selfPs = players.find(p => p.playerId === room.playerId);
         playerController.applyCorrection(
           self.x, self.y,
-          selfPs?.vx ?? pS.vx,
-          selfPs?.vy ?? pS.vy,
+          selfPs?.vx ?? pS.velocity.x,
+          selfPs?.vy ?? pS.velocity.y,
           selfPs?.face ?? pS.face,
           selfPs?.grounded ?? pS.grounded,
           selfPs ? unpackTrack(selfPs) : undefined,
@@ -338,6 +393,20 @@ function wireNetEvents(): void {
     // 客机只处理事件，不重复触发逻辑
     const d = data as any;
     switch (kind) {
+      case 'level': {
+        // 房主选择的关卡：重建本地世界（仅本地玩家）→ 进入游戏
+        const mapId = d?.mapId;
+        if (typeof mapId === 'string') {
+          // 退出房间阶段
+          lobby.mode = 'none';
+          lobby.inRoom = false;
+          lobby.myReady = false;
+          applyLevel(mapId);
+          gs.screen = 'playing';
+          gs.started = true;
+        }
+        break;
+      }
       case 'orb':
         gs.toast = '光球 ' + d.count + ' / ' + d.total;
         gs.toastT = 2;
@@ -352,12 +421,22 @@ function wireNetEvents(): void {
         gs.toastT = 1.5;
         break;
       case 'jumpboost':
-        gs.toast = '⚡ 双跳激活！';
+        gs.toast = '双跳激活！';
         gs.toastT = 2;
         break;
       case 'win':
         gs.win = true;
         gs.winTime = d.time;
+        // 客机在非自己获胜时播放庆祝特效
+        if (d.playerId !== room.playerId && d.x != null && d.y != null) {
+          spawnParticles(FX.confetti, d.x, d.y);
+        }
+        break;
+      // ── 死亡特效：房主广播（房主是死亡判定权威）──
+      case 'fx_death':
+        // 自己的死亡已在本地播放，不再重复
+        if (d.playerId === room.playerId) break;
+        spawnParticles(FX.death, d.x, d.y);
         break;
     }
   });
@@ -399,7 +478,7 @@ function wireNetEvents(): void {
   });
 }
 
-/** 应用光球权威状态到本地 ECS */
+/** 应用光球权威状态到本地 ECS + 本地特效（状态转变检测） */
 function applyOrbStates(orbs: NetOrbState[]): void {
   for (const os of orbs) {
     const e = os.entityId as any;
@@ -407,7 +486,16 @@ function applyOrbStates(orbs: NetOrbState[]): void {
       const col = world.get<{ collected: boolean }>(e, Collectible);
       if (col.collected !== os.collected) {
         col.collected = os.collected;
-        if (os.collected) gs.gotN++;
+        if (os.collected) {
+          gs.gotN++;
+          // 本地播放光球收集特效（状态转变检测，无需网络广播）
+          const pos = world.get<Position>(e, Position);
+          spawnParticles(FX.sparkle, pos.x, pos.y);
+          // 全收集庆祝
+          if (gs.gotN === world.query(Collectible).length) {
+            spawnParticles(FX.confetti, pos.x, pos.y);
+          }
+        }
       }
     }
   }
@@ -431,9 +519,10 @@ function render(dt: number): void {
   ctx.fillStyle = gr;
   ctx.fillRect(0, 0, VW, VH);
 
-  // 菜单 / 大厅 / 图鉴 / 操作说明：全屏 UI 场景，直接绘制（不渲染游戏）
+  // 菜单 / 准备流程 / 大厅 / 图鉴 / 操作说明：全屏 UI 场景，直接绘制（不渲染游戏）
   if (ui.currentName === 'menu' || ui.currentName === 'lobby'
-      || ui.currentName === 'gallery' || ui.currentName === 'instructions') {
+      || ui.currentName === 'gallery' || ui.currentName === 'instructions'
+      || ui.currentName === 'prepare' || ui.currentName === 'mapSelect' || ui.currentName === 'charSelect') {
     ui.draw(uiTime);
     return;
   }
@@ -483,7 +572,7 @@ function renderGame(dt: number): void {
   drawParticles();
 
   // 绘制所有玩家（本地 + 远程）
-  drawPlayer(pS);
+  drawPlayer(pS, getSelectedCharacter());
   for (const [, rp] of remotes) {
     drawRemotePlayer(rp, dt);
   }
@@ -514,12 +603,16 @@ function renderGame(dt: number): void {
   drawMinimap(vw, vh);
 }
 
-/** 绘制远程玩家（走预制体通路，按 ID 取颜色变体；客机端渲染帧步进动画） */
+/** 绘制远程玩家（走预制体通路；按房间信息里的角色 id 取样式，缺省回退按 playerId 配色变体） */
 function drawRemotePlayer(rp: RemotePlayer, dt: number): void {
   if (rp.dead) return;
   // 客机端远程玩家无物理步，动画在渲染帧推进；房主端由 stepRemotePlayer 推进
   if (!isHost()) stepPlayerAnimation(rp, dt);
-  drawPlayerFor(rp, characterStyleForId(rp.id));
+  // 房间握手带 char 时用该角色样式；客机端自己的 room.players 在加入时已同步
+  const info = room.players.find(p => p.id === rp.id);
+  // 使用玩家选择的角色样式；未选择时回退默认角色（不按 playerId 区分颜色）
+  const style = info?.char ? getCharacterById(info.char) : DEFAULT_CHARACTER;
+  drawPlayerFor(rp, style);
 
   // 玩家 ID 标签
   ctx.save();
@@ -560,14 +653,17 @@ export function startLoop(): void {
 function wirePlayerEvents(): void {
   playerController.onEvent = (event) => {
     switch (event.type) {
-      case 'died':
+      case 'died': {
+        const dp = playerController.getState();
         gs.deaths = event.deaths;
         gs.shake = 1;
         gs.flash = 0.6;
-        spawnParticles(FX.death, playerController.getState().x, playerController.getState().y);
+        spawnParticles(FX.death, dp.x, dp.y);
+        netBus.emit({ type: 'fx:death', x: dp.x, y: dp.y, playerId: room.playerId });
         sfx.die();
         netBus.emit({ type: 'game:death', deaths: event.deaths });
         break;
+      }
       case 'jumped':
         sfx.jump();
         break;
@@ -599,10 +695,25 @@ function wirePlayerEvents(): void {
 
 /** 按键逻辑（由 core/input 的 keydown 回调调用） */
 export function handleKeyDown(e: KeyboardEvent): void {
-  // 菜单中：Enter / Space 开始游戏
+  // 准备流程（含两个选择子页）：ESC 逐级返回，Enter/Space 单机开始
+  if (gs.screen === 'prepare') {
+    if (prepare.mode === 'maps' || prepare.mode === 'chars') {
+      if (e.code === 'Escape') prepare.mode = 'prepare';
+      return;
+    }
+    if (e.code === 'Escape') {
+      gs.screen = 'menu';
+    } else if (e.code === 'Enter' || e.code === 'Space' || e.code === 'NumpadEnter') {
+      startGame();
+    }
+    return;
+  }
+
+  // 菜单中：Enter / Space 进入准备界面（选图/选人）
   if (gs.screen === 'menu') {
     if (e.code === 'Enter' || e.code === 'Space' || e.code === 'NumpadEnter') {
-      startGame();
+      gs.screen = 'prepare';
+      prepare.mode = 'prepare';
     }
     return;
   }
@@ -628,11 +739,14 @@ export function handleKeyDown(e: KeyboardEvent): void {
 
   if (e.code === 'KeyR') playerController.respawn();
 
+  // E 键：检查点交互（按 E 激活附近的可交互检查点）
+  if (e.code === 'KeyE') tryInteractCheckpoint();
+
   if (e.code === 'KeyP') {
     const cur = getMode();
     const next = cur === 'tuned' ? 'classic' : 'tuned';
     const old = PHYS[cur], nw = PHYS[next];
-    playerController.getState().vy *= nw.JV / old.JV;
+    playerController.getState().velocity.y *= nw.JV / old.JV;
     setMode(next);
     gs.toast = '物理 · ' + nw.name;
     gs.toastT = 2;

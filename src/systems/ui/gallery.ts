@@ -1,35 +1,30 @@
 /**
- * 预制体图鉴 —— 按分类展示游戏中的角色、收集品、机关、平台、特效。
- * 入口：菜单场景"📖 预制体图鉴"按钮。
+ * 预制体图鉴 —— 升级版：与 menu 同款氛围层 + 四角 HUD + 色差标题 + 错峰入场。
  * 操作：点击分类标签切换，翻页（超过 6 项时），返回按钮。
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { rr } from '../../core/math';
 import { Button, UI_SCENE } from '../../core/uiComponent';
 import type { UIScene, UIWidget } from '../../core/uiComponent';
+import { drawBackdrop, drawHUDFrame, drawNeonTitle, drawDecoStar, ease } from '../uiAtmosphere';
 
 /* ==================== 图鉴状态 ==================== */
 
-export const gallery = {
-  open: false,
-  cat: 0,
-  page: 0,
-};
-
+export const gallery = { open: false, cat: 0, page: 0 };
 export function openGallery(): void { gallery.open = true; gallery.cat = 0; gallery.page = 0; }
 export function closeGallery(): void { gallery.open = false; }
 
+/* ---------- 本地计时（与 menu 同款独立时钟） ---------- */
+let _gT = 0, _gLast = 0;
+
 /* ==================== 图鉴数据 ==================== */
 
-/** 单个图鉴条目 */
 interface GalleryItem {
   id: string;
   name: string;
-  /** 绘制预览图标（ctx, cx, cy, t, r） */
   draw: (cx: number, cy: number, t: number, r: number) => void;
 }
 
-/** 图鉴分类 */
 interface GalleryCategory {
   id: string;
   icon: string;
@@ -37,19 +32,16 @@ interface GalleryCategory {
   items: GalleryItem[];
 }
 
-/* ---------- 条目数据 ---------- */
-
 const CATEGORIES: GalleryCategory[] = [
   {
     id: 'characters',
-    icon: '🎮',
+    icon: '',
     title: '角色',
     items: [
       {
         id: 'neon-runner',
         name: '霓虹跑者',
         draw: (cx, cy, t, r) => {
-          // 发光
           ctx.save();
           ctx.globalCompositeOperation = 'lighter';
           const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 2.5);
@@ -59,7 +51,6 @@ const CATEGORIES: GalleryCategory[] = [
           ctx.beginPath(); ctx.arc(cx, cy, r * 2.5, 0, 6.283);
           ctx.fill();
           ctx.globalCompositeOperation = 'source-over';
-          // 身体
           ctx.shadowColor = 'rgba(120,200,255,.95)';
           ctx.shadowBlur = 14;
           const bg = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 0, cx, cy, r);
@@ -74,7 +65,6 @@ const CATEGORIES: GalleryCategory[] = [
           ctx.lineWidth = 1.5;
           ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.283);
           ctx.stroke();
-          // 眼睛
           const eyeR = r * 0.18;
           ctx.fillStyle = '#1a1440';
           for (const dx of [0.15, 0.55]) {
@@ -89,7 +79,7 @@ const CATEGORIES: GalleryCategory[] = [
   },
   {
     id: 'collectibles',
-    icon: '💎',
+    icon: '',
     title: '收集品',
     items: [
       {
@@ -97,7 +87,6 @@ const CATEGORIES: GalleryCategory[] = [
         name: '光球',
         draw: (cx, cy, t, r) => {
           ctx.save();
-          // 发光
           ctx.globalCompositeOperation = 'lighter';
           const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 2.6);
           g.addColorStop(0, 'rgba(140,246,255,.5)');
@@ -106,14 +95,12 @@ const CATEGORIES: GalleryCategory[] = [
           ctx.beginPath(); ctx.arc(cx, cy, r * 2.6, 0, 6.283);
           ctx.fill();
           ctx.globalCompositeOperation = 'source-over';
-          // 核心
           ctx.shadowColor = '#8ff6ff';
           ctx.shadowBlur = 12;
           ctx.fillStyle = '#eaffff';
           ctx.beginPath(); ctx.arc(cx, cy, r * 0.55, 0, 6.283);
           ctx.fill();
           ctx.shadowBlur = 0;
-          // 旋转方框
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(t * 1.8);
@@ -129,14 +116,12 @@ const CATEGORIES: GalleryCategory[] = [
         name: 'NOVA 星',
         draw: (cx, cy, t, r) => {
           ctx.save();
-          // 光柱
           ctx.globalCompositeOperation = 'lighter';
           const g = ctx.createLinearGradient(0, cy, 0, cy - r * 3);
           g.addColorStop(0, 'rgba(190,140,255,.34)');
           g.addColorStop(1, 'rgba(0,0,0,0)');
           ctx.fillStyle = g;
           ctx.fillRect(cx - r * 0.4, cy - r * 3, r * 0.8, r * 3);
-          // 光环
           for (let i = 0; i < 2; i++) {
             const tt = ((t * 0.6 + i * 0.5) % 1), rr = tt * 3 * r;
             ctx.strokeStyle = 'rgba(210,160,255,' + ((1 - tt) * 0.45) + ')';
@@ -145,7 +130,6 @@ const CATEGORIES: GalleryCategory[] = [
             ctx.stroke();
           }
           ctx.globalCompositeOperation = 'source-over';
-          // 星形
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(t * 0.9);
@@ -161,7 +145,6 @@ const CATEGORIES: GalleryCategory[] = [
           ctx.lineWidth = 1.5;
           ctx.strokeRect(-r * 0.5, -r * 0.5, r, r);
           ctx.restore();
-          // 白点
           ctx.shadowColor = '#ffffff';
           ctx.shadowBlur = 8;
           ctx.fillStyle = '#ffffff';
@@ -177,13 +160,11 @@ const CATEGORIES: GalleryCategory[] = [
         draw: (cx, cy, t, r) => {
           ctx.save();
           const bob = Math.sin(t * 1.5) * 0.06;
-          // 光柱
           const g = ctx.createLinearGradient(0, cy + bob, 0, cy - r * 3.2 + bob);
           g.addColorStop(0, 'rgba(125,249,255,.28)');
           g.addColorStop(1, 'rgba(0,0,0,0)');
           ctx.fillStyle = g;
           ctx.fillRect(cx - r * 0.28, cy - r * 3.2 + bob, r * 0.56, r * 3.2);
-          // 底座
           ctx.shadowColor = '#7df9ff';
           ctx.shadowBlur = 8;
           ctx.fillStyle = 'rgba(125,249,255,.9)';
@@ -196,7 +177,7 @@ const CATEGORIES: GalleryCategory[] = [
   },
   {
     id: 'hazards',
-    icon: '⚡',
+    icon: '',
     title: '机关',
     items: [
       {
@@ -205,9 +186,7 @@ const CATEGORIES: GalleryCategory[] = [
         draw: (cx, cy, t, r) => {
           ctx.save();
           const on = Math.floor(t * 0.5) % 2 === 0;
-          const y0 = cy - r * 2;
-          const y1 = cy + r * 2;
-          // 发射器端点
+          const y0 = cy - r * 2, y1 = cy + r * 2;
           const em = on ? '#ffffff' : '#ff8ad8';
           ctx.shadowColor = '#ff5fc8';
           ctx.shadowBlur = on ? 10 : 4;
@@ -263,7 +242,7 @@ const CATEGORIES: GalleryCategory[] = [
   },
   {
     id: 'platforms',
-    icon: '🛤️',
+    icon: '',
     title: '平台',
     items: [
       {
@@ -290,7 +269,6 @@ const CATEGORIES: GalleryCategory[] = [
         draw: (cx, cy, t, r) => {
           ctx.save();
           const dx = Math.sin(t * 1.3) * r * 0.6;
-          // 轨迹线
           ctx.setLineDash([2, 5]);
           ctx.strokeStyle = 'rgba(150,170,255,.25)';
           ctx.lineWidth = 1;
@@ -299,7 +277,6 @@ const CATEGORIES: GalleryCategory[] = [
           ctx.lineTo(cx + r * 0.8, cy);
           ctx.stroke();
           ctx.setLineDash([]);
-          // 平台本体
           const px = cx + dx;
           ctx.fillStyle = 'rgba(20,14,52,.95)';
           ctx.fillRect(px - r, cy - r * 0.6, r * 2, r * 1.2);
@@ -318,7 +295,7 @@ const CATEGORIES: GalleryCategory[] = [
   },
   {
     id: 'fx',
-    icon: '✨',
+    icon: '',
     title: '特效',
     items: [
       {
@@ -386,7 +363,6 @@ const CATEGORIES: GalleryCategory[] = [
           const n = 10;
           ctx.globalCompositeOperation = 'lighter';
           for (let i = 0; i < n; i++) {
-            // 确定性伪随机偏移（避免每帧 Math.random 抖动）
             const ox = (Math.sin(i * 12.9898 + t * 0.1) * 0.5) * r * 0.7;
             const rise = (t * 1.6 + i * 0.13) % 1;
             const py = cy - rise * r * 2 - i * r * 0.05;
@@ -435,7 +411,7 @@ interface GalleryActions {
   onBack: () => void;
 }
 
-/** 分类标签 pill —— 自定义绘制（激活态高亮），避免与 Button 默认样式双绘 */
+/** 分类标签 pill —— 自定义绘制（激活态高亮），带错峰入场 */
 class TabPill implements UIWidget {
   readonly id: string;
   visible = true;
@@ -450,8 +426,9 @@ class TabPill implements UIWidget {
   private icon: string;
   private title: string;
   private isActive: () => boolean;
+  private enterDelay: number;
 
-  constructor(id: string, icon: string, title: string, w: number, h: number, isActive: () => boolean, onClick: () => void) {
+  constructor(id: string, icon: string, title: string, w: number, h: number, isActive: () => boolean, onClick: () => void, enterDelay = 0) {
     this.id = id;
     this.icon = icon;
     this.title = title;
@@ -459,6 +436,7 @@ class TabPill implements UIWidget {
     this.h = h;
     this.isActive = isActive;
     this.onClick = onClick;
+    this.enterDelay = enterDelay;
     this.x = 0;
     this.y = 0;
   }
@@ -467,77 +445,58 @@ class TabPill implements UIWidget {
     return lx >= this.x && lx <= this.x + this.w && ly >= this.y && ly <= this.y + this.h;
   }
 
-  draw(_t: number): void {
+  draw(t: number): void {
+    const en = ease((t - this.enterDelay) / .35);
+    if (en <= 0) return;
     const active = this.isActive();
     ctx.save();
+    ctx.globalAlpha = en;
+    ctx.translate(0, (1 - en) * 14);
+
     rr(ctx, this.x, this.y, this.w, this.h, 8);
     if (active) {
-      ctx.shadowColor = 'rgba(140,200,255,.45)';
-      ctx.shadowBlur = 14;
+      ctx.shadowColor = 'rgba(140,200,255,.45)'; ctx.shadowBlur = 14;
       const g = ctx.createLinearGradient(0, this.y, 0, this.y + this.h);
-      g.addColorStop(0, 'rgba(46,26,110,.9)');
-      g.addColorStop(1, 'rgba(22,12,60,.9)');
-      ctx.fillStyle = g;
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = 'rgba(140,200,255,.75)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
+      g.addColorStop(0, 'rgba(46,26,110,.9)'); g.addColorStop(1, 'rgba(22,12,60,.9)');
+      ctx.fillStyle = g; ctx.fill(); ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(140,200,255,.75)'; ctx.lineWidth = 1.5; ctx.stroke();
     } else {
-      ctx.fillStyle = this.hover ? 'rgba(30,20,70,.85)' : 'rgba(16,12,40,.65)';
-      ctx.fill();
+      ctx.fillStyle = this.hover ? 'rgba(30,20,70,.85)' : 'rgba(16,12,40,.65)'; ctx.fill();
       ctx.strokeStyle = this.hover ? 'rgba(140,200,255,.45)' : 'rgba(130,160,255,.22)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      ctx.lineWidth = 1; ctx.stroke();
     }
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = active ? '700 16px "Segoe UI","Microsoft YaHei",Arial' : '500 16px "Segoe UI","Microsoft YaHei",Arial';
     ctx.fillStyle = active ? '#f2fbff' : (this.hover ? '#dff0ff' : '#9db0d0');
-    ctx.fillText(this.icon + ' ' + this.title, this.x + this.w / 2, this.y + this.h / 2 + 1);
+    const label = this.icon ? this.icon + ' ' + this.title : this.title;
+    ctx.fillText(label, this.x + this.w / 2, this.y + this.h / 2 + 1);
     ctx.restore();
   }
 }
 
 /** 构建预制体图鉴场景 */
 export function buildGalleryScene(a: GalleryActions): UIScene {
-  // ----- 按钮组件 -----
   const btnBack = new Button({
-    id: 'gallery_back',
-    label: '← 返回',
-    variant: 'plain',
-    x: 24, y: 20, w: 100, h: 36,
-    onClick: a.onBack,
+    id: 'gallery_back', label: '← 返回', variant: 'plain', x: 24, y: 20, w: 100, h: 36, onClick: a.onBack,
   });
 
-  // 分类标签按钮（自定义 pill 绘制）
   const tabBtns: TabPill[] = [];
   for (let i = 0; i < CATEGORIES.length; i++) {
-    const cat = CATEGORIES[i];
-    const idx = i;
+    const cat = CATEGORIES[i]; const idx = i;
     tabBtns.push(new TabPill(
-      'gallery_tab_' + cat.id,
-      cat.icon,
-      cat.title,
-      180, 36,
+      'gallery_tab_' + cat.id, cat.icon, cat.title, 180, 36,
       () => gallery.cat === idx,
       () => { gallery.cat = idx; gallery.page = 0; },
+      0.25 + i * 0.07, // 错峰入场
     ));
   }
 
-  // 翻页按钮
   const btnPrev = new Button({
-    id: 'gallery_prev',
-    label: '◀',
-    variant: 'plain',
-    x: 0, y: 0, w: 80, h: 34,
+    id: 'gallery_prev', label: '◀', variant: 'plain', x: 0, y: 0, w: 80, h: 34,
     onClick: () => { if (gallery.page > 0) gallery.page--; },
   });
   const btnNext = new Button({
-    id: 'gallery_next',
-    label: '▶',
-    variant: 'plain',
-    x: 0, y: 0, w: 80, h: 34,
+    id: 'gallery_next', label: '▶', variant: 'plain', x: 0, y: 0, w: 80, h: 34,
     onClick: () => {
       const total = CATEGORIES[gallery.cat].items.length;
       const maxPage = Math.ceil(total / ITEMS_PER_PAGE) - 1;
@@ -545,38 +504,35 @@ export function buildGalleryScene(a: GalleryActions): UIScene {
     },
   });
 
-  // 全部按键防盗：图鉴打开时消费所有按键（避免误触菜单的"任意键开始"）
-  const keyGuard = (e: KeyboardEvent): boolean => {
-    if (e.code === 'Escape') { a.onBack(); }
+  btnBack.onKey = (e: KeyboardEvent): boolean => {
+    if (e.code === 'Escape') a.onBack();
     return true;
   };
-  btnBack.onKey = keyGuard;
 
   function layout(): void {
-    // 计算标签位置
     const totalW = CATEGORIES.length * 180 + (CATEGORIES.length - 1) * 12;
     let x0 = (VW - totalW) / 2;
-    for (let i = 0; i < tabBtns.length; i++) {
-      tabBtns[i].x = x0;
-      tabBtns[i].y = 84;
-      x0 += 192;
-    }
-
-    // 翻页按钮（居中在卡片区域下方）
-    btnPrev.x = VW / 2 - 90;
-    btnPrev.y = 562;
-    btnNext.x = VW / 2 + 10;
-    btnNext.y = 562;
-
-    // 翻页按钮可见性
+    for (let i = 0; i < tabBtns.length; i++) { tabBtns[i].x = x0; tabBtns[i].y = 84; x0 += 192; }
+    btnPrev.x = VW / 2 - 90; btnPrev.y = 562;
+    btnNext.x = VW / 2 + 10; btnNext.y = 562;
     const total = CATEGORIES[gallery.cat].items.length;
     const maxPage = Math.ceil(total / ITEMS_PER_PAGE) - 1;
     btnPrev.visible = gallery.page > 0;
     btnNext.visible = gallery.page < maxPage;
   }
 
-  function drawPanel(t: number): void {
+  function drawPanel(_t: number): void {
+    const nowMs = performance.now();
+    if (_gLast) _gT += Math.min(.05, (nowMs - _gLast) / 1000);
+    _gLast = nowMs;
+    const t = _gT;
+
     layout();
+
+    // 1) 氛围层
+    drawBackdrop(t);
+    // 2) 四角 HUD
+    drawHUDFrame(ease(t / .5));
 
     const cat = CATEGORIES[gallery.cat];
     const items = cat.items;
@@ -587,122 +543,98 @@ export function buildGalleryScene(a: GalleryActions): UIScene {
 
     ctx.save();
 
-    // 半透明遮罩
-    ctx.fillStyle = 'rgba(5,3,16,.8)';
-    ctx.fillRect(0, 0, VW, VH);
-
-    // 大面板
+    // 3) 面板缩放入场
+    const pe = ease(t / .45);
     const pw = 1130, ph = 600;
-    const px = (VW - pw) / 2, py = 60;
-    ctx.shadowColor = 'rgba(80,60,200,.35)';
-    ctx.shadowBlur = 36;
+    const px = (VW - pw) / 2, py = 60 + (1 - pe) * 26;
+    ctx.globalAlpha = pe;
+    ctx.shadowColor = 'rgba(80,60,200,.35)'; ctx.shadowBlur = 36;
     rr(ctx, px, py, pw, ph, 18);
-    ctx.fillStyle = 'rgba(10,8,34,.92)';
-    ctx.fill();
+    ctx.fillStyle = 'rgba(10,8,34,.92)'; ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(130,160,255,.3)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    ctx.strokeStyle = 'rgba(130,160,255,.3)'; ctx.lineWidth = 1.5; ctx.stroke();
 
-    // 标题
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '700 24px "Segoe UI","Microsoft YaHei",Arial';
-    ctx.fillStyle = '#bfe9ff';
-    ctx.fillText('📖 预制体图鉴', VW / 2, 46);
+    // 4) 色差标题 + 流光
+    drawNeonTitle(VW / 2, 92, '预制体图鉴', 36, t, ease(t / .55));
 
-    // 卡片网格
+    // 副标题 + 两侧装饰星
+    ctx.font = '500 13px "Segoe UI","Microsoft YaHei",Arial';
+    ctx.fillStyle = 'rgba(150,180,255,.6)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('· GALLERY · 预制体图鉴 ·', VW / 2, 120);
+    drawDecoStar(VW / 2 - 100, 120, 5, t * .8, 'rgba(140,246,255,.7)', 1, ease((t - .3) / .4));
+    drawDecoStar(VW / 2 + 100, 120, 5, -t * .8, 'rgba(255,160,220,.7)', 1, ease((t - .3) / .4));
+
+    // 5) 卡片网格（错峰入场）
     const cardW = 340, cardH = 190, gapX = 24, gapY = 18;
     const gridW = COLS * cardW + (COLS - 1) * gapX;
-    const gridX0 = (VW - gridW) / 2;
-    const gridY0 = 148;
+    const gridX0 = (VW - gridW) / 2; const gridY0 = 148;
 
     for (let i = 0; i < pageItems.length; i++) {
       const item = pageItems[i];
-      const col = i % COLS;
-      const row = Math.floor(i / COLS);
+      const col = i % COLS, row = Math.floor(i / COLS);
       const cx = gridX0 + col * (cardW + gapX) + cardW / 2;
       const cy = gridY0 + row * (cardH + gapY) + cardH / 2;
-      const cardX = cx - cardW / 2;
-      const cardY = cy - cardH / 2;
+      const cardX = cx - cardW / 2, cardY = cy - cardH / 2;
 
-      // 玻璃卡片
+      const ce = ease((t - 0.5 - i * 0.08) / 0.4);
+      if (ce <= 0) continue;
       ctx.save();
-      ctx.shadowColor = 'rgba(80,60,200,.15)';
-      ctx.shadowBlur = 12;
+      ctx.globalAlpha = pe * ce;
+      ctx.translate(0, (1 - ce) * 18);
+
+      ctx.shadowColor = 'rgba(80,60,200,.15)'; ctx.shadowBlur = 12;
       rr(ctx, cardX, cardY, cardW, cardH, 12);
-      ctx.fillStyle = 'rgba(16,12,40,.5)';
-      ctx.fill();
+      ctx.fillStyle = 'rgba(16,12,40,.5)'; ctx.fill();
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = 'rgba(130,160,255,.15)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // 顶部高光
+      ctx.strokeStyle = 'rgba(130,160,255,.15)'; ctx.lineWidth = 1; ctx.stroke();
       const hg = ctx.createLinearGradient(0, cardY, 0, cardY + 16);
-      hg.addColorStop(0, 'rgba(150,200,255,.08)');
-      hg.addColorStop(1, 'rgba(150,200,255,0)');
-      rr(ctx, cardX + 2, cardY + 2, cardW - 4, 14, 10);
-      ctx.fillStyle = hg;
-      ctx.fill();
+      hg.addColorStop(0, 'rgba(150,200,255,.08)'); hg.addColorStop(1, 'rgba(150,200,255,0)');
+      rr(ctx, cardX + 2, cardY + 2, cardW - 4, 14, 10); ctx.fillStyle = hg; ctx.fill();
 
-      // 预览图标（r=40）
-      const iconR = 40;
-      const iconCX = cx, iconCY = cardY + 60;
-      item.draw(iconCX, iconCY, t, iconR);
+      item.draw(cx, cardY + 60, t, 40);
 
-      // 名称
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '700 17px "Segoe UI","Microsoft YaHei",Arial';
       ctx.fillStyle = '#d0e8ff';
       ctx.fillText(item.name, cx, cardY + 120);
 
-      // 底部装饰线
-      ctx.strokeStyle = 'rgba(130,160,255,.08)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(130,160,255,.08)'; ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(cardX + 30, cardY + cardH - 8);
       ctx.lineTo(cardX + cardW - 30, cardY + cardH - 8);
       ctx.stroke();
-
       ctx.restore();
     }
 
-    // 空白卡片占位（补齐未满行）
+    // 空白占位
     const emptyCount = ITEMS_PER_PAGE - pageItems.length;
     if (emptyCount > 0 && pageItems.length > 0) {
       const start = pageItems.length;
       for (let i = start; i < start + emptyCount; i++) {
-        const col = i % COLS;
-        const row = Math.floor(i / COLS);
+        const col = i % COLS, row = Math.floor(i / COLS);
         const cx2 = gridX0 + col * (cardW + gapX) + cardW / 2;
         const cy2 = gridY0 + row * (cardH + gapY) + cardH / 2;
-        ctx.save();
-        ctx.globalAlpha = 0.2;
+        ctx.save(); ctx.globalAlpha = 0.2;
         rr(ctx, cx2 - cardW / 2, cy2 - cardH / 2, cardW, cardH, 12);
-        ctx.strokeStyle = 'rgba(130,160,255,.2)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 6]);
-        ctx.stroke();
-        ctx.setLineDash([]);
+        ctx.strokeStyle = 'rgba(130,160,255,.2)'; ctx.lineWidth = 1;
+        ctx.setLineDash([4, 6]); ctx.stroke(); ctx.setLineDash([]);
         ctx.restore();
       }
     }
 
     // 页数指示
     if (totalPages > 1) {
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '500 14px "Segoe UI","Microsoft YaHei",Arial';
       ctx.fillStyle = 'rgba(160,180,255,.6)';
       ctx.fillText((page + 1) + ' / ' + totalPages, VW / 2, 555);
     }
 
-    // 底部提示
+    // 底部呼吸提示
     ctx.textAlign = 'center';
     ctx.font = '500 12px "Segoe UI","Microsoft YaHei",Arial';
-    ctx.fillStyle = 'rgba(150,180,255,.4)';
+    ctx.fillStyle = 'rgba(150,180,255,' + (.35 + .2 * Math.sin(t * 3.2)) + ')';
     ctx.fillText('点击分类标签切换 · 按 ESC 或「返回」关闭', VW / 2, 628);
 
     ctx.restore();
@@ -712,14 +644,10 @@ export function buildGalleryScene(a: GalleryActions): UIScene {
     name: UI_SCENE.GALLERY,
     widgets: [btnBack, ...tabBtns, btnPrev, btnNext],
     draw: drawPanel,
-    onEnter: () => {
-      gallery.cat = 0;
-      gallery.page = 0;
-    },
+    onEnter: () => { gallery.cat = 0; gallery.page = 0; _gT = 0; _gLast = 0; },
     onExit: () => {
       for (const w of [btnBack, ...tabBtns, btnPrev, btnNext]) w.hover = false;
-      const c = ctx.canvas;
-      if (c) c.style.cursor = 'default';
+      const c = ctx.canvas; if (c) c.style.cursor = 'default';
     },
   };
 }

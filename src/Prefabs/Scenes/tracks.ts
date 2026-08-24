@@ -18,8 +18,8 @@
 import { ctx, VW } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
 import { world } from '../../core/ecs';
-import { Position } from '../../components/Position';
-import { Track } from '../../components/Track';
+import { Position } from '../../components/physics/Position';
+import { Track } from '../../components/physics/Track';
 import type { PathSegment } from '../../types/path';
 import { gs } from '../../systems/game/gameState';
 import { T } from './theme';

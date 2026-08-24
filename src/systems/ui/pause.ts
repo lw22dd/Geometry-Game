@@ -15,10 +15,9 @@ let _pauseLast = 0;
 
 interface PauseActions {
   onResume: () => void;
-  onCreateRoom: () => void;
-  onJoinRoom: () => void;
   onDisconnect: () => void;
   onDevSettings: () => void;
+  onReturnToMenu: () => void;
 }
 
 /**
@@ -34,10 +33,15 @@ export function buildPauseScene(a: PauseActions): UIScene {
     new Button({ id, label, variant: 'plain', x: btnX, y, w: btnW, h: btnH, onClick });
 
   const btnResume = mkButton('pause_resume', '▶ 继续游戏', btnY, a.onResume);
-  const btnCreate = mkButton('pause_create', '🏠 创建房间', btnY + 60, a.onCreateRoom);
-  const btnJoin = mkButton('pause_join', '🔗 加入房间', btnY + 120, a.onJoinRoom);
   const btnDisconnect = mkButton('pause_disconnect', '✕ 断开连接', btnY + 60, a.onDisconnect);
-  const btnDev = mkButton('pause_dev', '🔧 开发者设置', btnY + 180, a.onDevSettings);
+  const btnDev = mkButton('pause_dev', '开发者设置', btnY + 120, a.onDevSettings);
+
+  // 左上角返回主菜单按钮（始终可见；联机中断开并复位房间）
+  const btnMainMenu = mkButton('pause_mainmenu', '返回主菜单', py + 14, a.onReturnToMenu);
+  btnMainMenu.x = px + 14;
+  btnMainMenu.y = py + 14;
+  btnMainMenu.w = 150;
+  btnMainMenu.h = 34;
 
   // 右上角关闭按钮
   const closeBtn = new Button({
@@ -82,7 +86,7 @@ export function buildPauseScene(a: PauseActions): UIScene {
     ctx.textBaseline = 'middle';
     ctx.font = '700 28px "Segoe UI","Microsoft YaHei",Arial';
     ctx.fillStyle = '#bfe9ff';
-    ctx.fillText('⏸ 暂停', VW / 2, py + 52);
+    ctx.fillText('暂停', VW / 2, py + 52);
 
     // 联机状态
     if (room.connected) {
@@ -116,33 +120,28 @@ export function buildPauseScene(a: PauseActions): UIScene {
 
   return {
     name: UI_SCENE.PAUSE,
-    widgets: [btnResume, btnCreate, btnJoin, btnDisconnect, closeBtn, btnDev],
+    widgets: [btnResume, btnDisconnect, closeBtn, btnDev, btnMainMenu],
     draw: drawPanel,
     onEnter: () => { _pauseT = 0; _pauseLast = 0; },
     onExit: () => {
-      for (const w of [btnResume, btnCreate, btnJoin, btnDisconnect, closeBtn, btnDev]) w.hover = false;
+      for (const w of [btnResume, btnDisconnect, closeBtn, btnDev, btnMainMenu]) w.hover = false;
       const c = ctx.canvas;
       if (c) c.style.cursor = 'default';
     },
   };
 }
 
-/** 组件可见性联动：联机时隐藏创建/加入，显示断开 */
+/** 组件可见性联动：联机时隐藏断开连接按钮？否——显示断开 */
 export function syncPauseWidgets(scene: UIScene): void {
   const get = (id: string) => scene.widgets.find(w => w.id === id);
   const connected = room.connected;
-  const btnCreate = get('pause_create');
-  const btnJoin = get('pause_join');
   const btnDisconnect = get('pause_disconnect');
-  if (btnCreate) btnCreate.visible = !connected;
-  if (btnJoin) btnJoin.visible = !connected;
   if (btnDisconnect) btnDisconnect.visible = connected;
 
-  // 开发者按钮始终显示（联机时上移一行）
+  // 开发者按钮：无创建/加入按钮后固定一行
   const btnDev = get('pause_dev');
   if (btnDev) {
-    const btnY = VH / 2 - 170 + 100;
-    (btnDev as Button).y = connected ? btnY + 120 : btnY + 180;
+    (btnDev as Button).y = VH / 2 - 170 + 100 + 120;
   }
 }
 

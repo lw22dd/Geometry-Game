@@ -4,10 +4,10 @@
  */
 import { world } from '../../core/ecs';
 import type { EntityId } from '../../core/ecs/Entity';
-import { Position } from '../../components/Position';
-import { Collider } from '../../components/Collider';
-import { Goal } from '../../components/Goal';
-import { Renderable } from '../../components/Renderable';
+import { Position } from '../../components/physics/Position';
+import { Collider } from '../../components/physics/Collider';
+import { Goal } from '../../components/gameplay/Goal';
+import { Renderable } from '../../components/render/Renderable';
 
 export function createNova(x: number, y: number): EntityId {
   const e = world.createEntity();

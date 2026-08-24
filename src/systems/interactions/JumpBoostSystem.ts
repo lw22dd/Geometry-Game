@@ -3,9 +3,9 @@
  * 本地玩家通过 CollisionSystem + CollisionHooks 处理。
  */
 import { world } from '../../core/ecs';
-import { Position } from '../../components/Position';
-import { Collider } from '../../components/Collider';
-import { JumpBoost } from '../../components/JumpBoost';
+import { Position } from '../../components/physics/Position';
+import { Collider } from '../../components/physics/Collider';
+import { JumpBoost } from '../../components/gameplay/JumpBoost';
 import { pointInCollider } from '../level';
 
 /**

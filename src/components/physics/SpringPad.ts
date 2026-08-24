@@ -1,13 +1,13 @@
 /**
  * 弹簧平台组件 —— 标记实体为弹簧平台，记录弹射参数与动画状态。
+ * @category 物理/运动
  */
-import type { ComponentType } from '../core/ecs';
+import type { ComponentType } from '../../core/ecs';
+import type { Vector2 } from '../../types';
 
 export interface SpringPad {
-  /** 弹射力 X 分量（格/秒） */
-  forceX: number;
-  /** 弹射力 Y 分量（格/秒） */
-  forceY: number;
+  /** 弹射力矢量（格/秒） */
+  force: Vector2;
   /** 加速度持续时长（秒） */
   duration: number;
   /** 剩余冷却时间（秒，冷却中不可触发） */

@@ -9,10 +9,10 @@ import { clamp } from '../../core/math';
 import { currentMap } from '../../config';
 import { gs } from '../../systems/game/gameState';
 import { world } from '../../core/ecs';
-import { Position } from '../../components/Position';
-import { Collider } from '../../components/Collider';
-import { PathMotion } from '../../components/PathMotion';
-import { SpringPad } from '../../components/SpringPad';
+import { Position } from '../../components/physics/Position';
+import { Collider } from '../../components/physics/Collider';
+import { PathMotion } from '../../components/physics/PathMotion';
+import { SpringPad } from '../../components/physics/SpringPad';
 import { colliderWorldRect } from '../../systems/level';
 import { T, neonBox } from './theme';
 

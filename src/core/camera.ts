@@ -28,8 +28,8 @@ export function updateCamera(
   mapH: number,
 ): void {
   // 速度前瞻 + 垂直偏移
-  const tx = p.x + clamp(p.vx * 0.45, -7, 7);
-  const ty = p.y + 2.3 + clamp(p.vy * 0.14, -3.5, 3.5);
+  const tx = p.x + clamp(p.velocity.x * 0.45, -7, 7);
+  const ty = p.y + 2.3 + clamp(p.velocity.y * 0.14, -3.5, 3.5);
   cam.x = lerp(cam.x, tx, 1 - Math.exp(-5.5 * dt));
   cam.y = lerp(cam.y, ty, 1 - Math.exp(-4.5 * dt));
   // 冲刺缩放

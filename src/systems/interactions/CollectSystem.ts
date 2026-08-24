@@ -3,10 +3,10 @@
  * 支持传入目标坐标（远程玩家复用本系统）。
  */
 import { world } from '../../core/ecs';
-import { Position } from '../../components/Position';
-import { Collider } from '../../components/Collider';
-import { Collectible } from '../../components/Collectible';
-import { PlayerTag } from '../../components/PlayerTag';
+import { Position } from '../../components/physics/Position';
+import { Collider } from '../../components/physics/Collider';
+import { Collectible } from '../../components/gameplay/Collectible';
+import { PlayerTag } from '../../components/gameplay/PlayerTag';
 import { gs } from '../game/gameState';
 import { FX } from '../../Prefabs/Fx';
 import { spawnParticles } from '../particles';

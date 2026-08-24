@@ -30,7 +30,7 @@ interface AnimTransition {
   when: (ctx: AnimTransitionContext) => boolean;
 }
 
-const speed = (p: PlayerState): number => Math.abs(p.vx);
+const speed = (p: PlayerState): number => Math.abs(p.velocity.x);
 
 /** 状态转换表：每个源状态一组有序转换，首个命中生效 */
 export const ANIM_TRANSITIONS: Record<AnimState, AnimTransition[]> = {
@@ -58,7 +58,7 @@ export const ANIM_TRANSITIONS: Record<AnimState, AnimTransition[]> = {
     { to: 'collectPulse', when: (c) => !!(c.signals?.collected || c.signals?.checkpointHit) },
     { to: 'bump', when: (c) => !!c.signals?.wallBump },
     { to: 'land', when: (c) => c.landed },
-    { to: 'jumpFall', when: (c) => c.player.vy <= 0 },
+    { to: 'jumpFall', when: (c) => c.player.velocity.y <= 0 },
   ],
   jumpFall: [
     { to: 'dead', when: (c) => c.died },

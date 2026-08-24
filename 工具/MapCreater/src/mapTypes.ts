@@ -161,7 +161,7 @@ export function migrateMapData(raw: unknown): MapData {
 
   // 已经是 v2
   if (src.version === 2 && src.layers) {
-    return {
+    const result: MapData = {
       version: 2,
       ...base,
       layers: {
@@ -169,6 +169,16 @@ export function migrateMapData(raw: unknown): MapData {
         objects: src.layers.objects ?? [],
       },
     };
+    // 旧字段迁移：springPad 实例的 forceX/forceY → force: {x, y}
+    for (const inst of result.layers.objects) {
+      if (inst.type === 'springPad' && (inst as any).forceX !== undefined) {
+        const old = inst as any;
+        inst.force = { x: old.forceX, y: old.forceY };
+        delete old.forceX;
+        delete old.forceY;
+      }
+    }
+    return result;
   }
 
   // v1 → v2
@@ -198,23 +208,45 @@ export function rectRad(r: RectItem): number {
   return (r.rotation * Math.PI) / 180;
 }
 
-/** 旋转后矩形的世界 AABB（用于渲染裁剪与选中框绘制） */
+/**
+ * 旋转后矩形的世界 AABB（用于渲染裁剪与选中框绘制）
+ */
 export function rotatedRectBounds(r: RectItem): { x: number; y: number; w: number; h: number } {
-  const c = rectCenter(r);
-  const rad = rectRad(r);
-  const cos = Math.cos(rad), sin = Math.sin(rad);
-  const hw = r.w / 2, hh = r.h / 2;
-  // 四个角（局部空间）
-  const corners = [
-    [-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh],
-  ].map(([lx, ly]) => ({
-    x: c.x + lx * cos - ly * sin,
-    y: c.y + lx * sin + ly * cos,
-  }));
+  const corners = rectWorldCorners(r);
   const xs = corners.map(p => p.x), ys = corners.map(p => p.y);
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const minY = Math.min(...ys), maxY = Math.max(...ys);
   return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
+/**
+ * 矩形的四个世界坐标角点（逆时针 + 旋转，世界约定 Y 向上）。
+ * hitTestRect / 渲染 / gizmo 全部基于此函数，保证三方一致。
+ * 顺序：左下 → 右下 → 右上 → 左上
+ */
+export function rectWorldCorners(r: RectItem): { x: number; y: number }[] {
+  const c = rectCenter(r);
+  const rad = rectRad(r);
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const hw = r.w / 2, hh = r.h / 2;
+  // 世界旋转：w = c + R_world(θ)·local，R_world(θ) = [cos,-sin; sin,cos]
+  const rot = (lx: number, ly: number) => ({
+    x: c.x + lx * cos - ly * sin,
+    y: c.y + lx * sin + ly * cos,
+  });
+  return [rot(-hw, -hh), rot(hw, -hh), rot(hw, hh), rot(-hw, hh)];
+}
+
+/**
+ * 旋转手柄锚点：矩形顶部中心在世界的坐标（local (0, +hh) 旋转后）。
+ */
+export function rectTopCenter(r: RectItem): { x: number; y: number } {
+  const c = rectCenter(r);
+  const rad = rectRad(r);
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const hh = r.h / 2;
+  // local (0, hh)：x = 0*cos - hh*sin, y = 0*sin + hh*cos
+  return { x: c.x + -hh * sin, y: c.y + hh * cos };
 }
 
 /**
@@ -325,8 +357,23 @@ export function instanceHitBounds(inst: MapInstance, minSize = 0.6): { x: number
   }
 }
 
-/** 命中检测：鼠标世界点是否命中实例 */
+/** 命中检测：鼠标世界点是否命中对象实例（考虑旋转） */
 export function hitTest(inst: MapInstance, mx: number, my: number, minSize = 0.6): boolean {
+  const rot = inst.rotation ?? 0;
+  if (rot !== 0) {
+    // 旋转物体：把鼠标点逆旋转回局部坐标系后再做 AABB 判定
+    const pos = instancePosition(inst);
+    const rad = rot * Math.PI / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const dx = mx - pos.x, dy = my - pos.y;
+    const lx = dx * cos + dy * sin;
+    const ly = -dx * sin + dy * cos;
+    // 局部坐标下的命中框（相对锚点）
+    const b = instanceHitBounds(inst, minSize);
+    const lx0 = b.x - pos.x, ly0 = b.y - pos.y;
+    return lx >= lx0 && lx <= lx0 + b.w && ly >= ly0 && ly <= ly0 + b.h;
+  }
+  // 未旋转：直接检测
   const b = instanceHitBounds(inst, minSize);
   return mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h;
 }

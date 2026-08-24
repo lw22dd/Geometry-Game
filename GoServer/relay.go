@@ -42,9 +42,53 @@ func handleMessage(room *Room, p *Player, raw []byte) {
 		// 房主踢人
 		handleKick(room, p, raw)
 
+	case "char_select":
+		// 房间内选人 → 更新并广播
+		handleCharSelect(room, p, raw)
+
+	case "ready":
+		// 房间内准备 → 更新并广播
+		handleReady(room, p, raw)
+
 	default:
 		log.Printf("[消息] 未知类型: %s", base.Type)
 	}
+}
+
+// 房间内选人：更新玩家角色 → 广播给全体（含发送者）
+func handleCharSelect(room *Room, p *Player, raw []byte) {
+	var msg CharSelectMsg
+	if err := json.Unmarshal(raw, &msg); err != nil {
+		return
+	}
+
+	room.mu.Lock()
+	p.Char = msg.Char
+	room.mu.Unlock()
+
+	update, _ := json.Marshal(PlayerUpdateMsg{
+		Type: "player_update",
+		Player: PlayerInfo{Id: p.Id, Name: p.Name, Char: p.Char, Ready: p.Ready},
+	})
+	room.Broadcast(update)
+}
+
+// 房间内准备：更新玩家准备状态 → 广播给全体（含发送者）
+func handleReady(room *Room, p *Player, raw []byte) {
+	var msg ReadyMsg
+	if err := json.Unmarshal(raw, &msg); err != nil {
+		return
+	}
+
+	room.mu.Lock()
+	p.Ready = msg.Ready
+	room.mu.Unlock()
+
+	update, _ := json.Marshal(PlayerUpdateMsg{
+		Type: "player_update",
+		Player: PlayerInfo{Id: p.Id, Name: p.Name, Char: p.Char, Ready: p.Ready},
+	})
+	room.Broadcast(update)
 }
 
 // 客机输入 → 房主

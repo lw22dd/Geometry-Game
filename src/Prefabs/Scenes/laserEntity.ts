@@ -6,10 +6,10 @@
 import { world } from '../../core/ecs';
 import type { EntityId } from '../../core/ecs/Entity';
 import type { LaserSpawnData } from '../../types';
-import { Position } from '../../components/Position';
-import { Collider } from '../../components/Collider';
-import { Timer } from '../../components/Timer';
-import { Hazard } from '../../components/Hazard';
+import { Position } from '../../components/physics/Position';
+import { Collider } from '../../components/physics/Collider';
+import { Timer } from '../../components/gameplay/Timer';
+import { Hazard } from '../../components/gameplay/Hazard';
 
 /** 激光周期 / 点亮时长默认值（与旧 LCYC / LON 一致） */
 const LASER_PERIOD = 2.6;

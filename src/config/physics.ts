@@ -20,6 +20,10 @@ export const TRACK_MIN_SPEED = 7;
 export const TRACK_STOP_SPEED = 0.3;
 /** 轨道摩擦系数（每帧速度乘子，轻微阻尼） */
 export const TRACK_FRICTION = 0.06;
+/** 滚回滑回速度（m/s，原 0.5 在长直线上会被摩擦耗尽卡死） */
+export const TRACK_ROLLBACK_SPEED = 4;
+/** 滚回回到入口时的温和释放速度（m/s） */
+export const TRACK_ROLLBACK_RELEASE = 1.5;
 
 /** 两套物理模式：手感优化 tuned / 经典 classic */
 export const PHYS: Record<'tuned' | 'classic', PhysicsMode> = {

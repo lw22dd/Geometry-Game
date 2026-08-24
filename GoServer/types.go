@@ -22,6 +22,7 @@ type InputKeys struct {
 	Right  bool `json:"right"`
 	Jump   bool `json:"jump"`
 	Sprint bool `json:"sprint"`
+	Interact   bool `json:"interact"`
 }
 
 type HostStateMsg struct {
@@ -46,6 +47,18 @@ type KickMsg struct {
 	PlayerId int    `json:"playerId"`
 }
 
+// 房间内选人：客户端上报所选角色 id（服务器广播给全体）
+type CharSelectMsg struct {
+	Type string `json:"type"` // "char_select"
+	Char string `json:"char"`
+}
+
+// 房间内准备：客户端上报准备状态（服务器广播给全体）
+type ReadyMsg struct {
+	Type  string `json:"type"` // "ready"
+	Ready bool   `json:"ready"`
+}
+
 // ---------- 服务器 → 客户端 ----------
 
 type RoomInfoMsg struct {
@@ -57,8 +70,10 @@ type RoomInfoMsg struct {
 }
 
 type PlayerInfo struct {
-	Id   int    `json:"id"`
-	Name string `json:"name"`
+	Id    int    `json:"id"`
+	Name  string `json:"name"`
+	Char  string `json:"char,omitempty"`
+	Ready bool   `json:"ready"`
 }
 
 type PlayerJoinedMsg struct {
@@ -69,6 +84,12 @@ type PlayerJoinedMsg struct {
 type PlayerLeftMsg struct {
 	Type     string `json:"type"` // "player_left"
 	PlayerId int    `json:"playerId"`
+}
+
+// 玩家信息变更（选人/准备）：广播给全体（含发送者，便于同步确认）
+type PlayerUpdateMsg struct {
+	Type   string     `json:"type"` // "player_update"
+	Player PlayerInfo `json:"player"`
 }
 
 type InputForwardMsg struct {

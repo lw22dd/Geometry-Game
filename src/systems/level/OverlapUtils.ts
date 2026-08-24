@@ -3,8 +3,8 @@
  */
 import type { EntityId } from '../../core/ecs';
 import { world } from '../../core/ecs';
-import { Position } from '../../components/Position';
-import { Collider } from '../../components/Collider';
+import { Position } from '../../components/physics/Position';
+import { Collider } from '../../components/physics/Collider';
 import type { Rect } from '../../types';
 
 /** 根据 Position + Collider 计算世界坐标 Rect（矩形底左角 + 宽高） */

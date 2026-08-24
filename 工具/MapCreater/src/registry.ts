@@ -19,6 +19,8 @@ import { createNova } from '@game/Prefabs/Scenes/novaEntity';
 import { createMovingPlatform } from '@game/Prefabs/Scenes/movingPlatformEntity';
 import { createLaser } from '@game/Prefabs/Scenes/laserEntity';
 import { createSpringPad } from '@game/Prefabs/Scenes/springPadEntity';
+// 弹簧默认数值与游戏侧单一数据源（垂直/水平预设）
+import { VERTICAL_SPRING, HORIZONTAL_SPRING } from '@game/config/springs';
 
 /** 字段定义（inspector 动态表单） */
 export interface FieldDef {
@@ -51,7 +53,7 @@ export const PREFAB_ENTRIES: PrefabEntry[] = [
   // ── 可收集物 ──
   {
     toolId: 'orb', type: 'orb', name: '光球', category: '可收集物',
-    swatch: '#8ff6ff', icon: '●', factory: createOrb,
+    swatch: '#8ff6ff', icon: 'Circle', factory: createOrb,
     fields: [
       { key: 'x', label: 'X', type: 'number', step: 0.5 },
       { key: 'y', label: 'Y', type: 'number', step: 0.5 },
@@ -61,7 +63,7 @@ export const PREFAB_ENTRIES: PrefabEntry[] = [
   },
   {
     toolId: 'jumpBoost', type: 'jumpBoost', name: '双跳光球', category: '可收集物',
-    swatch: '#ffb347', icon: '⏫', factory: createJumpBoost,
+    swatch: '#ffb347', icon: 'ArrowUp', factory: createJumpBoost,
     fields: [
       { key: 'x', label: 'X', type: 'number', step: 0.5 },
       { key: 'y', label: 'Y', type: 'number', step: 0.5 },
@@ -71,7 +73,7 @@ export const PREFAB_ENTRIES: PrefabEntry[] = [
   },
   {
     toolId: 'checkpoint', type: 'checkpoint', name: '检查点', category: '可收集物',
-    swatch: '#7df9ff', icon: '🏁', factory: createCheckpoint,
+    swatch: '#7df9ff', icon: 'Flag', factory: createCheckpoint,
     fields: [
       { key: 'x', label: 'X', type: 'number', step: 0.5 },
       { key: 'y', label: 'Y', type: 'number', step: 0.5 },
@@ -83,7 +85,7 @@ export const PREFAB_ENTRIES: PrefabEntry[] = [
   // ── 机关 ──
   {
     toolId: 'mover', type: 'mover', name: '移动平台', category: '机关',
-    swatch: '#ff7d4a', icon: '⇄', factory: createMovingPlatform,
+    swatch: '#ff7d4a', icon: 'Move', factory: createMovingPlatform,
     fields: [
       { key: 'x0', label: '起始 X', type: 'number', step: 0.5 },
       { key: 'y', label: 'Y', type: 'number', step: 0.5 },
@@ -97,7 +99,7 @@ export const PREFAB_ENTRIES: PrefabEntry[] = [
   },
   {
     toolId: 'laser', type: 'laser', name: '激光栅栏', category: '机关',
-    swatch: '#ff2d55', icon: '⚡', factory: createLaser,
+    swatch: '#ff2d55', icon: 'Thunder', factory: createLaser,
     fields: [
       { key: 'x', label: 'X', type: 'number', step: 0.5 },
       { key: 'y0', label: '底部 Y', type: 'number', step: 0.5 },
@@ -109,38 +111,38 @@ export const PREFAB_ENTRIES: PrefabEntry[] = [
   // ── 垂直弹簧（宽 > 高，弹射力向上）──
   {
     toolId: 'springPadV', type: 'springPad', name: '垂直弹簧', category: '机关',
-    swatch: '#4aff8a', icon: '⬆', factory: createSpringPad,
+    swatch: '#4aff8a', icon: 'ArrowUp', factory: createSpringPad,
     fields: [
       { key: 'x', label: 'X', type: 'number', step: 0.5 },
       { key: 'y', label: 'Y', type: 'number', step: 0.5 },
       { key: 'w', label: '宽', type: 'number', step: 0.5, min: 0.1 },
       { key: 'h', label: '高', type: 'number', step: 0.5, min: 0.1 },
-      { key: 'forceX', label: '弹射力 X', type: 'number', step: 0.5 },
-      { key: 'forceY', label: '弹射力 Y', type: 'number', step: 0.5 },
+      { key: 'force.x', label: '力 X', type: 'number', step: 0.5 },
+      { key: 'force.y', label: '力 Y', type: 'number', step: 0.5 },
       { key: 'duration', label: '加速时长', type: 'number', step: 0.1, min: 0 },
     ],
-    defaults: () => ({ type: 'springPad', x: 0, y: 0, w: 2.5, h: 2, forceX: 0, forceY: 96, duration: 0.3 }),
+    defaults: () => ({ type: 'springPad', x: 0, y: 0, ...VERTICAL_SPRING }),
   },
   // ── 水平弹簧（高 > 宽，弹射力向右）──
   {
     toolId: 'springPadH', type: 'springPad', name: '水平弹簧', category: '机关',
-    swatch: '#4aff8a', icon: '➡', factory: createSpringPad,
+    swatch: '#4aff8a', icon: 'ArrowRight', factory: createSpringPad,
     fields: [
       { key: 'x', label: 'X', type: 'number', step: 0.5 },
       { key: 'y', label: 'Y', type: 'number', step: 0.5 },
       { key: 'w', label: '宽', type: 'number', step: 0.5, min: 0.1 },
       { key: 'h', label: '高', type: 'number', step: 0.5, min: 0.1 },
-      { key: 'forceX', label: '弹射力 X', type: 'number', step: 0.5 },
-      { key: 'forceY', label: '弹射力 Y', type: 'number', step: 0.5 },
+      { key: 'force.x', label: '力 X', type: 'number', step: 0.5 },
+      { key: 'force.y', label: '力 Y', type: 'number', step: 0.5 },
       { key: 'duration', label: '加速时长', type: 'number', step: 0.1, min: 0 },
     ],
-    defaults: () => ({ type: 'springPad', x: 0, y: 0, w: 2, h: 2.5, forceX: 96, forceY: 10, duration: 0.3 }),
+    defaults: () => ({ type: 'springPad', x: 0, y: 0, ...HORIZONTAL_SPRING }),
   },
 
   // ── 危险物 ──
   {
     toolId: 'spike', type: 'spike', name: '尖刺', category: '危险物',
-    swatch: '#ff4a6a', icon: '▲', factory: createSpike,
+    swatch: '#ff4a6a', icon: 'AlertTriangle', factory: createSpike,
     fields: [
       { key: 'x', label: 'X', type: 'number', step: 0.5 },
       { key: 'y', label: 'Y', type: 'number', step: 0.5 },
@@ -152,7 +154,7 @@ export const PREFAB_ENTRIES: PrefabEntry[] = [
   // ── 装饰与提示 ──
   {
     toolId: 'deco', type: 'deco', name: '装饰方块', category: '装饰与提示',
-    swatch: '#994aff', icon: '◇', factory: null,
+    swatch: '#994aff', icon: 'Module', factory: null,
     fields: [
       { key: 'x', label: 'X', type: 'number', step: 0.5 },
       { key: 'y', label: 'Y', type: 'number', step: 0.5 },
@@ -163,7 +165,7 @@ export const PREFAB_ENTRIES: PrefabEntry[] = [
   },
   {
     toolId: 'hint', type: 'hint', name: '提示文字', category: '装饰与提示',
-    swatch: '#ffd700', icon: '💬', factory: null,
+    swatch: '#ffd700', icon: 'ChatMessage', factory: null,
     fields: [
       { key: 'x', label: 'X', type: 'number', step: 0.5 },
       { key: 'y', label: 'Y', type: 'number', step: 0.5 },
@@ -175,7 +177,7 @@ export const PREFAB_ENTRIES: PrefabEntry[] = [
   // ── 特殊 ──
   {
     toolId: 'nova', type: 'nova', name: 'NOVA 终点', category: '特殊',
-    swatch: '#c07dff', icon: '★', factory: createNova,
+    swatch: '#c07dff', icon: 'Star', factory: createNova,
     fields: [
       { key: 'x', label: 'X', type: 'number', step: 0.5 },
       { key: 'y', label: 'Y', type: 'number', step: 0.5 },
@@ -193,6 +195,17 @@ export function getPrefabEntry(toolId: string): PrefabEntry | undefined {
 /** 按实例 type 查找条目（属性面板等场景：同 type 多预设时取首个） */
 export function getEntryByType(type: InstanceType): PrefabEntry | undefined {
   return PREFAB_ENTRIES.find(e => e.type === type);
+}
+
+/** 从对象中安全读取点路径值（如 "force.x" → obj.force.x） */
+export function getField(obj: Record<string, any>, key: string): string | number | undefined {
+  const parts = key.split('.');
+  let v: unknown = obj;
+  for (const p of parts) {
+    if (v == null || typeof v !== 'object') return undefined;
+    v = (v as Record<string, any>)[p];
+  }
+  return typeof v === 'number' ? v : String(v ?? '');
 }
 
 export function getPrefabCategories(): Map<string, PrefabEntry[]> {
@@ -215,6 +228,6 @@ export interface GeomToolDesc {
 }
 
 export const GEOMETRY_TOOLS: GeomToolDesc[] = [
-  { id: 'select', name: '选择/移动', icon: '🖱', hint: '点击选中，拖动移动，角柄缩放，顶部圆柄旋转' },
-  { id: 'rect', name: '矩形画笔', icon: '▭', hint: '按住拖动绘制矩形（支持连续放置）' },
+  { id: 'select', name: '选择/移动', icon: 'Cursor', hint: '点击选中，拖动移动，角柄缩放，顶部圆柄旋转' },
+  { id: 'rect', name: '矩形画笔', icon: 'Rectangle', hint: '按住拖动绘制矩形（支持连续放置）' },
 ];

@@ -3,8 +3,8 @@
  * 支持正弦路径运动（移动平台）：水平往返（axis='x'）/ 垂直升降（axis='y'，电梯）。
  */
 import { world } from '../../core/ecs';
-import { Position } from '../../components/Position';
-import { PathMotion } from '../../components/PathMotion';
+import { Position } from '../../components/physics/Position';
+import { PathMotion } from '../../components/physics/PathMotion';
 import { gs } from '../game/gameState';
 
 export function updateMotion(): void {

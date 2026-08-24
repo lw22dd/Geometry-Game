@@ -6,13 +6,13 @@
 import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
 import { world } from '../../core/ecs';
-import { Position } from '../../components/Position';
-import { Collider } from '../../components/Collider';
-import { Collectible } from '../../components/Collectible';
-import { JumpBoost } from '../../components/JumpBoost';
-import { RespawnPoint } from '../../components/RespawnPoint';
-import { Goal } from '../../components/Goal';
-import { Renderable } from '../../components/Renderable';
+import { Position } from '../../components/physics/Position';
+import { Collider } from '../../components/physics/Collider';
+import { Collectible } from '../../components/gameplay/Collectible';
+import { JumpBoost } from '../../components/gameplay/JumpBoost';
+import { RespawnPoint } from '../../components/gameplay/RespawnPoint';
+import { Goal } from '../../components/gameplay/Goal';
+import { Renderable } from '../../components/render/Renderable';
 import { gs } from '../../systems/game/gameState';
 import { colliderWorldRect } from '../../systems/level';
 import { T } from './theme';
@@ -68,6 +68,29 @@ export function drawCheckpoints(p: number): void {
     ctx.shadowBlur = rp.active ? 12 : 4;
     ctx.fillRect(px - 0.9 * view.SZ, sy(pos.y + 0.3), 1.8 * view.SZ, 0.3 * view.SZ);
     ctx.shadowBlur = 0;
+
+    // ── E 交互提示（未激活且玩家在附近时，贴近底座）──
+    if (!rp.active && rp.nearby) {
+      const beat = 0.55 + 0.45 * Math.sin(gs.time * 5.5);
+      // 底座上方紧贴的位置（底座顶部 ≈ py - 0.3*SZ，提示在其上方）
+      const ey = py - 0.7 * view.SZ;
+      const er = 0.5 * view.SZ * (1 + beat * 0.06);
+      ctx.save();
+      ctx.globalAlpha = 0.75 + 0.25 * beat;
+      ctx.shadowColor = 'rgba(125,249,255,.6)';
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = 'rgba(16,60,40,.85)';
+      ctx.beginPath();
+      ctx.arc(px, ey, er, 0, 6.283);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(200,255,240,.95)';
+      ctx.font = '700 14px "Segoe UI",Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('E', px, ey + 1);
+      ctx.restore();
+    }
   }
 }
 

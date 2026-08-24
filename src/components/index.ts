@@ -1,18 +1,40 @@
 /**
- * 组件 barrel 导出。
+ * 组件 barrel 导出 —— 按职责域分组归档。
  * 每个组件模块同时导出 interface（类型）和 const（运行时 key）。
+ *
+ * ── 物理 / 运动（实体在世界中的空间与运动状态）──
+ *   Position     世界坐标（格）
+ *   Velocity     速度矢量（格/秒）
+ *   Collider     碰撞盒
+ *   PathMotion   路径运动（移动平台）
+ *   Track        轨道运动（冲刺环）
+ *   SpringPad     弹簧平台（弹射力 + 动画状态）
+ *
+ * ── 玩法 / 交互（决定实体的游戏语义）──
+ *   Timer        计时（激光/限时机关）
+ *   Hazard       危险物（尖刺/激光）
+ *   Collectible  可收集（光球）
+ *   JumpBoost    双跳光球
+ *   RespawnPoint 检查点
+ *   Goal         终点（NOVA）
+ *   PlayerTag    玩家标识（实体归属哪个玩家）
+ *
+ * ── 表现 / 渲染（实体如何被绘制）──
+ *   Renderable   渲染描述（绘制层）
  */
-export { Position } from './Position';
-export { Velocity } from './Velocity';
-export { Collider } from './Collider';
-export { PathMotion } from './PathMotion';
-export { Timer } from './Timer';
-export { Hazard } from './Hazard';
-export { Collectible } from './Collectible';
-export { JumpBoost } from './JumpBoost';
-export { SpringPad } from './SpringPad';
-export { RespawnPoint } from './RespawnPoint';
-export { Goal } from './Goal';
-export { Renderable } from './Renderable';
-export { PlayerTag } from './PlayerTag';
-export { Track } from './Track';
+export { Position } from './physics/Position';
+export { Velocity } from './physics/Velocity';
+export { Collider } from './physics/Collider';
+export { PathMotion } from './physics/PathMotion';
+export { Track } from './physics/Track';
+export { SpringPad } from './physics/SpringPad';
+
+export { Timer } from './gameplay/Timer';
+export { Hazard } from './gameplay/Hazard';
+export { Collectible } from './gameplay/Collectible';
+export { JumpBoost } from './gameplay/JumpBoost';
+export { RespawnPoint } from './gameplay/RespawnPoint';
+export { Goal } from './gameplay/Goal';
+export { PlayerTag } from './gameplay/PlayerTag';
+
+export { Renderable } from './render/Renderable';

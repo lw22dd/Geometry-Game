@@ -2,8 +2,9 @@
  * 路径运动组件 —— 正弦路径运动数据（用于移动平台）。
  * 由 MotionSystem 每帧更新位置和 dx/dy 差值。
  * 支持水平（axis='x'）和垂直（axis='y'）两种模式。
+ * @category 物理/运动
  */
-import type { ComponentType } from '../core/ecs';
+import type { ComponentType } from '../../core/ecs';
 
 export interface PathMotion {
   /** 起始 X 坐标 */

@@ -8,6 +8,7 @@ import type { PlayerPrefab } from './types';
 import { DEFAULT_CHARACTER, type CharacterStyle } from './characters';
 
 export { CHARACTERS, DEFAULT_CHARACTER } from './characters';
+export { setSelectedCharacter, getSelectedCharacter, getCharacterById } from './characters';
 export type { CharacterStyle } from './characters';
 
 // ── 每玩家动画状态（WeakMap 键为稳定对象：P 或 RemotePlayer）──

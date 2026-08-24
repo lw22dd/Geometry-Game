@@ -7,9 +7,9 @@
 import { world } from '../../core/ecs';
 import type { EntityId } from '../../core/ecs/Entity';
 import type { MoverSpawnData } from '../../types';
-import { Position } from '../../components/Position';
-import { Collider } from '../../components/Collider';
-import { PathMotion } from '../../components/PathMotion';
+import { Position } from '../../components/physics/Position';
+import { Collider } from '../../components/physics/Collider';
+import { PathMotion } from '../../components/physics/PathMotion';
 
 export function createMovingPlatform(d: MoverSpawnData): EntityId {
   const e = world.createEntity();

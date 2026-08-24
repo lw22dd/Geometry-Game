@@ -244,7 +244,7 @@ export function buildDevScene(a: DevActions): UIScene {
     ctx.textBaseline = 'middle';
     ctx.font = '700 24px "Segoe UI","Microsoft YaHei",Arial';
     ctx.fillStyle = '#bfe9ff';
-    ctx.fillText('🔧 开发者设置', VW / 2, py + 46);
+    ctx.fillText('开发者设置', VW / 2, py + 46);
 
     // 同步 toggle 状态（checked 可能被外部修改）
     toggleGrid.checked = dev.showGrid;

@@ -3,8 +3,9 @@
  * 碰撞箱中心 = Position + (ox, oy) 偏移；尺寸为 w × h。
  * solid=true  为实体（阻挡玩家，走物理推挤）
  * solid=false 为触发区（仅触发事件，尖刺/光球/检查点/终点）
+ * @category 物理/运动
  */
-import type { ComponentType } from '../core/ecs';
+import type { ComponentType } from '../../core/ecs';
 
 export interface Collider {
   /** 碰撞箱宽（格） */

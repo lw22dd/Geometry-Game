@@ -6,10 +6,10 @@ import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
 import { gs } from '../../systems/game/gameState';
 import { world } from '../../core/ecs';
-import { Position } from '../../components/Position';
-import { Collider } from '../../components/Collider';
-import { Timer } from '../../components/Timer';
-import { Hazard } from '../../components/Hazard';
+import { Position } from '../../components/physics/Position';
+import { Collider } from '../../components/physics/Collider';
+import { Timer } from '../../components/gameplay/Timer';
+import { Hazard } from '../../components/gameplay/Hazard';
 import { colliderWorldRect } from '../../systems/level';
 
 /** 尖刺（三角形，合并路径一次描边发光；ECS 实体：Position + Collider + Hazard） */

@@ -58,7 +58,7 @@ export function decompileMapDefinition(def: MapDefinition): MapData {
   for (const sp of def.entitySpawners.springPads) {
     data.layers.objects.push({
       type: 'springPad', x: sp.x, y: sp.y, w: sp.w, h: sp.h,
-      forceX: sp.forceX, forceY: sp.forceY, duration: sp.duration,
+      force: sp.force, duration: sp.duration,
     });
   }
   for (const l of def.entitySpawners.lasers) {
@@ -135,7 +135,7 @@ export function compileMapData(data: MapData): {
       case 'springPad':
         springPads.push({
           x: inst.x, y: inst.y, w: inst.w, h: inst.h,
-          forceX: inst.forceX, forceY: inst.forceY, duration: inst.duration,
+          force: inst.force, duration: inst.duration,
         });
         break;
       case 'laser': lasers.push({ x: inst.x, y0: inst.y0, len: inst.len, ph: inst.ph }); break;

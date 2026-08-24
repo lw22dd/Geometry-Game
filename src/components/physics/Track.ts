@@ -5,9 +5,10 @@
  * 玩家运行到入口点附近且速度足够时被捕获，进入轨道运动模式。
  *
  * 路径几何计算（position/tangent/gravity）见 core/path.ts。
+ * @category 物理/运动
  */
-import type { ComponentType } from '../core/ecs';
-import type { PathSegment } from '../types/path';
+import type { ComponentType } from '../../core/ecs';
+import type { PathSegment } from '../../types/path';
 
 export interface Track {
   /** 路径段数组（当前至少一段，未来可多段拼接） */

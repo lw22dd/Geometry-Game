@@ -21,17 +21,18 @@ import { clamp } from '../../core/math';
 import {
   PHYS, RUN, SPRINT, currentMap,
   TRACK_CAPTURE_RADIUS, TRACK_STOP_SPEED, TRACK_FRICTION,
+  TRACK_ROLLBACK_SPEED, TRACK_ROLLBACK_RELEASE,
 } from '../../config';
 import { getMode, type PhysicsKey } from '../game/gameMode';
 import { trail } from '../particles';
 import { world } from '../../core/ecs';
-import { Position } from '../../components/Position';
-import { Collider } from '../../components/Collider';
-import { PathMotion } from '../../components/PathMotion';
-import { SpringPad } from '../../components/SpringPad';
-import { Timer } from '../../components/Timer';
-import { Hazard } from '../../components/Hazard';
-import { Track } from '../../components/Track';
+import { Position } from '../../components/physics/Position';
+import { Collider } from '../../components/physics/Collider';
+import { PathMotion } from '../../components/physics/PathMotion';
+import { SpringPad } from '../../components/physics/SpringPad';
+import { Timer } from '../../components/gameplay/Timer';
+import { Hazard } from '../../components/gameplay/Hazard';
+import { Track } from '../../components/physics/Track';
 import { colliderWorldRect, aabbOverlap } from '../level';
 import {
   pathPosition, pathTangent, pathGravityTangent,
@@ -152,6 +153,8 @@ export function stepPlayerGeneric(
   const shiftPressed = input !== null ? input.sprint : (keys.ShiftLeft || keys.ShiftRight);
 
   // 跳跃"新按下沿"检测：上一物理步未按下 && 本步刚按下 → 一次按压只触发一次
+  // jumpWasDown 由 PlayerController.setInput 在每帧注入时预先更新（反映上一帧的 input.jump），
+  // 此处再写入当前帧状态，供下一帧/远程玩家使用。
   const jumpFresh = jumpPressed && !p.jumpWasDown;
   p.jumpWasDown = jumpPressed;
 
@@ -159,16 +162,16 @@ export function stepPlayerGeneric(
   if (dir) p.face = dir;
 
   // 冲刺
-  const spr = shiftPressed && (dir !== 0 || Math.abs(p.vx) > 2);
+  const spr = shiftPressed && (dir !== 0 || Math.abs(p.velocity.x) > 2);
   p.wasSpr = spr;
   p.sprint = spr;
 
   // 水平加速度
   const target = dir * (spr ? SPRINT : RUN);
   const acc = p.grounded ? (dir !== 0 ? 90 : 120) : ph.air;
-  const dv = target - p.vx;
+  const dv = target - p.velocity.x;
   const st = acc * dt;
-  p.vx += Math.abs(dv) <= st ? dv : Math.sign(dv) * st;
+  p.velocity.x += Math.abs(dv) <= st ? dv : Math.sign(dv) * st;
 
   // 跳跃缓冲 & 土狼时间
   if (input !== null) {
@@ -181,29 +184,38 @@ export function stepPlayerGeneric(
 
   // 跳跃（地面 / 土狼时间：保留缓冲手感；一段跳不消耗二段跳）
   if (p.jbuf > 0 && (p.grounded || p.coyote > 0)) {
-    p.vy = ph.JV;
+    p.velocity.y = ph.JV;
     p.grounded = false;
     p.coyote = 0;
     p.jbuf = 0;
-  } else if (jumpFresh && p.extraJumps > 0) {
-    // 空中二段跳：仅"松开后再次按下"的二次按压触发，消耗一次额外跳跃
+    // 一次按压只跳一次：地面跳消耗输入层按下标记，防止同一按同时触发二段跳
+    p.jumpFresh = false;
+  } else if (p.extraJumps > 0 && (p.jumpFresh || jumpFresh)) {
+    // 空中二段跳：
+    //  - p.jumpFresh 输入层按下标记（keydown handler 写入），不受帧间 timing 影响，
+    //    松开再按下必定触发；长按不产生新 keydown → 不会自动跳
+    //  - jumpFresh 物理层边沿，作为远程玩家（无本地 keydown）的兜底
+    p.jumpFresh = false;
     p.extraJumps--;
-    p.vy = ph.JV;
+    p.velocity.y = ph.JV;
     p.jbuf = 0;
     if (outSignals) outSignals.doubleJump = true;
+  } else {
+    // 无跳跃发生的帧也消耗标记，防止残留到下帧误触发（如空中按了但当时没有二段跳次数）
+    p.jumpFresh = false;
   }
 
   // 重力
   const hold = input !== null ? input.jump : (keys.Space || keys.KeyW || keys.ArrowUp);
   const gm = mode === 'tuned'
-    ? (p.vy > 0 ? (hold ? 1 : 2.6) : (hold ? 1.4 : 2.2))
+    ? (p.velocity.y > 0 ? (hold ? 1 : 2.6) : (hold ? 1.4 : 2.2))
     : 1;
-  p.vy -= ph.G * gm * dt;
-  if (p.vy < -ph.MF) p.vy = -ph.MF;
-  const pv = p.vy;
+  p.velocity.y -= ph.G * gm * dt;
+  if (p.velocity.y < -ph.MF) p.velocity.y = -ph.MF;
+  const pv = p.velocity.y;
 
   // 水平碰撞
-  p.x += p.vx * dt;
+  p.x += p.velocity.x * dt;
   for (const s of solidsNow) {
     if (boxHitFor(p, s)) {
       // 玩家脚底贴住固体顶面（站立 / 被移动平台携带 / 重力微沉）
@@ -217,11 +229,11 @@ export function stepPlayerGeneric(
           spring.animTimer = spring.duration;
           spring.firing = true;
           p.springT = spring.duration;
-          p.springX = spring.forceX;
-          p.springY = spring.forceY;
+          p.springAcceleration.x = spring.force.x;
+          p.springAcceleration.y = spring.force.y;
           // 瞬间冲量：水平弹簧需要克服水平阻尼，直接给足速度
-          p.vx += spring.forceX;
-          p.vy += spring.forceY;
+          p.velocity.x += spring.force.x;
+          p.velocity.y += spring.force.y;
           // 首次触发时推挤到最近边缘（基于玩家位置，避免瞬移）
           if (p.x < s.x + s.w / 2) {
             p.x = s.x - p.half;      // 在左半边 → 推到左侧
@@ -235,36 +247,36 @@ export function stepPlayerGeneric(
       }
 
       // 普通墙壁推挤
-      if (outSignals && Math.abs(p.vx) > 5) outSignals.wallBump = true;
-      if (p.vx > 0) p.x = s.x - p.half;
-      else if (p.vx < 0) p.x = s.x + s.w + p.half;
+      if (outSignals && Math.abs(p.velocity.x) > 5) outSignals.wallBump = true;
+      if (p.velocity.x > 0) p.x = s.x - p.half;
+      else if (p.velocity.x < 0) p.x = s.x + s.w + p.half;
       else {
         const dl = p.x + p.half - s.x;
         const dr = s.x + s.w - (p.x - p.half);
         p.x += dl < dr ? -dl : dr;
       }
-      p.vx = 0;
+      p.velocity.x = 0;
     }
   }
   p.x = clamp(p.x, p.half, currentMap.width - p.half);
 
   // 垂直碰撞
-  p.y += p.vy * dt;
+  p.y += p.velocity.y * dt;
   p.grounded = false;
   p.plat = null;
   let springEnt: number | null = null;
   for (const s of solidsNow) {
     if (boxHitFor(p, s)) {
-      if (p.vy <= 0) {
+      if (p.velocity.y <= 0) {
         p.y = s.top + p.half;
-        p.vy = 0;
+        p.velocity.y = 0;
         p.grounded = true;
         if (s.plat) p.plat = s.plat;
         // 扁宽弹簧（w >= h）只能从顶部踩触发
         if (s.springPad !== undefined && s.w >= s.h) springEnt = s.springPad;
       } else {
         p.y = s.y - p.half;
-        p.vy = 0;
+        p.velocity.y = 0;
       }
     }
   }
@@ -277,16 +289,16 @@ export function stepPlayerGeneric(
       spring.animTimer = spring.duration;
       spring.firing = true;
       p.springT = spring.duration;
-      p.springX = spring.forceX;
-      p.springY = spring.forceY;
+      p.springAcceleration.x = spring.force.x;
+      p.springAcceleration.y = spring.force.y;
       if (outSignals) outSignals.spring = true;
     }
   }
 
   // 弹簧持续加速（加速时间 = springT，与弹簧伸缩动画同步）
   if (p.springT > 0) {
-    p.vx += p.springX * dt;
-    p.vy += p.springY * dt;
+    p.velocity.x += p.springAcceleration.x * dt;
+    p.velocity.y += p.springAcceleration.y * dt;
     p.springT -= dt;
     if (p.springT < 0) p.springT = 0;
   }
@@ -369,8 +381,8 @@ function stepTrackMotion(
   // 切向重力分量（通用路径版本）
   const gTan = pathGravityTangent(t.segments, cl, t.dist, PHYS[mode].G);
   t.speed += gTan * dt;
-  // 摩擦阻尼
-  t.speed *= 1 - TRACK_FRICTION * dt;
+  // 摩擦阻尼（仅正向；反向滚回不衰减，保证长直线能滑回入口）
+  if (t.speed >= 0) t.speed *= 1 - TRACK_FRICTION * dt;
 
   // 沿路径前进
   t.dist += t.speed * dt;
@@ -392,14 +404,15 @@ function stepTrackMotion(
 
   // ── 滚回判定（正向爬升中速度耗尽 → 反向滑回入口）──
   if (t.speed >= 0 && t.speed < TRACK_STOP_SPEED && t.dist < t.exitDist) {
-    // 反转方向：速度变负，继续沿路径滑回
-    t.speed = -0.5;
+    // 原 -0.5 会被摩擦耗尽：长直线（10 格）必须更高速度才能滑回入口
+    t.speed = -TRACK_ROLLBACK_SPEED;
     if (signals) signals.trackRollback = true;
     return;
   }
 
-  // ── 反向滑回入口 → 释放（带着切向速度飞回）──
+  // ── 反向滑回入口 → 释放（统一温和回弹，避免高速滚回入口弹射过猛）──
   if (t.speed < 0 && t.dist <= t.entryDist) {
+    t.speed = -TRACK_ROLLBACK_RELEASE;
     releaseFromTrack(p, t);
     return;
   }
@@ -408,8 +421,8 @@ function stepTrackMotion(
 /** 释放玩家出轨道：将路径切线速度转为 vx/vy，清除 track 状态 */
 function releaseFromTrack(p: PlayerState, t: TrackState): void {
   const tan = pathTangent(t.segments, t.cumulative, t.dist);
-  p.vx = tan.x * t.speed;
-  p.vy = tan.y * t.speed;
+  p.velocity.x = tan.x * t.speed;
+  p.velocity.y = tan.y * t.speed;
   p.track = null;
   p.grounded = false;
   p.plat = null;
@@ -422,11 +435,12 @@ function releaseFromTrack(p: PlayerState, t: TrackState): void {
  */
 function tryEnterTrack(p: PlayerState, _dt: number, signals?: FrameSignals): void {
   if (p.track || p.dead) return;
-  const sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+  const sp = Math.sqrt(p.velocity.x * p.velocity.x + p.velocity.y * p.velocity.y);
 
   for (const e of world.query(Position, Track)) {
     const tr = world.get<Track>(e, Track);
-    if (sp < tr.speedThreshold) continue;
+    // 速度阈值检查 + 静止/超低速 NaN 防护（sp≈0 → 0/0 导致传送至出口）
+    if (sp < Math.max(tr.speedThreshold, 1e-3)) continue;
     const dx = p.x - tr.entryX;
     const dy = p.y - tr.entryY;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -434,7 +448,7 @@ function tryEnterTrack(p: PlayerState, _dt: number, signals?: FrameSignals): voi
 
     // 方向检查：速度与入口切线方向点积
     const entryTan = pathTangent(tr.segments, buildCumulativeLengths(tr.segments), tr.entryDist);
-    const dot = (p.vx * entryTan.x + p.vy * entryTan.y) / sp;
+    const dot = (p.velocity.x * entryTan.x + p.velocity.y * entryTan.y) / sp;
     if (dot < 0.5) continue;
 
     // 捕获

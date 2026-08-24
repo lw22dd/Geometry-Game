@@ -5,22 +5,27 @@
  */
 import type { EditorStore } from './store';
 import { getPrefabCategories, GEOMETRY_TOOLS } from './registry';
+import { renderIcon } from './td-icons';
 
-export function buildPalette(store: EditorStore): void {
+export function buildPalette(store: EditorStore, filter?: string): void {
   const container = document.getElementById('palette')!;
   container.innerHTML = '';
+  if (filter === undefined) {
+    filter = ((document.getElementById('paletteSearch') as HTMLInputElement)?.value || '').trim().toLowerCase();
+  }
+  filter = filter.trim().toLowerCase();
 
   // 模式分段切换
   const modeRow = document.createElement('div');
   modeRow.className = 'mode-row';
-  const modes: { id: 'geometry' | 'objects'; label: string; hint: string }[] = [
-    { id: 'geometry', label: '🏗 基础几何', hint: '矢量绘制：地面/墙壁/阶梯' },
-    { id: 'objects', label: '🎯 场景物品', hint: '摆放玩法预制体' },
+  const modes: { id: 'geometry' | 'objects'; label: string; icon: string; hint: string }[] = [
+    { id: 'geometry', label: '基础几何', icon: 'Rectangle', hint: '矢量绘制：地面/墙壁/阶梯' },
+    { id: 'objects', label: '场景物品', icon: 'Gift', hint: '摆放玩法预制体' },
   ];
   for (const m of modes) {
     const btn = document.createElement('button');
     btn.className = 'mode-btn' + (store.mode === m.id ? ' active' : '');
-    btn.textContent = m.label;
+    btn.innerHTML = `${renderIcon(m.icon, 15)}&nbsp;${m.label}`;
     btn.title = m.hint;
     btn.addEventListener('click', () => {
       store.setMode(m.id);
@@ -33,7 +38,7 @@ export function buildPalette(store: EditorStore): void {
 
   // 批量放置锁
   const lockRow = document.createElement('div');
-  lockRow.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 8px;margin-bottom:4px;border-bottom:1px solid rgba(100,80,200,.2)';
+  lockRow.id = 'lockPlaceRow';
   const lockCheck = document.createElement('input');
   lockCheck.type = 'checkbox';
   lockCheck.id = 'lockPlace';
@@ -41,16 +46,15 @@ export function buildPalette(store: EditorStore): void {
   lockCheck.addEventListener('change', () => { store.lockPlace = lockCheck.checked; });
   const lockLabel = document.createElement('label');
   lockLabel.htmlFor = 'lockPlace';
-  lockLabel.textContent = '🔒 连续绘制/放置';
-  lockLabel.style.cssText = 'font-size:12px;color:rgba(170,200,255,.6);cursor:pointer';
+  lockLabel.innerHTML = `${renderIcon('LockOn', 13)}&nbsp;连续绘制/放置`;
   lockRow.appendChild(lockCheck);
   lockRow.appendChild(lockLabel);
   container.appendChild(lockRow);
 
   if (store.mode === 'geometry') {
-    buildGeometryTools(store, container);
+    buildGeometryTools(store, container, filter);
   } else {
-    buildPrefabPalette(store, container);
+    buildPrefabPalette(store, container, filter);
   }
 
   refreshActive(store);
@@ -58,7 +62,7 @@ export function buildPalette(store: EditorStore): void {
 
 /* ==================== 几何工具 ==================== */
 
-function buildGeometryTools(store: EditorStore, container: HTMLElement): void {
+function buildGeometryTools(store: EditorStore, container: HTMLElement, filter: string): void {
   const section = document.createElement('div');
   section.className = 'palette-category';
 
@@ -67,6 +71,7 @@ function buildGeometryTools(store: EditorStore, container: HTMLElement): void {
   section.appendChild(title);
 
   for (const tool of GEOMETRY_TOOLS) {
+    if (filter && !tool.name.toLowerCase().includes(filter)) continue;
     const el = document.createElement('div');
     el.className = 'palette-entry';
     el.dataset.tool = tool.id;
@@ -75,7 +80,7 @@ function buildGeometryTools(store: EditorStore, container: HTMLElement): void {
     swatch.className = 'palette-swatch';
     swatch.style.background = 'rgba(110,200,255,.15)';
     swatch.style.color = '#8ff6ff';
-    swatch.textContent = tool.icon;
+    swatch.innerHTML = renderIcon(tool.icon, 14);
 
     const wrap = document.createElement('div');
     wrap.style.flex = '1';
@@ -105,10 +110,18 @@ function buildGeometryTools(store: EditorStore, container: HTMLElement): void {
 
 /* ==================== 预制体调色板 ==================== */
 
-function buildPrefabPalette(store: EditorStore, container: HTMLElement): void {
+function buildPrefabPalette(store: EditorStore, container: HTMLElement, filter: string): void {
   const categories = getPrefabCategories();
 
   for (const [catName, entries] of categories) {
+    if (filter && !catName.toLowerCase().includes(filter)) continue;
+
+    // 当前分类下的可见条目
+    const visible = entries.filter(e =>
+      !filter || e.name.toLowerCase().includes(filter) || e.type.toLowerCase().includes(filter) || e.toolId.toLowerCase().includes(filter)
+    );
+    if (visible.length === 0) continue;
+
     const section = document.createElement('div');
     section.className = 'palette-category';
 
@@ -116,7 +129,7 @@ function buildPrefabPalette(store: EditorStore, container: HTMLElement): void {
     title.textContent = catName;
     section.appendChild(title);
 
-    for (const entry of entries) {
+    for (const entry of visible) {
       const el = document.createElement('div');
       el.className = 'palette-entry';
       el.dataset.toolid = entry.toolId;
@@ -125,7 +138,7 @@ function buildPrefabPalette(store: EditorStore, container: HTMLElement): void {
       swatch.className = 'palette-swatch';
       swatch.style.background = entry.swatch + '33';
       swatch.style.color = entry.swatch;
-      swatch.textContent = entry.icon;
+      swatch.innerHTML = renderIcon(entry.icon, 14);
 
       const label = document.createElement('span');
       label.textContent = entry.name;

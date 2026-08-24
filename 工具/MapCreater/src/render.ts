@@ -9,6 +9,7 @@ import type { MapInstance, RectItem } from './mapTypes';
 import {
   instancePosition, instanceHitBounds, hitTest,
   rectCenter, rectRad, rotatedRectBounds, hitTestRect,
+  rectWorldCorners, rectTopCenter,
 } from './mapTypes';
 
 /* ==================== 网格 ==================== */
@@ -48,22 +49,34 @@ export function renderGrid(): void {
 
 /* ==================== 基础几何层渲染 ==================== */
 
-/** 在屏幕中心点绘制霓虹矩形（局部坐标系，已处于 center 平移+旋转状态） */
-function fillNeonRectLocal(r: RectItem, centerScreenX: number, centerScreenY: number): void {
+/** 按世界角点绘制霓虹矩形（与 hitTestRect 同一世界约定，杜绝坐标系错位） */
+function fillNeonRectCorner(r: RectItem): void {
   const c = rectCenter(r);
   const hue = 196 + 100 * Math.min(1, Math.max(0, c.x / 240 * 0.55 + c.y / 72 * 0.45));
-  const hw = r.w * view.SZ / 2, hh = r.h * view.SZ / 2;
+  const pts = rectWorldCorners(r).map(p => [sx(p.x), sy(p.y)] as const);
+  // 顺序：左下 → 右下 → 右上 → 左上
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath();
   ctx.fillStyle = 'rgba(15,11,42,.94)';
-  ctx.fillRect(-hw, -hh, hw * 2, hh * 2);
+  ctx.fill();
+
   ctx.shadowColor = 'hsla(' + hue + ',100%,60%,.85)';
   ctx.shadowBlur = 12;
   ctx.strokeStyle = 'hsla(' + hue + ',95%,66%,.9)';
   ctx.lineWidth = 2;
-  ctx.strokeRect(-hw, -hh, hw * 2, hh * 2);
+  ctx.stroke();
   ctx.shadowBlur = 0;
+
+  // 世界顶边（右上 ↔ 左上）亮线
   ctx.fillStyle = 'hsla(' + hue + ',100%,78%,.95)';
-  ctx.fillRect(-hw, -hh, hw * 2, 2.2);
-  void centerScreenX; void centerScreenY;
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(pts[2][0], pts[2][1]);
+  ctx.lineTo(pts[3][0], pts[3][1]);
+  ctx.stroke();
 }
 
 export function renderGeometry(store: EditorStore): void {
@@ -74,15 +87,7 @@ export function renderGeometry(store: EditorStore): void {
     // 旋转后 AABB 裁剪
     const b = rotatedRectBounds(item);
     if (b.x + b.w < vl || b.x > vr || b.y + b.h < vb || b.y > vt) continue;
-
-    // 旋转渲染：中心平移 + 旋转 + 局部绘制
-    const c = rectCenter(item);
-    const rad = rectRad(item);
-    ctx.save();
-    ctx.translate(sx(c.x), sy(c.y));
-    if (rad !== 0) ctx.rotate(rad);
-    fillNeonRectLocal(item, sx(c.x), sy(c.y));
-    ctx.restore();
+    fillNeonRectCorner(item);
   }
 }
 
@@ -104,9 +109,9 @@ function renderOne(inst: MapInstance, time: number): void {
   ctx.shadowBlur = 8;
 
   if (rotRad !== 0) {
-    // 对象旋转：绕锚点旋转（仅对部分类型有意义）
+    // 对象旋转：绕锚点旋转。世界 Y 上、屏幕 Y 下 → 用 -rotRad 与 hitTest 一致
     ctx.translate(px, py);
-    ctx.rotate(rotRad);
+    ctx.rotate(-rotRad);
     ctx.translate(-px, -py);
   }
 
@@ -252,52 +257,50 @@ export function renderObjects(store: EditorStore, time: number): void {
 
 /* ==================== 选中高亮 ==================== */
 
-/** 绘制旋转矩形的选中框 + 角手柄 + 旋转手柄 */
+/** 绘制旋转矩形的选中框 + 角手柄 + 旋转手柄（基于世界角点，与 hitTest 一致） */
 function renderRectSelection(r: RectItem): void {
-  const c = rectCenter(r);
-  const rad = rectRad(r);
-  const cx = sx(c.x), cy = sy(c.y);
+  const pts = rectWorldCorners(r).map(p => [sx(p.x), sy(p.y)] as const);
+  const top = rectTopCenter(r);
+  const tpx = sx(top.x), tpy = sy(top.y);
 
+  // 虚线外框（沿角点绘制）
   ctx.save();
-  ctx.translate(cx, cy);
-  if (rad !== 0) ctx.rotate(rad);
-
-  const hw = r.w * view.SZ / 2, hh = r.h * view.SZ / 2;
-
-  // 虚线外框
   ctx.setLineDash([4, 4]);
   ctx.strokeStyle = '#8ff6ff';
   ctx.lineWidth = 2;
   ctx.shadowColor = '#8ff6ff';
   ctx.shadowBlur = 6;
-  ctx.strokeRect(-hw - 2, -hh - 2, hw * 2 + 4, hh * 2 + 4);
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath();
+  ctx.stroke();
   ctx.setLineDash([]);
   ctx.shadowBlur = 0;
 
   // 4 个角手柄
-  const corners: [number, number][] = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
   ctx.fillStyle = '#8ff6ff';
   ctx.strokeStyle = '#0a0820';
   ctx.lineWidth = 1.5;
-  for (const [lx, ly] of corners) {
+  for (const [px, py] of pts) {
     ctx.beginPath();
-    ctx.arc(lx, ly, 4.5, 0, Math.PI * 2);
+    ctx.arc(px, py, 4.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   }
 
-  // 旋转手柄（顶部中心）
-  const rhY = -hh - 16;
+  // 旋转手柄（顶部中心上方）
+  const rhY = tpy - 16;
   ctx.beginPath();
-  ctx.arc(0, rhY, 5, 0, Math.PI * 2);
+  ctx.arc(tpx, rhY, 5, 0, Math.PI * 2);
   ctx.fillStyle = '#ffd700';
   ctx.fill();
   ctx.strokeStyle = '#0a0820';
   ctx.stroke();
   // 连接杆
   ctx.beginPath();
-  ctx.moveTo(0, -hh);
-  ctx.lineTo(0, rhY);
+  ctx.moveTo(tpx, tpy);
+  ctx.lineTo(tpx, rhY);
   ctx.strokeStyle = 'rgba(255,215,0,.6)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
@@ -451,18 +454,34 @@ export function renderMapBounds(store: EditorStore): void {
 
 /* ==================== 状态栏 ==================== */
 
+/** 更新底部状态栏分项：模式/工具、缩放、对象计数（#statusInfo / #statusZoom / #statusObjCount） */
 export function updateStatusBar(store: EditorStore): void {
-  const el = document.getElementById('statusBar')!;
-  const parts: string[] = [];
-  parts.push(`几何: ${store.map.layers.geometry.length}`);
-  parts.push(`物品: ${store.map.layers.objects.length}`);
-  parts.push(`尺寸: ${store.map.width}×${store.map.height}`);
-  if (store.mode === 'geometry') {
-    parts.push(`模式: 基础几何 · ${store.geomTool === 'rect' ? '矩形画笔' : '选择'}`);
-  } else {
-    const entry = store.objTool ? getPrefabEntry(store.objTool) : null;
-    parts.push(`模式: 场景物品${entry ? ' · ' + entry.name : ''}`);
+  const infoEl = document.getElementById('statusInfo');
+  if (infoEl) {
+    let info = '就绪';
+    if (store.mode === 'geometry') {
+      info = `基础几何 · ${store.geomTool === 'rect' ? '矩形画笔' : '选择/移动'}`;
+    } else {
+      const entry = store.objTool ? getPrefabEntry(store.objTool) : null;
+      info = `场景物品${entry ? ' · ' + entry.name : ' · 选择'}`;
+    }
+    infoEl.textContent = info;
   }
-  parts.push(`吸附: ${store.snap}`);
-  el.textContent = parts.join(' · ');
+
+  const zoomEl = document.getElementById('statusZoom');
+  if (zoomEl) {
+    zoomEl.textContent = `缩放: ${Math.round((view.SZ / 48) * 100)}%`;
+  }
+
+  const countEl = document.getElementById('statusObjCount');
+  if (countEl) {
+    countEl.textContent = `几何: ${store.map.layers.geometry.length} | 对象: ${store.map.layers.objects.length} | ${store.map.width}×${store.map.height}`;
+  }
+}
+
+/** 更新状态栏鼠标世界坐标（#statusMouse） */
+export function updateMouseStatus(wx: number, wy: number): void {
+  const el = document.getElementById('statusMouse');
+  if (!el) return;
+  el.textContent = `X: ${wx.toFixed(1)}, Y: ${wy.toFixed(1)}`;
 }

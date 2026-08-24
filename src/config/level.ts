@@ -4,6 +4,7 @@
  * 只依赖 types（及 physics 的 MAP 常量）。
  */
 import type { Rect, Spike, MapDefinition } from '../types';
+import { VERTICAL_SPRING, HORIZONTAL_SPRING } from './springs';
 import { createOrb } from '../Prefabs/Scenes/orbEntity';
 import { createJumpBoost } from '../Prefabs/Scenes/jumpBoostEntity';
 import { createCheckpoint } from '../Prefabs/Scenes/checkpointEntity';
@@ -14,6 +15,7 @@ import { createLaser } from '../Prefabs/Scenes/laserEntity';
 import { createSpike } from '../Prefabs/Scenes/spikeEntity';
 import { initPlayerEntity } from '../Prefabs/Player/playerEntity';
 import { createLoopTrack } from '../Prefabs/Scenes/loopTrackEntity';
+import { world } from '../core/ecs';
 
 const R = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h, top: y + h });
 
@@ -66,11 +68,11 @@ export const maps: MapDefinition[] = [
       [8, 6.4, '→ 出发'],
       [56, 8.8, '深渊 · 浮岛'],
       [96, 16.5, '尖刺谷 · 高空走廊'],
-      [125, 10.5, '⚡ SHIFT 冲刺进环'],
+      [125, 10.5, 'SHIFT 冲刺进环'],
       [129, 17.5, '攀 升 塔'],
       [147, 33.4, '节奏平台'],
       [188, 38.6, '激光栅栏 · 计时通过'],
-      [209, 34, '⚡ SHIFT 冲刺大跳 →'],
+      [209, 34, 'SHIFT 冲刺大跳 →'],
       [225, 48.6, '登顶 · NOVA ★'],
     ],
 
@@ -87,17 +89,17 @@ export const maps: MapDefinition[] = [
       // 弹簧平台（弹射台）
       springPads: [
         // 阶梯塔入口前：垂直弹跳过深谷
-        { x: 61.5, y: 4, w: 2.5, h: 1.2, forceX: 0, forceY: 96, duration: 0.3 },
-        // 尖刺谷地面：垂直弹射进入高空走廊
-        { x: 100, y: 4, w: 2.5, h: 2, forceX: 0, forceY: 96, duration: 0.3 },
+        { x: 61.5, y: 4, w: 2.5, h: 1.2, force: { x: 0, y: 96 }, duration: 0.3 },
+        // 尖刺谷地面：垂直弹射进入高空走廊（垂直弹簧默认数值）
+        { x: 100, y: 4, ...VERTICAL_SPRING },
         // 攀升塔中段：帮助向上攀爬
-        { x: 133.5, y: 24, w: 2.2, h: 0.7, forceX: 0, forceY: 110, duration: 0.3 },
+        { x: 133.5, y: 24, w: 2.2, h: 0.7, force: { x: 0, y: 110 }, duration: 0.3 },
         // 终章登顶台：NOVA 前最后弹射
-        { x: 233, y: 44.2, w: 2.2, h: 0.8, forceX: 0, forceY: 105, duration: 0.3 },
-        // 阶梯塔墙壁弹簧：从第二阶梯右壁弹向第三阶梯（横向放置）
-        { x: 47, y: 6, w: 2, h: 2.5, forceX: 96, forceY: 10, duration: 0.3 },
+        { x: 233, y: 44.2, w: 2.2, h: 0.8, force: { x: 0, y: 105 }, duration: 0.3 },
+        // 阶梯塔墙壁弹簧：从第二阶梯右壁弹向第三阶梯（水平弹簧默认数值）
+        { x: 47, y: 6, ...HORIZONTAL_SPRING },
         // 攀升塔墙壁弹簧：左右平台之间横向弹射跨越
-        { x: 129.5, y: 15, w: 0.5, h: 2, forceX: 96, forceY: 10, duration: 0.3 },
+        { x: 129.5, y: 15, w: 0.5, h: 2, force: { x: 96, y: 10 }, duration: 0.3 },
       ],
       // 激光栅栏（六章节）
       lasers: [
@@ -129,6 +131,140 @@ export const maps: MapDefinition[] = [
       ],
       // NOVA 终点
       nova: { x: 236.5, y: 46.6 },
+      // 冲刺半环轨道（三章：走廊 → 直线跑道 → 半环翻越 → 衔接台）
+      // 两段拼接：直线跑道 (130,4.42)→(140,4.42) 无速度要求（speedThreshold=0），
+      // 再接圆弧段：圆心 (140, 5.42) 半径 1.0，底部 (-π/2) → 顶部 (+π/2)，逆时针。
+      // 入口在直线起点 (130, 4.42)，出口 = 直线长 10 + 弧长 π。
+      tracks: [
+        {
+          segments: [
+            { type: 'line', x1: 130, y1: 4.42, x2: 140, y2: 4.42 },
+            { type: 'arc', cx: 140, cy: 5.42, radius: 1.0, startAngle: -Math.PI / 2, endAngle: Math.PI / 2, dir: 1 },
+          ],
+          entryDist: 0,
+          exitDist: 10 + Math.PI,
+          speedThreshold: 0,
+        },
+      ],
+    },
+  },
+  // ══════════════════════════════════════════════
+  // 地图二 · 水晶洞窟 · 对称迷城（180×100，46 光球）
+  // 来源：工具/code (1).html 的 CUSTOM_MAP（v2 layers 格式），
+  // 经编辑器同款 decompile 逻辑转录为 MapDefinition。
+  // ══════════════════════════════════════════════
+  {
+    id: 'crystal-caverns',
+    name: '水晶洞窟 · 对称迷城',
+    width: 180,
+    height: 100,
+    playerSpawn: { x: 90, y: 6 },
+
+    // ── 静态几何（非 ECS）──
+    solids: [
+      // 地面与外墙
+      R(0, 0, 180, 4), R(0, 4, 3, 96), R(177, 4, 3, 96),
+      // 出生平台
+      R(70, 4, 40, 2),
+      // 左塔之字形攀升平台 (11 层)
+      R(5, 8, 12, 1), R(20, 12, 12, 1), R(5, 16, 12, 1), R(20, 20, 12, 1),
+      R(5, 24, 12, 1), R(20, 28, 12, 1), R(5, 32, 12, 1), R(20, 36, 12, 1),
+      R(5, 40, 12, 1), R(20, 44, 12, 1), R(5, 48, 12, 1),
+      // 右塔之字形攀升平台（镜像）
+      R(163, 8, 12, 1), R(148, 12, 12, 1), R(163, 16, 12, 1), R(148, 20, 12, 1),
+      R(163, 24, 12, 1), R(148, 28, 12, 1), R(163, 32, 12, 1), R(148, 36, 12, 1),
+      R(163, 40, 12, 1), R(148, 44, 12, 1), R(163, 48, 12, 1),
+      // 下层桥（有缺口）
+      R(30, 30, 35, 1), R(115, 30, 35, 1),
+      // 中层桥（有缺口）
+      R(35, 42, 30, 1), R(115, 42, 30, 1),
+      // 上层桥（全通）
+      R(25, 54, 130, 2),
+      // 水晶花园四层
+      R(40, 60, 100, 2), R(55, 68, 70, 2), R(65, 76, 50, 2), R(75, 84, 30, 2),
+      // 浮空小平台
+      R(30, 50, 5, 0.8), R(145, 50, 5, 0.8), R(70, 57, 6, 0.8), R(104, 57, 6, 0.8),
+      // 危险平台（带尖刺）
+      R(45, 36, 8, 1), R(127, 36, 8, 1),
+    ],
+
+    spikes: [
+      // 地面尖刺
+      { x: 60, y: 4 }, { x: 61, y: 4 }, { x: 62, y: 4 }, { x: 63, y: 4 }, { x: 64, y: 4 },
+      { x: 115, y: 4 }, { x: 116, y: 4 }, { x: 117, y: 4 }, { x: 118, y: 4 }, { x: 119, y: 4 },
+      // 桥面尖刺
+      { x: 47, y: 31 }, { x: 48, y: 31 }, { x: 127, y: 31 }, { x: 128, y: 31 },
+      // 危险平台上的尖刺
+      { x: 48, y: 37 }, { x: 49, y: 37 }, { x: 130, y: 37 }, { x: 131, y: 37 },
+    ],
+
+    decos: [
+      [90, 12, 1.5, 0.3], [40, 18, 1, -0.5], [140, 18, 1, 0.5], [90, 35, 1.2, 0.4],
+      [25, 52, 0.9, -0.7], [155, 52, 0.9, 0.7], [90, 58, 1.3, 0.3], [50, 72, 1.1, -0.4],
+      [130, 72, 1.1, 0.4], [90, 82, 1.4, 0.2],
+    ],
+
+    hints: [
+      [90, 9, '深渊 · 对称双塔迷城'],
+      [8, 20, '← 左塔攀升'],
+      [172, 20, '右塔攀升 →'],
+      [50, 33, '下层桥 · 计时通过'],
+      [90, 45, '升降平台'],
+      [30, 56, '上层走廊'],
+      [90, 63, '水晶花园 · 弹簧上升'],
+      [90, 78, '登顶 · NOVA ★'],
+    ],
+
+    // ── 实体生成描述（ECS 工厂）──
+    entitySpawners: {
+      movers: [
+        { x0: 75, y: 28, w: 3, h: 0.8, range: 12, spd: 0.8, ph: 0 },
+        { x0: 75, y: 40, w: 3, h: 0.8, range: 0, spd: 0.7, ph: 0, axis: 'y', yRange: 8 },
+        { x0: 50, y: 52, w: 3, h: 0.8, range: 30, spd: 1, ph: 0.5 },
+        { x0: 100, y: 52, w: 3, h: 0.8, range: 25, spd: 0.9, ph: 2 },
+        { x0: 55, y: 58, w: 3, h: 0.8, range: 40, spd: 1.2, ph: 1 },
+        { x0: 120, y: 66, w: 3, h: 0.8, range: 15, spd: 1, ph: 1.5 },
+      ],
+      springPads: [
+        { x: 5, y: 48, w: 2.5, h: 2, force: { x: 0, y: 96 }, duration: 0.3 },
+        { x: 163, y: 48, w: 2.5, h: 2, force: { x: 0, y: 96 }, duration: 0.3 },
+        { x: 85, y: 60, w: 2.5, h: 2, force: { x: 0, y: 110 }, duration: 0.3 },
+        { x: 65, y: 4, w: 2.5, h: 2, force: { x: 0, y: 128 }, duration: 0.3 },
+        { x: 113, y: 4, w: 2.5, h: 2, force: { x: 0, y: 128 }, duration: 0.3 },
+      ],
+      lasers: [
+        { x: 25, y0: 30, len: 5, ph: 0 },
+        { x: 150, y0: 30, len: 5, ph: 1.5 },
+        { x: 60, y0: 42, len: 4, ph: 0.8 },
+        { x: 120, y0: 42, len: 4, ph: 2.1 },
+        { x: 40, y0: 54, len: 4, ph: 1.2 },
+        { x: 135, y0: 54, len: 4, ph: 0.5 },
+      ],
+      // 光球坐标（46 枚，沿塔/桥/花园路径散布，均悬空于台面上方 1 格）
+      orbs: [
+        // 左塔
+        [7, 10], [22, 14], [7, 18], [22, 22], [7, 26], [22, 30], [7, 34], [22, 38], [7, 42], [22, 46], [7, 50],
+        // 右塔
+        [165, 10], [150, 14], [165, 18], [150, 22], [165, 26], [150, 32], [165, 34], [150, 38], [165, 42], [150, 46], [165, 50],
+        // 下层/中层桥
+        [35, 32], [50, 32], [130, 32], [145, 32],
+        [40, 44], [55, 44], [125, 44], [140, 44],
+        // 上层走廊
+        [90, 57], [35, 57], [145, 57],
+        // 水晶花园
+        [50, 63], [70, 63], [90, 66], [110, 63], [130, 63],
+        [60, 71], [90, 71], [120, 71],
+        [70, 79], [90, 79], [110, 79],
+        // 登顶
+        [80, 87], [100, 87],
+      ],
+      jumpBoosts: [
+        [90, 32], [40, 57], [140, 57], [90, 71],
+      ],
+      checkpoints: [
+        [85, 6], [10, 50], [170, 50], [50, 56], [130, 56], [90, 62], [90, 78],
+      ],
+      nova: { x: 90, y: 88 },
     },
   },
 ];
@@ -147,6 +283,17 @@ export function loadMap(id: string): MapDefinition {
   cpPoint.x = next.playerSpawn.x;
   cpPoint.y = next.playerSpawn.y;
   return next;
+}
+
+/**
+ * 切换并重建关卡（切图串联：清空世界 → 数据层切图 → 重建实体）。
+ * 玩家复位 / gs 计数复位 / 相机复位由 game 层 applyLevel 统一处理，
+ * 保证「清空旧 ECS 实体 + loadMap(id) + initECSFromLevel() + 玩家复位」的完整链路。
+ */
+export function setupLevel(mapId: string): void {
+  world.clear();
+  loadMap(mapId);
+  initECSFromLevel();
 }
 
 /**
@@ -173,17 +320,8 @@ export function initECSFromLevel(): void {
   for (const sp of currentMap.spikes) {
     createSpike(sp.x, sp.y);
   }
-  // 冲刺半环轨道（三章：走廊 → 直线跑道 → 半环翻越 → 衔接台）
-  // 两段拼接：直线跑道 (130,4.42)→(140,4.42) 无速度要求（speedThreshold=0），
-  // 再接圆弧段：圆心 (140, 5.42) 半径 1.0，底部 (-π/2) → 顶部 (+π/2)，逆时针。
-  // 入口在直线起点 (130, 4.42)，出口 = 直线长 10 + 弧长 π。
-  createLoopTrack(
-    [
-      { type: 'line', x1: 130, y1: 4.42, x2: 140, y2: 4.42 },
-      { type: 'arc', cx: 140, cy: 5.42, radius: 1.0, startAngle: -Math.PI / 2, endAngle: Math.PI / 2, dir: 1 },
-    ],
-    0,
-    10 + Math.PI,
-    0,
-  );
+  // 冲刺轨道（地图数据驱动；无 tracks 字段的地图自然不带轨道）
+  for (const t of s.tracks ?? []) {
+    createLoopTrack(t.segments, t.entryDist, t.exitDist, t.speedThreshold);
+  }
 }

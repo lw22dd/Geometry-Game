@@ -20,6 +20,8 @@ type Room struct {
 type Player struct {
 	Id     int
 	Name   string
+	Char   string
+	Ready  bool
 	Conn   *WSConn
 	closed bool
 }
@@ -33,13 +35,14 @@ func NewRoom(port int) *Room {
 }
 
 // 新玩家加入房间。第一个加入的自动成为房主。
-func (r *Room) Join(name string, conn *WSConn) *Player {
+func (r *Room) Join(name string, char string, conn *WSConn) *Player {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	p := &Player{
 		Id:   r.nextId,
 		Name: name,
+		Char: char,
 		Conn: conn,
 	}
 	r.nextId++
@@ -104,10 +107,10 @@ func (r *Room) PlayerList() []PlayerInfo {
 
 	list := make([]PlayerInfo, 0, len(r.Clients)+1)
 	if r.Host != nil {
-		list = append(list, PlayerInfo{Id: r.Host.Id, Name: r.Host.Name})
+		list = append(list, PlayerInfo{Id: r.Host.Id, Name: r.Host.Name, Char: r.Host.Char, Ready: r.Host.Ready})
 	}
 	for _, p := range r.Clients {
-		list = append(list, PlayerInfo{Id: p.Id, Name: p.Name})
+		list = append(list, PlayerInfo{Id: p.Id, Name: p.Name, Char: p.Char, Ready: p.Ready})
 	}
 	return list
 }
@@ -143,4 +146,16 @@ func (r *Room) HasHost() bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.Host != nil && !r.Host.closed
+}
+
+// 广播给全体玩家（含房主，含发送者本人）
+func (r *Room) Broadcast(data []byte) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.Host != nil {
+		r.Host.Conn.Send(data)
+	}
+	for _, c := range r.Clients {
+		c.Conn.Send(data)
+	}
 }

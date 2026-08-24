@@ -1,9 +1,13 @@
-/**
- * 共享类型定义 —— 全项目统一在此声明跨模块类型。
- * 依赖规则：types/ 不得依赖任何其他模块（types 内部相互引用允许）。
- */
+/** 共享类型定义 —— 全项目统一在此声明跨模块类型。
+ * 依赖规则：types/ 不得依赖任何其他模块（types 内部相互引用允许）。 */
 export type { PathSegment } from './path';
 import type { PathSegment } from './path';
+
+/** 二维矢量（物理量统一用此接口，不拆 x/y 字段） */
+export interface Vector2 {
+  x: number;
+  y: number;
+}
 
 /** 矩形刚体（平台 / 移动平台 / 碰撞盒） */
 export interface Rect {
@@ -67,10 +71,8 @@ export interface SpringPadSpawnData {
   y: number;
   w: number;
   h: number;
-  /** 弹射方向 X 分量（格/秒），朝右为正 */
-  forceX: number;
-  /** 弹射方向 Y 分量（格/秒），朝上为正 */
-  forceY: number;
+  /** 弹射力矢量（格/秒），朝右为正、朝上为正 */
+  force: Vector2;
   /** 加速度持续时长（秒） */
   duration: number;
 }
@@ -98,6 +100,18 @@ export interface MidShape {
   sp: number;
   ph: number;
   t: number;
+}
+
+/** 轨道生成数据（地图描述符使用；轨道为可选实体生成项） */
+export interface TrackSpawnData {
+  /** 路径段数组（line / arc） */
+  segments: PathSegment[];
+  /** 入口距离（格，从路径起点算起） */
+  entryDist: number;
+  /** 出口距离（格） */
+  exitDist: number;
+  /** 捕获所需最小速度（m/s，默认 TRACK_MIN_SPEED=7） */
+  speedThreshold?: number;
 }
 
 /** 轨道运动状态（玩家在路径上时） */
@@ -133,8 +147,8 @@ export interface PhysicsMode {
 export interface PlayerState {
   x: number;
   y: number;
-  vx: number;
-  vy: number;
+  /** 速度矢量（格/秒），value.x 朝右为正、value.y 朝上为正 */
+  velocity: Vector2;
   half: number;
   grounded: boolean;
   coyote: number;
@@ -152,12 +166,13 @@ export interface PlayerState {
   extraJumpsMax: number;
   /** 上一物理步跳跃键是否按下（用于二段跳"新按下沿"检测：按下一次跳一次） */
   jumpWasDown: boolean;
-  /** 弹簧加速剩余时长（秒，>0 时每帧施加 springX/springY 加速度） */
+  /** 输入层跳跃按下标记：由 keydown handler 写入，物理步消耗。
+   *  不受帧间 timing 影响，确保松开→重按的二段跳永远可靠。 */
+  jumpFresh: boolean;
+  /** 弹簧加速剩余时长（秒，>0 时每帧施加 springAcceleration 加速度） */
   springT: number;
-  /** 弹簧加速度 X 分量（格/秒²） */
-  springX: number;
-  /** 弹簧加速度 Y 分量（格/秒²） */
-  springY: number;
+  /** 弹簧加速度矢量（格/秒²），持续加速方向 */
+  springAcceleration: Vector2;
   /** 轨道运动状态（null = 自由运动） */
   track: TrackState | null;
 }
@@ -243,8 +258,8 @@ export interface GameState {
   win: boolean;
   winTime: number;
   started: boolean;
-  /** 当前画面：'menu' 开始菜单 / 'playing' 游戏中 / 'paused' 暂停 */
-  screen: 'menu' | 'playing' | 'paused';
+  /** 当前画面：'menu' 开始菜单 / 'prepare' 准备界面(选图/选人) / 'playing' 游戏中 / 'paused' 暂停 */
+  screen: 'menu' | 'prepare' | 'playing' | 'paused';
   toast: string;
   toastT: number;
   flash: number;
@@ -276,6 +291,8 @@ export interface MapDefinition {
     jumpBoosts: [number, number][];
     checkpoints: [number, number][];
     nova: { x: number; y: number };
+    /** 冲刺轨道（可选；无轨道的地图省略） */
+    tracks?: TrackSpawnData[];
   };
 }
 
@@ -286,11 +303,14 @@ export type NetBusEvent =
   | { type: 'game:orb'; count: number; total: number }
   | { type: 'game:jumpboost' }
   | { type: 'game:death'; deaths: number }
-  | { type: 'game:win'; time: number; orbs: number; total: number }
+  | { type: 'game:win'; time: number; orbs: number; total: number; x: number; y: number; playerId: number }
+  // ── 特效同步：死亡特效由房主广播（房主是死亡判定权威）──
+  | { type: 'fx:death'; x: number; y: number; playerId: number }
   // ── 联机扩展 ──
   | { type: 'net:connected'; role: NetRole; playerId: number }
   | { type: 'net:playerJoined'; player: RemotePlayerInfo }
   | { type: 'net:playerLeft'; playerId: number }
+  | { type: 'net:playerUpdated'; player: RemotePlayerInfo }
   | { type: 'net:disconnected'; reason: string };
 
 /* ==================== 联机类型 ==================== */
@@ -302,6 +322,10 @@ export type NetRole = 'standalone' | 'host' | 'client';
 export interface RemotePlayerInfo {
   id: number;
   name: string;
+  /** 所选角色预制体 id（房间内选人/握手时上报） */
+  char?: string;
+  /** 是否已准备（房间流程） */
+  ready?: boolean;
 }
 
 /** 按键输入快照（网络传输格式） */
@@ -310,6 +334,8 @@ export interface InputKeys {
   right: boolean;
   jump: boolean;
   sprint: boolean;
+  /** 交互键（E）：按下时 true，用于检查点等可交互物 */
+  interact: boolean;
 }
 
 /** 玩家权威状态（房主 → 客机） */

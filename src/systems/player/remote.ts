@@ -33,13 +33,13 @@ export function registerRemote(id: number, name: string): RemotePlayer {
     rp = {
       id, name,
       // PlayerState 全字段
-      x: 6, y: 5, vx: 0, vy: 0, half: 0.42,
+      x: 6, y: 5, velocity: { x: 0, y: 0 }, half: 0.42,
       grounded: false, coyote: 0, jbuf: 0, face: 1,
       dead: false, deadT: 0, plat: null,
       sprint: false, wasSpr: false, inv: 0,
       extraJumps: 0, extraJumpsMax: 0,
-      jumpWasDown: false,
-      springT: 0, springX: 0, springY: 0,
+      jumpWasDown: false, jumpFresh: false,
+      springT: 0, springAcceleration: { x: 0, y: 0 },
       track: null,
       // 检查点（默认出生点）
       cpX: 6, cpY: 4,
@@ -92,8 +92,8 @@ export function applyNetPlayers(players: NetPlayerTrackFields[]): void {
     }
     rp.x = ps.x;
     rp.y = ps.y;
-    rp.vx = ps.vx;
-    rp.vy = ps.vy;
+    rp.velocity.x = ps.vx;
+    rp.velocity.y = ps.vy;
     rp.face = ps.face;
     rp.grounded = ps.grounded;
     rp.dead = ps.dead;

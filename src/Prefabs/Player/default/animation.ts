@@ -46,7 +46,7 @@ export function stepDefaultAnimation(
   if (!state.initialized) {
     // 首帧只做快照，不触发任何边沿
     state.previousGrounded = player.grounded;
-    state.previousVy = player.vy;
+    state.previousVy = player.velocity.y;
     state.previousDead = player.dead;
     state.previousSprint = player.sprint;
     state.initialized = true;
@@ -54,7 +54,7 @@ export function stepDefaultAnimation(
   }
 
   // ── 边沿信号（从上一帧记忆推导，替代显式信号调用）──
-  const jumped = state.previousGrounded && !player.grounded && player.vy > 0;
+  const jumped = state.previousGrounded && !player.grounded && player.velocity.y > 0;
   const landed = !state.previousGrounded && player.grounded;
   const died = !state.previousDead && player.dead;
   const respawned = state.previousDead && !player.dead;
@@ -82,7 +82,7 @@ export function stepDefaultAnimation(
 
   // ── 更新记忆 ──
   state.previousGrounded = player.grounded;
-  state.previousVy = player.vy;
+  state.previousVy = player.velocity.y;
   state.previousDead = player.dead;
   state.previousSprint = player.sprint;
 }
@@ -118,7 +118,7 @@ export function getDefaultOutput(
     case 'jumpRise':
     case 'jumpFall': {
       // 空中速度拉伸（同原视觉）
-      const e = clamp(Math.abs(player.vy) * 0.012, 0, 0.2);
+      const e = clamp(Math.abs(player.velocity.y) * 0.012, 0, 0.2);
       out.scaleX = (1 + sq) * (1 - e * 0.4);
       out.scaleY = (1 - sq) * (1 + e * 0.5);
       break;

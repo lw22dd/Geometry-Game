@@ -83,9 +83,10 @@ func main() {
 		if name == "" {
 			name = "玩家"
 		}
+		char := r.URL.Query().Get("char")
 
 		wc := NewWSConn(conn)
-		p := room.Join(name, wc)
+		p := room.Join(name, char, wc)
 
 		// 发送房间信息
 		info := RoomInfoMsg{
@@ -105,7 +106,7 @@ func main() {
 		if !room.IsHost(p.Id) {
 			joinData, _ := json.Marshal(PlayerJoinedMsg{
 				Type:   "player_joined",
-				Player: PlayerInfo{Id: p.Id, Name: p.Name},
+				Player: PlayerInfo{Id: p.Id, Name: p.Name, Char: p.Char, Ready: p.Ready},
 			})
 			// 通知房主
 			if room.Host != nil {

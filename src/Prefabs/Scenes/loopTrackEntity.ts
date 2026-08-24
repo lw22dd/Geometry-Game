@@ -5,8 +5,8 @@
  */
 import { world } from '../../core/ecs';
 import type { EntityId } from '../../core/ecs/Entity';
-import { Position } from '../../components/Position';
-import { Track } from '../../components/Track';
+import { Position } from '../../components/physics/Position';
+import { Track } from '../../components/physics/Track';
 import type { PathSegment } from '../../types/path';
 import {
   buildCumulativeLengths, pathPosition, pathTotalLength,

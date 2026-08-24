@@ -37,6 +37,8 @@ interface NetEvents {
   connected: (role: 'host' | 'client', playerId: number, players: RemotePlayerInfo[]) => void;
   /** 新玩家加入 */
   playerJoined: (player: RemotePlayerInfo) => void;
+  /** 玩家信息变更（选人/准备） */
+  playerUpdated: (player: RemotePlayerInfo) => void;
   /** 玩家离开 */
   playerLeft: (playerId: number) => void;
   /** 收到房主权威状态（仅非房主） */
@@ -86,7 +88,7 @@ class NetClient {
   }
 
   /** 连接服务器，Promise 在收到 room_info 后 resolve */
-  connect(host: string, port: number, name: string): Promise<void> {
+  connect(host: string, port: number, name: string, charId?: string): Promise<void> {
     this.host = host;
     this.port = port;
     room.host = host;
@@ -95,7 +97,8 @@ class NetClient {
 
     return new Promise((resolve, reject) => {
       session.connect();
-      const url = `ws://${host}:${port}/ws?name=${encodeURIComponent(name)}`;
+      const url = `ws://${host}:${port}/ws?name=${encodeURIComponent(name)}`
+        + (charId ? `&char=${encodeURIComponent(charId)}` : '');
       const ws = new WebSocket(url);
       this.ws = ws;
 
@@ -169,6 +172,18 @@ class NetClient {
     });
   }
 
+  /* ==================== 房间内消息（通用） ==================== */
+
+  /** 房间内选人：发送所选角色 id */
+  sendCharSelect(char: string): void {
+    this.sendJSON({ type: 'char_select', char });
+  }
+
+  /** 房间内准备/取消准备 */
+  sendReady(ready: boolean): void {
+    this.sendJSON({ type: 'ready', ready });
+  }
+
   /* ==================== 房主 → 服务器 → 全部 ==================== */
 
   /** 房主发送权威状态广播 */
@@ -215,6 +230,15 @@ class NetClient {
           room.players.push(msg.player);
         }
         emit('playerJoined', msg.player);
+        break;
+
+      case 'player_update':
+        // 玩家选人/准备状态变更：更新房间列表并通知 UI
+        {
+          const i = room.players.findIndex((p: any) => p.id === msg.player?.id);
+          if (i >= 0) room.players[i] = msg.player;
+        }
+        emit('playerUpdated', msg.player);
         break;
 
       case 'player_left':

@@ -217,11 +217,20 @@ export class EditorStore {
     this._snapshot();
   }
 
-  /** 更新对象实例字段 */
+  /** 更新对象实例字段（支持点路径，如 "force.x" → inst.force.x） */
   updateInstanceField(index: number, key: string, value: number | string): void {
     this._snapshot();
     const inst = this.map.layers.objects[index] as any;
-    if (inst !== undefined) inst[key] = value;
+    if (inst === undefined) return;
+    const parts = key.split('.');
+    let target = inst;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const seg = parts[i];
+      // 中间段不存在时创建对象（如 force 未初始化）
+      if (target[seg] == null || typeof target[seg] !== 'object') target[seg] = {};
+      target = target[seg];
+    }
+    target[parts[parts.length - 1]] = value;
     this._notify();
   }
 
@@ -310,5 +319,43 @@ export class EditorStore {
   /** 当前地图的 JSON 深拷贝 */
   mapSnapshot(): MapData {
     return JSON.parse(JSON.stringify(this.map));
+  }
+
+  /* ==================== 剪贴板（复制/粘贴） ==================== */
+
+  clipboard: { type: 'geom' | 'obj'; data: any } | null = null;
+
+  /** 复制当前选中项（单选有效）到剪贴板 */
+  copySelected(): boolean {
+    if (this.selection.length === 0) return false;
+    const sel = this.selection[0];
+    if (sel.layer === 'geometry') {
+      this.clipboard = { type: 'geom', data: JSON.parse(JSON.stringify(this.map.layers.geometry[sel.index])) };
+    } else if (sel.layer === 'objects') {
+      this.clipboard = { type: 'obj', data: JSON.parse(JSON.stringify(this.map.layers.objects[sel.index])) };
+    } else {
+      return false;
+    }
+    return true;
+  }
+
+  /** 从剪贴板粘贴（偏移 snap 后插入，选中新项） */
+  pasteFromClipboard(): boolean {
+    if (!this.clipboard) return false;
+    this._snapshot();
+    const snap = this.snap || 0.5;
+    if (this.clipboard.type === 'geom') {
+      const d = JSON.parse(JSON.stringify(this.clipboard.data)) as GeometryItem;
+      moveGeometry(d, snap, snap);
+      this.map.layers.geometry.push(d);
+      this.selection = [{ layer: 'geometry', index: this.map.layers.geometry.length - 1 }];
+    } else {
+      const d = JSON.parse(JSON.stringify(this.clipboard.data)) as MapInstance;
+      moveInstance(d, snap, snap);
+      this.map.layers.objects.push(d);
+      this.selection = [{ layer: 'objects', index: this.map.layers.objects.length - 1 }];
+    }
+    this._notify();
+    return true;
   }
 }

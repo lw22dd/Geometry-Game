@@ -77,6 +77,12 @@ export class World {
     this.entities.delete(entity);
   }
 
+  /** 清空整个世界（切图重建前调用；所有实体与查询索引一并销毁） */
+  clear(): void {
+    this.entities.clear();
+    this.index.clear();
+  }
+
   /** 查询拥有所有指定组件的实体列表 */
   query(...types: ComponentType<any>[]): EntityId[] {
     const keys = types.map(t => t as unknown as string);

@@ -1,8 +1,9 @@
 /**
  * 可渲染组件 —— 实体的视觉数据（供 Prefabs 绘制函数读取）。
  * 纯数据，不含绘制逻辑。
+ * @category 表现/渲染
  */
-import type { ComponentType } from '../core/ecs';
+import type { ComponentType } from '../../core/ecs';
 
 export interface Renderable {
   /** 身体半径（米） */

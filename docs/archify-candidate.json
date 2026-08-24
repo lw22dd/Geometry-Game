@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Dash 几何游戏 — 架构总览",
+    "quality_profile": "showcase",
+    "viewBox": [1200, 1060],
+    "views": [
+      { "id": "bootstrap", "label": "启动引导链路", "focus": ["main-ts", "config", "sys-ui", "sys-game", "net", "core"], "note": "main.ts 依次初始化 ECS、注册 UI 场景、装配网络桥、启动主循环。" },
+      { "id": "main-loop", "label": "主循环 · 物理 → 碰撞 → 渲染", "focus": ["sys-game", "sys-player", "sys-interactions", "sys-level", "components"], "note": "固定步长更新关卡系统、玩家物理、碰撞交互，随后渲染。" },
+      { "id": "networking", "label": "联机边界 · 房主/客机", "focus": ["net", "core", "sys-game"], "note": "netBus 事件桥 → netBridge 组合根 → WebSocket 直连 Go 服务器。" }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [40, 40],
+    "cols": 2,
+    "gapX": 400,
+    "gapY": 60,
+    "cellW": 300,
+    "cellH": 70
+  },
+  "components": [
+    { "id": "main-ts", "type": "frontend", "label": "main.ts", "sublabel": "TypeScript 入口", "tag": "初始化引导 · 键盘事件分发", "pos": [40, 40], "size": [300, 70] },
+    { "id": "core", "type": "frontend", "label": "Core 引擎底座", "sublabel": "canvas · input · audio · camera", "tag": "ECS World · 事件总线 · uiComponent", "pos": [40, 170], "size": [300, 70] },
+    { "id": "config", "type": "database", "label": "Config 数据层", "sublabel": "关卡地图 · 物理参数 · 弹簧", "tag": "maps[] · PHYS · setupLevel", "pos": [40, 300], "size": [300, 70] },
+    { "id": "sys-ui", "type": "frontend", "label": "Systems/UI", "sublabel": "场景路由 · HUD · 图鉴", "tag": "menu / prepare / lobby / pause / gallery", "pos": [40, 430], "size": [300, 70] },
+    { "id": "sys-level", "type": "backend", "label": "Systems/Level", "sublabel": "平台 · 激光 · 弹簧 · 碰撞", "tag": "Motion / LaserTimer / Spring / Collision", "pos": [40, 560], "size": [300, 70] },
+    { "id": "components", "type": "database", "label": "ECS Components", "sublabel": "物理 · 玩法 · 渲染 组件", "tag": "Position · Collider · Hazard · PlayerTag", "pos": [40, 690], "size": [300, 70] },
+    { "id": "net", "type": "external", "label": "网络层 net/", "sublabel": "WebSocket · 房间 · 桥", "tag": "NetClient / netBridge / room", "pos": [740, 40], "size": [300, 70] },
+    { "id": "prefabs", "type": "frontend", "label": "Prefabs 预制体", "sublabel": "实体工厂 · 视觉 · 特效", "tag": "Scenes(draw*) · Player · Fx", "pos": [740, 170], "size": [300, 70] },
+    { "id": "sys-game", "type": "backend", "label": "Systems/Game", "sublabel": "主循环 · 状态 · 网络事件", "tag": "step() / render() / applyLevel / wireNetEvents", "pos": [740, 300], "size": [300, 70] },
+    { "id": "sys-interactions", "type": "backend", "label": "Systems/Interactions", "sublabel": "收集 · 终点 · 检查点", "tag": "Collect / Goal / Respawn / CollisionHooks", "pos": [740, 430], "size": [300, 70] },
+    { "id": "sys-player", "type": "backend", "label": "Systems/Player", "sublabel": "物理引擎 · PlayerController", "tag": "stepPlayerGeneric · 轨道运动 · 碰撞解析", "pos": [740, 560], "size": [300, 70] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "游戏引擎 (dash/src)", "wraps": ["main-ts", "core", "config", "components", "prefabs", "sys-ui", "sys-game", "sys-level", "sys-player", "sys-interactions"] },
+    { "kind": "region", "label": "联机网络边界 (net/)", "wraps": ["net"] }
+  ],
+  "connections": [
+    { "id": "main-core", "from": "main-ts", "to": "core", "label": "初始化引擎", "labelAt": [190, 124] },
+    { "id": "config-prefabs", "from": "config", "to": "prefabs", "label": "实体工厂" },
+    { "id": "net-core", "from": "net", "to": "core", "label": "netBus 事件桥" },
+    { "id": "sysgame-ui", "from": "sys-game", "to": "sys-ui", "label": "syncUI" },
+    { "id": "sysgame-interactions", "from": "sys-game", "to": "sys-interactions", "label": "交互系统更新", "labelAt": [883, 384] },
+    { "id": "sysgame-player", "from": "sys-game", "to": "sys-player", "label": "物理步进", "fromSide": "right", "toSide": "right", "via": [[1080, 335], [1080, 595]] },
+    { "id": "syslevel-components", "from": "sys-level", "to": "components", "label": "ECS 查询", "labelAt": [190, 644] },
+    { "id": "sysplayer-components", "from": "sys-player", "to": "components", "label": "ECS 查询" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "入口与引导", "items": ["main.ts 按序完成：初始化 ECS → 注册 UI 场景 → 装配 netBridge → 启动主循环", "键盘事件优先交 UI（输入框/快捷键），未消费再转游戏逻辑", "主循环固定步长 1/120s，单帧最多补算 10 步"] },
+    { "dot": "emerald", "title": "ECS 与数据底座", "items": ["World 单例：组件类型索引加速，query 从最少实体类型开始遍历", "组件分三域：物理(Position/Collider…)、玩法(Hazard/Collectible…)、渲染(Renderable)", "Config 纯数据：地图描述 + 双物理模式(classic/tuned) + 弹簧/背景", "types/ 零依赖共享类型（PlayerState / MapDefinition / 网络载荷）"] },
+    { "dot": "violet", "title": "物理与主循环", "items": ["物理引擎：加速度/重力/土狼时间/跳跃缓冲/二段跳/弹簧冲量", "轨道运动：路径参数化，切向重力 + 摩擦阻尼 + 滚回 + 出口释放", "碰撞事件走 collisionBus，CollisionHooks 订阅转玩法事件", "渲染分层：视差 → 几何 → 实体 → 玩家 → HUD"] },
+    { "dot": "rose", "title": "联机模式", "items": ["房主权威：每 2 帧广播 host_state（玩家 + 光球 + 全局状态）", "客机发输入快照 + 本地预测；偏差 <0.5 格保留手感，超限硬矫正", "netBridge 组合根：netBus 事件 → 房主广播，net 事件 → netBus 分发", "WebSocket 直连 Go 服务器（ws://host:8810，位于 src 之外）"] },
+    { "dot": "amber", "title": "UI 系统", "items": ["六类场景：菜单/准备(选图选人)/大厅/暂停/图鉴/操作说明", "syncUI 按 gs.screen + lobby 状态每帧自动路由场景", "HUD + 小地图 + 开发者网格叠加渲染", "uiComponent：Button / TextInput / Toggle 组件管理器"] }
+  ]
+}

@@ -1,12 +1,13 @@
 /**
  * 操作说明弹窗 —— 封面操作说明卡迁移至此。
- * 入口：菜单场景"🕹️ 操作说明"按钮。
+ * 入口：菜单场景"操作说明"按钮。
  * 内容：键位说明（移动/跳跃/加速/物理/交互），返回按钮关闭。
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { rr } from '../../core/math';
 import { Button, UI_SCENE } from '../../core/uiComponent';
 import type { UIScene } from '../../core/uiComponent';
+import { drawBackdrop, drawHUDFrame, drawNeonTitle, drawDecoStar, ease } from '../uiAtmosphere';
 
 /* ==================== 弹窗状态 ==================== */
 
@@ -70,6 +71,7 @@ const ROWS: [string, string][] = [
   ['A / D', '左右移动 · 7 m/s（SHIFT 加速 12）'],
   ['SPACE', '跳跃 · 长按约 3.2 格 / 轻点约 1 格'],
   ['SHIFT', '加速冲刺 · 霓虹曳光'],
+  ['E', '靠近检查点后按 E 激活'],
   ['P', '切换 手感优化 / 经典物理（g=10）'],
   ['R / M', '返回出生点 / 音效开关'],
   ['ESC', '暂停 / 继续'],
@@ -104,7 +106,7 @@ export function buildInstructionsScene(a: InstructionsActions): UIScene {
     const tt = _instrT;
 
     // 入场动画
-    const en = Math.min(1, tt / 0.3);
+    const en = ease(tt / 0.3);
     if (en <= 0) return;
     const pw = 640, ph = 470;
     const px = VW / 2 - pw / 2, py = VH / 2 - ph / 2 + (1 - en) * 26;
@@ -112,9 +114,9 @@ export function buildInstructionsScene(a: InstructionsActions): UIScene {
     ctx.save();
     ctx.globalAlpha = en;
 
-    // 半透明遮罩
-    ctx.fillStyle = 'rgba(5,3,16,.8)';
-    ctx.fillRect(0, 0, VW, VH);
+    // 氛围层 + 四角 HUD 取景框
+    drawBackdrop(tt);
+    drawHUDFrame(ease(tt / .5));
 
     // 玻璃面板
     ctx.shadowColor = 'rgba(80,60,200,.45)';
@@ -137,18 +139,16 @@ export function buildInstructionsScene(a: InstructionsActions): UIScene {
     ctx.fillStyle = 'rgba(140,246,255,.5)';
     ctx.fillRect(px + 26, py + 40, 2, ph - 74);
 
-    // 标题
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '700 26px "Segoe UI","Microsoft YaHei",Arial';
-    ctx.fillStyle = '#bfe9ff';
-    ctx.fillText('🕹️ 操作说明', VW / 2, py + 46);
+    // 色差标题 + 两侧装饰星
+    drawNeonTitle(VW / 2, py + 50, '操作说明', 30, tt, ease((tt - .1) / .55), 1.4);
+    drawDecoStar(px + 52, py + 50, 5.5, tt * .8, 'rgba(140,246,255,.7)', 1, ease((tt - .3) / .4));
+    drawDecoStar(px + pw - 52, py + 50, 5.5, -tt * .8, 'rgba(255,160,220,.7)', 1, ease((tt - .3) / .4));
 
     // 键位行（逐行入场）
     ROWS.forEach((r, i) => {
       const re = _ease((tt - 0.18 - i * 0.06) / 0.35);
       if (re <= 0) return;
-      const ry = py + 84 + i * 40;
+      const ry = py + 88 + i * 40;
       ctx.save();
       ctx.globalAlpha = en * re;
       ctx.translate((1 - re) * -16, 0);

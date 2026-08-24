@@ -44,16 +44,16 @@ export class PlayerController {
 
   constructor(spawnX: number, spawnY: number) {
     this.state = {
-      x: spawnX, y: spawnY, vx: 0, vy: 0, half: 0.42,
+      x: spawnX, y: spawnY, velocity: { x: 0, y: 0 }, half: 0.42,
       grounded: false, coyote: 0, jbuf: 0, face: 1,
       dead: false, deadT: 0, plat: null,
       sprint: false, wasSpr: false, inv: 0,
       extraJumps: 0, extraJumpsMax: 0,
-      jumpWasDown: false,
-      springT: 0, springX: 0, springY: 0,
+      jumpWasDown: false, jumpFresh: false,
+      springT: 0, springAcceleration: { x: 0, y: 0 },
       track: null,
     };
-    this.input = { left: false, right: false, jump: false, sprint: false };
+    this.input = { left: false, right: false, jump: false, sprint: false, interact: false };
     this.deathCount = 0;
   }
 
@@ -67,12 +67,15 @@ export class PlayerController {
 
   /** 每帧注入输入（Game 从 keys 表或网络包提取） */
   setInput(input: InputKeys): void {
+    // 保存上一帧的 jump 状态用于边缘检测（帧间 key-up 也能正确反映）
+    this.state.jumpWasDown = this.input.jump;
     this.input = input;
   }
 
-  /** 键盘事件快捷：设置跳跃缓冲 */
+  /** 键盘事件快捷：设置跳跃缓冲 + 输入层按下标记（keydown handler 调用） */
   setJumpBuffer(value: number): void {
     this.state.jbuf = value;
+    this.state.jumpFresh = true;
   }
 
   /* ==================== 核心步进 ==================== */
@@ -95,7 +98,7 @@ export class PlayerController {
     // 快照前一帧状态用于边沿检测
     const prevSprint = this.state.wasSpr;
     const wasGrounded = this.state.grounded;
-    const prevVy = this.state.vy;
+    const prevVy = this.state.velocity.y;
     const wasDead = this.state.dead;
 
     const signals: FrameSignals = {};
@@ -110,7 +113,7 @@ export class PlayerController {
 
     // ── 纯反馈事件（Game 层处理音效/粒子）──
     // 跳跃起始
-    if (isLocal && this.state.vy > 0 && prevVy <= 0) {
+    if (isLocal && this.state.velocity.y > 0 && prevVy <= 0) {
       this.onEvent?.({ type: 'jumped' });
     }
     // 冲刺起始
@@ -162,18 +165,44 @@ export class PlayerController {
     this.state.dead = false;
     this.state.x = cpPoint.x;
     this.state.y = cpPoint.y + 1.2;
-    this.state.vx = 0;
-    this.state.vy = 0;
+    this.state.velocity.x = 0;
+    this.state.velocity.y = 0;
     this.state.inv = 1.2;
     this.state.plat = null;
     this.state.springT = 0;
-    this.state.springX = 0;
-    this.state.springY = 0;
+    this.state.springAcceleration.x = 0;
+    this.state.springAcceleration.y = 0;
     this.state.track = null;
     // 双跳为永久升级，复活保留 extraJumpsMax；但本次滞空期清零，着陆后刷新
     this.state.extraJumps = 0;
     trail.length = 0;
     this.onEvent?.({ type: 'respawned' });
+  }
+
+  /**
+   * 切换关卡后的完整复位（换图用）——比 respawn 更彻底：
+   * 位置/速度清零、死亡清除、双跳永久升级归零（换图必须重来）、清曳光。
+   */
+  resetToSpawn(x: number, y: number): void {
+    this.state.dead = false;
+    this.state.x = x;
+    this.state.y = y;
+    this.state.velocity.x = 0;
+    this.state.velocity.y = 0;
+    this.state.face = 1;
+    this.state.grounded = false;
+    this.state.coyote = 0;
+    this.state.jbuf = 0;
+    this.state.inv = 1.2;
+    this.state.plat = null;
+    this.state.springT = 0;
+    this.state.springAcceleration.x = 0;
+    this.state.springAcceleration.y = 0;
+    this.state.track = null;
+    this.state.sprint = false;
+    this.state.extraJumps = 0;
+    this.state.extraJumpsMax = 0;
+    trail.length = 0;
   }
 
   /* ==================== 网络权威矫正 ==================== */
@@ -189,8 +218,8 @@ export class PlayerController {
   ): void {
     this.state.x = x;
     this.state.y = y;
-    this.state.vx = vx;
-    this.state.vy = vy;
+    this.state.velocity.x = vx;
+    this.state.velocity.y = vy;
     this.state.face = face;
     this.state.grounded = grounded;
     if (track !== undefined) this.state.track = track;

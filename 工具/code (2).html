@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MapCreater Pro · 2D 游戏地图编辑器</title>
+<style>
+:root {
+  --bg-deep: #060418;
+  --bg-panel: #0b0822;
+  --bg-panel-2: #110d2b;
+  --border: #2a2350;
+  --text-main: #d6e4ff;
+  --text-dim: #8ca2d6;
+  --text-muted: #5a6e9c;
+  --accent: #6446ff;
+  --accent-light: #8caaff;
+  --accent-glow: rgba(140, 170, 255, 0.4);
+  --cyan: #7df9ff;
+  --danger: #ff5078;
+  --success: #4aff8a;
+  --warning: #ffb347;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  color: var(--text-main);
+  -webkit-user-select: none;
+  user-select: none;
+  background: var(--bg-deep);
+  width: 100%;
+  height: 100vh;
+  font: 13px 'Inter', 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #3c3a66; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #5a5698; }
+
+/* 顶部菜单栏 */
+#menu-bar {
+  height: 28px;
+  background: #050310;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding: 0 8px;
+  flex-shrink: 0;
+}
+.brand {
+  font-weight: 700;
+  color: var(--cyan);
+  margin-right: 16px;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+.menu-item {
+  padding: 4px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+  color: var(--text-dim);
+  transition: all 0.15s;
+  font-size: 12px;
+}
+.menu-item:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* 副工具栏 */
+#sub-toolbar {
+  height: 44px;
+  background: var(--bg-panel);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  gap: 4px;
+  flex-shrink: 0;
+}
+#sub-toolbar .sep {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  margin: 0 6px;
+}
+#sub-toolbar .spacer { flex: 1; }
+.tb-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: 5px;
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.tb-btn:hover {
+  background: rgba(100, 70, 255, 0.3);
+  border-color: var(--accent-light);
+  color: #fff;
+}
+.tb-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+.tb-select {
+  background: var(--bg-deep);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+/* 主体布局 */
+#main-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* 左侧面板 (大纲 + 资源库) */
+#left-panel {
+  width: 240px;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.panel-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.panel-section.half { height: 50%; }
+.panel-header {
+  height: 28px;
+  background: var(--bg-panel-2);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  gap: 8px;
+}
+.search-box {
+  flex: 1;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  padding: 2px 6px;
+  font-size: 11px;
+  border-radius: 3px;
+}
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+/* 场景大纲树 */
+.tree-node {
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+}
+.tree-node:hover { background: rgba(100, 70, 255, 0.2); color: #fff; }
+.tree-node.selected { background: rgba(100, 70, 255, 0.4); color: #fff; }
+.tree-parent {
+  padding: 4px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tree-children { margin-left: 12px; }
+
+/* 视口 */
+#viewport {
+  flex: 1;
+  background: #06041a;
+  position: relative;
+  overflow: hidden;
+}
+#viewport canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* 小地图 */
+#minimap-container {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 220px;
+  height: 120px;
+  background: rgba(6, 4, 26, 0.95);
+  border: 1px solid var(--accent-light);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+#minimap {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* 右侧属性面板 */
+#right-panel {
+  width: 240px;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.inspector-content {
+  padding: 10px;
+  overflow-y: auto;
+  flex: 1;
+}
+.field-group { margin-bottom: 12px; }
+.field-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  display: block;
+}
+.field-input {
+  width: 100%;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  padding: 5px 8px;
+  font-size: 12px;
+  border-radius: 3px;
+  font-family: inherit;
+}
+.field-input:focus { border-color: var(--accent); outline: none; }
+.btn-group { display: flex; gap: 6px; margin-top: 10px; }
+.btn {
+  flex: 1;
+  background: rgba(100, 70, 255, 0.2);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  padding: 6px;
+  font-size: 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn:hover { background: rgba(100, 70, 255, 0.5); }
+.btn.danger { color: var(--danger); }
+.btn.danger:hover { background: rgba(255, 80, 120, 0.2); }
+
+/* 底部状态栏 */
+#status-bar {
+  height: 24px;
+  background: #050310;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  gap: 16px;
+  flex-shrink: 0;
+}
+.status-item { display: flex; align-items: center; gap: 4px; }
+
+/* 弹窗 */
+.overlay {
+  z-index: 100;
+  background: rgba(5, 3, 16, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  backdrop-filter: blur(4px);
+}
+.overlay.hidden { display: none; }
+.modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--accent-light);
+  border-radius: 8px;
+  width: 600px;
+  max-width: 90vw;
+  max-height: 80vh;
+  padding: 20px;
+  overflow: auto;
+  box-shadow: 0 0 40px rgba(60, 40, 150, 0.4);
+}
+.modal h2 { margin-bottom: 8px; font-size: 14px; color: var(--text-main); }
+.modal p { color: var(--text-muted); font-size: 12px; margin-bottom: 12px; }
+.modal textarea {
+  width: 100%;
+  height: 300px;
+  background: #06041a;
+  border: 1px solid var(--border);
+  color: #e0ecff;
+  padding: 10px;
+  font: 500 12px Consolas, monospace;
+  border-radius: 4px;
+  resize: vertical;
+}
+.modal .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+.modal .actions button {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.modal .actions .close { background: transparent; border: 1px solid var(--border); color: var(--text-dim); }
+
+/* 资源库条目 */
+.lib-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-dim);
+  transition: all 0.1s;
+}
+.lib-entry:hover { background: rgba(100, 70, 255, 0.2); color: #fff; }
+.lib-entry.active { background: rgba(100, 70, 255, 0.4); color: #fff; }
+.lib-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 14px;
+}
+
+/* Toast 提示 */
+#toast {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(5, 3, 16, 0.95);
+  border: 1px solid var(--accent-light);
+  color: var(--text-main);
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  z-index: 200;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+#toast.show { opacity: 1; }
+#toast.error { border-color: var(--danger); color: var(--danger); }
+#toast.success { border-color: var(--success); color: var(--success); }
+</style>
+</head>
+<body>
+
+<div id="menu-bar">
+  <span class="brand">🧊 MapCreater Pro</span>
+  <div class="menu-item">文件</div>
+  <div class="menu-item">编辑</div>
+  <div class="menu-item">视图</div>
+  <div class="menu-item">工具</div>
+  <div class="menu-item">帮助</div>
+</div>
+
+<div id="sub-toolbar">
+  <button class="tb-btn" data-cmd="new" title="新建">📄</button>
+  <button class="tb-btn" data-cmd="open" title="打开">📂</button>
+  <button class="tb-btn" data-cmd="save" title="保存 Ctrl+S">💾</button>
+  <div class="sep"></div>
+  <button class="tb-btn" data-cmd="undo" title="撤销 Ctrl+Z">↩</button>
+  <button class="tb-btn" data-cmd="redo" title="重做 Ctrl+Shift+Z">↪</button>
+  <div class="sep"></div>
+  <button class="tb-btn" data-cmd="copy" title="复制 Ctrl+C">📋</button>
+  <button class="tb-btn" data-cmd="paste" title="粘贴 Ctrl+V">📌</button>
+  <button class="tb-btn" data-cmd="duplicate" title="克隆 Ctrl+D">⚡</button>
+  <button class="tb-btn" data-cmd="delete" title="删除 Del">🗑</button>
+  <div class="sep"></div>
+  <span style="font-size:12px;color:var(--text-muted)">吸附:</span>
+  <select class="tb-select" id="snapSelect">
+    <option value="0.1">0.1</option>
+    <option value="0.5" selected>0.5</option>
+    <option value="1">1</option>
+  </select>
+  <span style="font-size:12px;color:var(--text-muted);margin-left:8px">旋转步:</span>
+  <select class="tb-select" id="rotSnapSelect">
+    <option value="5">5°</option>
+    <option value="15" selected>15°</option>
+    <option value="45">45°</option>
+  </select>
+  <div class="spacer"></div>
+  <button class="tb-btn" data-cmd="import-game" title="从游戏导入">🎮</button>
+  <button class="tb-btn" data-cmd="export" title="导出（含校验）">📤</button>
+</div>
+
+<div id="main-body">
+  <aside id="left-panel">
+    <div class="panel-section half">
+      <div class="panel-header">场景大纲 <input type="text" class="search-box" id="outlinerSearch" placeholder="搜索对象..."></div>
+      <div class="panel-content" id="outliner"></div>
+    </div>
+    <div class="panel-section half">
+      <div class="panel-header">资源库 <input type="text" class="search-box" id="paletteSearch" placeholder="搜索对象..."></div>
+      <div class="panel-content" id="palette"></div>
+    </div>
+  </aside>
+
+  <main id="viewport">
+    <canvas id="c"></canvas>
+    <div id="minimap-container">
+      <canvas id="minimap"></canvas>
+    </div>
+  </main>
+
+  <aside id="right-panel">
+    <div class="panel-header">属性面板</div>
+    <div class="inspector-content" id="inspectorInner"></div>
+  </aside>
+</div>
+
+<div id="status-bar">
+  <span class="status-item" id="statusInfo">就绪</span>
+  <span class="status-item" id="statusMouse">X: 0.0, Y: 0.0</span>
+  <span class="status-item" id="statusZoom">缩放: 100%</span>
+  <div class="spacer" style="flex:1"></div>
+  <span class="status-item" id="statusObjCount">对象: 0</span>
+</div>
+
+<div id="exportOverlay" class="overlay hidden" onclick="if(event.target===this)hideExport()">
+  <div class="modal">
+    <h2>📤 导出地图数据</h2>
+    <p>导出前已进行地图合法性校验。点击复制代码或下载文件。</p>
+    <textarea id="exportCode" readonly></textarea>
+    <div class="actions">
+      <button class="close" onclick="hideExport()">关闭</button>
+      <button onclick="downloadExport()">💾 下载 JSON</button>
+      <button onclick="copyExport()">📋 复制代码</button>
+    </div>
+  </div>
+</div>
+
+<div id="importOverlay" class="overlay hidden" onclick="if(event.target===this)hideImport()">
+  <div class="modal" style="width:450px">
+    <h2>🎮 从游戏导入</h2>
+    <p>选择游戏内置地图进行逆向编辑：</p>
+    <div id="importList"></div>
+    <div class="actions"><button class="close" onclick="hideImport()">关闭</button></div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept=".json" style="display:none">
+<div id="toast"></div>
+
+<script>
+// ==========================================
+// 核心地图数据结构 (压缩自原版，保持兼容)
+// ==========================================
+var e = document.getElementById('c'), t = e.getContext('2d'), n = 0, r = 0, i = 1;
+function a() {
+  let t = e.parentElement, a = t.clientWidth, o = t.clientHeight;
+  i = Math.min(2, window.devicePixelRatio || 1);
+  e.width = Math.round(a * i); e.height = Math.round(o * i);
+  n = a; r = o;
+}
+window.addEventListener('resize', a); a();
+
+var o = { SL: 0, SB: 0, SZ: 48 },
+    s = e => (e - o.SL) * o.SZ,
+    c = e => r - (e - o.SB) * o.SZ,
+    l = (e, t) => ({ x: o.SL + e / o.SZ, y: o.SB + (r - t) / o.SZ }),
+    u = (e, t, i = 1) => { o.SZ = 48 * i; o.SL = e - n / (2 * o.SZ); o.SB = t - r / (2 * o.SZ); },
+    d = (e, t, n) => { let i = l(e, t); o.SZ = Math.max(4, Math.min(200, o.SZ * n)); o.SL = i.x - e / o.SZ; o.SB = i.y - (r - t) / o.SZ; },
+    f = (e, t) => { o.SL -= e / o.SZ; o.SB += t / o.SZ; },
+    p = (e, t) => Math.round(e / t) * t;
+
+function m(e = 'untitled', t = '未命名关卡') { return { version: 2, id: e, name: t, width: 120, height: 72, playerSpawn: { x: 6, y: 4 }, layers: { geometry: [], objects: [] } }; }
+function h(e) {
+  let t = e, n = { id: t.id ?? 'untitled', name: t.name ?? '未命名关卡', width: t.width ?? 120, height: t.height ?? 72, playerSpawn: t.playerSpawn ?? { x: 6, y: 4 } };
+  if (t.version === 2 && t.layers) { return { version: 2, ...n, layers: { geometry: t.layers.geometry ?? [], objects: t.layers.objects ?? [] } }; }
+  // fallback 旧版本转换省略...
+  return { version: 2, ...n, layers: { geometry: [], objects: [] } };
+}
+
+// 几何辅助
+function g(e) { return { x: e.x + e.w / 2, y: e.y + e.h / 2 }; }
+function _(e) { return e.rotation * Math.PI / 180; }
+function v(e) { let t = y(e), n = t.map(e => e.x), r = t.map(e => e.y), i = Math.min(...n), a = Math.max(...n), o = Math.min(...r), s = Math.max(...r); return { x: i, y: o, w: a - i, h: s - o }; }
+function y(e) { let t = g(e), n = _(e), r = Math.cos(n), i = Math.sin(n), a = e.w / 2, o = e.h / 2, s = (e, n) => ({ x: t.x + e * r - n * i, y: t.y + e * i + n * r }); return [s(-a, -o), s(a, -o), s(a, o), s(-a, o)]; }
+function ee(e) { let t = g(e), n = _(e), r = Math.cos(n), i = Math.sin(n), a = e.h / 2; return { x: t.x + -a * i, y: t.y + a * r }; }
+function b(e, t, n, r = .1) { let i = g(e), a = _(e), o = Math.cos(a), s = Math.sin(a), c = t - i.x, l = n - i.y, u = c * o + l * s, d = -c * s + l * o; return Math.abs(u) <= e.w / 2 + r && Math.abs(d) <= e.h / 2 + r; }
+
+function ne(e) { return { x: e.x, y: e.y }; } // 获取对象原点
+function re(e, t, n) { e.x += t; e.y += n; } // 移动对象
+function ie(e) { return `${e.type} (${e.x.toFixed(1)}, ${e.y.toFixed(1)})`; }
+
+function x(e, t = .6) {
+  switch (e.type) {
+    case 'spike': return { x: e.x - .1, y: e.y - .1, w: 1.2, h: 1.2 };
+    case 'deco': let n = Math.max(e.size / 2, t / 2); return { x: e.x - n, y: e.y - n, w: n * 2, h: n * 2 };
+    case 'hint': return { x: e.x - .2, y: e.y - .6, w: 5.4, h: 1.2 };
+    case 'mover': return { x: e.x0, y: e.y, w: e.w, h: e.h };
+    case 'laser': return { x: e.x - .3, y: e.y0 - .2, w: .6, h: e.len + .4 };
+    case 'orb': let r = Math.max(.4, t / 2); return { x: e.x - r, y: e.y - r, w: r * 2, h: r * 2 };
+    case 'jumpBoost': let j = Math.max(.45, t / 2); return { x: e.x - j, y: e.y - j, w: j * 2, h: j * 2 };
+    case 'checkpoint': return { x: e.x - .9, y: e.y - .1, w: 1.8, h: 6.6 };
+    case 'nova': let nv = Math.max(.72, t / 2); return { x: e.x - nv, y: e.y - nv, w: nv * 2, h: nv * 2 };
+    case 'springPad': return { x: e.x, y: e.y, w: e.w, h: e.h };
+  }
+}
+function ae(e, t, n, r = .6) {
+  let i = e.rotation ?? 0;
+  if (i !== 0) {
+    let a = ne(e), o = i * Math.PI / 180, s = Math.cos(o), c = Math.sin(o), l = t - a.x, u = n - a.y, d = l * s + u * c, f = -l * c + u * s, p = x(e, r), m = p.x - a.x, h = p.y - a.y;
+    return d >= m && d <= m + p.w && f >= h && f <= h + p.h;
+  }
+  let a = x(e, r); return t >= a.x && t <= a.x + a.w && n >= a.y && n <= a.y + a.h;
+}
+
+// 核心控制器
+class EditorStore {
+  constructor() {
+    this.map = m();
+    this.selection = [];
+    this.mode = 'geometry';
+    this.geomTool = 'rect';
+    this.objTool = null;
+    this.tool = null;
+    this.snap = .5;
+    this.rotationSnap = 15;
+    this.lockPlace = false;
+    this.undoStack = [];
+    this.redoStack = [];
+    this.onChange = null;
+    this.clipboard = null;
+    this._snapshot();
+  }
+  _notify() { this.onChange?.(); }
+  _snapshot() {
+    this.undoStack.push(JSON.stringify(this.map));
+    if (this.undoStack.length > 50) this.undoStack.shift();
+    this.redoStack.length = 0;
+  }
+  setMode(e) { this.mode = e; this.selection = []; this.tool = 'rect'; if (e === 'objects') this.tool = this.objTool; if (e === 'geometry') this.geomTool = 'rect'; this._notify(); }
+  setObjTool(e) { this.objTool = e; this.tool = e; this.selection = []; this._notify(); }
+  setGeomTool(e) { this.geomTool = e; this.tool = e === 'rect' ? 'rect' : null; this.selection = []; this._notify(); }
+  addRect(e, t, n, r, i = 0) { this._snapshot(); let a = { type: 'rect', x: e, y: t, w: n, h: r, rotation: i }, o = this.map.layers.geometry.length; this.map.layers.geometry.push(a); this.selection = [{ layer: 'geometry', index: o }]; this._notify(); return o; }
+  updateGeometryField(e, t, n) { this._snapshot(); let r = this.map.layers.geometry[e]; if (r) r[t] = n; this._notify(); }
+  rotateSelected(e) { for (let t of this.selection) { if (t.layer !== 'geometry') continue; let n = this.map.layers.geometry[t.index]; if (n && n.type === 'rect') n.rotation = (n.rotation + e) % 360; } this._notify(); }
+  rotateToAngle(e) { for (let t of this.selection) { if (t.layer !== 'geometry') continue; let n = this.map.layers.geometry[t.index]; if (n && n.type === 'rect') n.rotation = (e % 360 + 360) % 360; } this._notify(); }
+  resizeRect(e, t, n) { let r = this.map.layers.geometry[e]; if (!r || r.type !== 'rect') return; r.w = Math.max(.1, t); r.h = Math.max(.1, n); this._notify(); }
+  addInstance(e) { this._snapshot(); let t = this.map.layers.objects.length; this.map.layers.objects.push(e); this.selection = [{ layer: 'objects', index: t }]; this._notify(); return t; }
+  removeSelected() {
+    if (this.selection.length === 0) return;
+    this._snapshot();
+    let e = this.selection.filter(e => e.layer === 'geometry').map(e => e.index).sort((e, t) => t - e),
+        t = this.selection.filter(e => e.layer === 'objects').map(e => e.index).sort((e, t) => t - e);
+    for (let t of e) this.map.layers.geometry.splice(t, 1);
+    for (let e of t) this.map.layers.objects.splice(e, 1);
+    this.selection = []; this._notify();
+  }
+  duplicateSelected() {
+    if (this.selection.length === 0) return;
+    this._snapshot(); let e = [];
+    for (let t of this.selection) {
+      if (t.layer === 'geometry') {
+        let n = JSON.parse(JSON.stringify(this.map.layers.geometry[t.index]));
+        re(n, this.snap, this.snap); e.push({ layer: 'geometry', index: this.map.layers.geometry.length });
+        this.map.layers.geometry.push(n);
+      } else if (t.layer === 'objects') {
+        let n = JSON.parse(JSON.stringify(this.map.layers.objects[t.index]));
+        re(n, this.snap, this.snap); e.push({ layer: 'objects', index: this.map.layers.objects.length });
+        this.map.layers.objects.push(n);
+      }
+    }
+    this.selection = e; this._notify();
+  }
+  moveSelected(e, t) { for (let n of this.selection) { if (n.layer === 'geometry') { let r = this.map.layers.geometry[n.index]; if (r) re(r, e, t); } else if (n.layer === 'objects') { let r = this.map.layers.objects[n.index]; if (r) re(r, e, t); } } this._notify(); }
+  commitMove() { this._snapshot(); }
+  updateInstanceField(e, t, n) { this._snapshot(); let r = this.map.layers.objects[e]; if (r === undefined) return; let i = t.split('.'), a = r; for (let e = 0; e < i.length - 1; e++) { let t = i[e]; if (a[t] == null || typeof a[t] != 'object') a[t] = {}; a = a[t]; } a[i[i.length - 1]] = n; this._notify(); }
+  selectSpawn() { this.selection = [{ layer: 'spawn' }]; this._notify(); }
+  isSpawnSelected() { return this.selection.length === 1 && this.selection[0].layer === 'spawn'; }
+  moveSpawn(e, t) { this.map.playerSpawn.x += e; this.map.playerSpawn.y += t; this._notify(); }
+  setSpawnPos(e, t) { this._snapshot(); this.map.playerSpawn.x = e; this.map.playerSpawn.y = t; this._notify(); }
+  select(e) { this.selection = [e]; this._notify(); }
+  clearSelection() { this.selection = []; this._notify(); }
+  get selGeomIndex() { return this.selection.length === 1 && this.selection[0].layer === 'geometry' ? this.selection[0].index : null; }
+  get selObjIndex() { return this.selection.length === 1 && this.selection[0].layer === 'objects' ? this.selection[0].index : null; }
+  undo() { if (this.undoStack.length <= 1) return; this.redoStack.push(JSON.stringify(this.map)); this.undoStack.pop(); this.map = h(JSON.parse(this.undoStack[this.undoStack.length - 1])); this.selection = []; this._notify(); }
+  redo() { if (this.redoStack.length === 0) return; this.undoStack.push(JSON.stringify(this.map)); this.map = h(JSON.parse(this.redoStack.pop())); this.selection = []; this._notify(); }
+  loadMap(e) { this.undoStack.length = 0; this.redoStack.length = 0; this.map = h(e); this.selection = []; this._snapshot(); this._notify(); }
+  mapSnapshot() { return JSON.parse(JSON.stringify(this.map)); }
+  copyToClipboard() {
+    if (this.selection.length === 0) return false;
+    let sel = this.selection[0];
+    if (sel.layer === 'geometry') this.clipboard = { type: 'geom', data: JSON.parse(JSON.stringify(this.map.layers.geometry[sel.index])) };
+    else if (sel.layer === 'objects') this.clipboard = { type: 'obj', data: JSON.parse(JSON.stringify(this.map.layers.objects[sel.index])) };
+    return true;
+  }
+  pasteFromClipboard() {
+    if (!this.clipboard) return false;
+    this._snapshot();
+    if (this.clipboard.type === 'geom') {
+      let d = JSON.parse(JSON.stringify(this.clipboard.data));
+      re(d, this.snap, this.snap);
+      let idx = this.map.layers.geometry.length;
+      this.map.layers.geometry.push(d);
+      this.selection = [{ layer: 'geometry', index: idx }];
+    } else {
+      let d = JSON.parse(JSON.stringify(this.clipboard.data));
+      re(d, this.snap, this.snap);
+      let idx = this.map.layers.objects.length;
+      this.map.layers.objects.push(d);
+      this.selection = [{ layer: 'objects', index: idx }];
+    }
+    this._notify();
+    return true;
+  }
+}
+
+// 对象定义
+var O = [
+  { toolId: 'orb', type: 'orb', name: '光球', category: '可收集物', swatch: '#8ff6ff', icon: '●', fields: [{ key: 'x', label: 'X', type: 'number', step: .5 }, { key: 'y', label: 'Y', type: 'number', step: .5 }], defaults: () => ({ type: 'orb', x: 0, y: 0 }) },
+  { toolId: 'jumpBoost', type: 'jumpBoost', name: '双跳光球', category: '可收集物', swatch: '#ffb347', icon: '⏫', fields: [{ key: 'x', label: 'X', type: 'number', step: .5 }, { key: 'y', label: 'Y', type: 'number', step: .5 }], defaults: () => ({ type: 'jumpBoost', x: 0, y: 0 }) },
+  { toolId: 'checkpoint', type: 'checkpoint', name: '检查点', category: '可收集物', swatch: '#7df9ff', icon: '🏁', fields: [{ key: 'x', label: 'X', type: 'number', step: .5 }, { key: 'y', label: 'Y', type: 'number', step: .5 }], defaults: () => ({ type: 'checkpoint', x: 0, y: 0 }) },
+  { toolId: 'mover', type: 'mover', name: '移动平台', category: '机关', swatch: '#ff7d4a', icon: '⇄', fields: [{ key: 'x0', label: '起始 X', type: 'number', step: .5 }, { key: 'y', label: 'Y', type: 'number', step: .5 }, { key: 'w', label: '宽', type: 'number', step: .5, min: .1 }, { key: 'h', label: '高', type: 'number', step: .5, min: .1 }, { key: 'range', label: '摆动范围', type: 'number', step: .5, min: 0 }, { key: 'spd', label: '速度', type: 'number', step: .1, min: 0 }, { key: 'ph', label: '相位', type: 'number', step: .1 }], defaults: () => ({ type: 'mover', x0: 0, y: 0, w: 3, h: .8, range: 4, spd: .8, ph: 0 }) },
+  { toolId: 'laser', type: 'laser', name: '激光栅栏', category: '机关', swatch: '#ff2d55', icon: '⚡', fields: [{ key: 'x', label: 'X', type: 'number', step: .5 }, { key: 'y0', label: '底部 Y', type: 'number', step: .5 }, { key: 'len', label: '高度', type: 'number', step: .5, min: .1 }, { key: 'ph', label: '相位', type: 'number', step: .1 }], defaults: () => ({ type: 'laser', x: 0, y0: 0, len: 6, ph: 0 }) },
+  { toolId: 'springPadV', type: 'springPad', name: '垂直弹簧', category: '机关', swatch: '#4aff8a', icon: '⬆', fields: [{ key: 'x', label: 'X', type: 'number', step: .5 }, { key: 'y', label: 'Y', type: 'number', step: .5 }, { key: 'w', label: '宽', type: 'number', step: .5, min: .1 }, { key: 'h', label: '高', type: 'number', step: .5, min: .1 }, { key: 'force.x', label: '力 X', type: 'number', step: .5 }, { key: 'force.y', label: '力 Y', type: 'number', step: .5 }, { key: 'duration', label: '加速时长', type: 'number', step: .1, min: 0 }], defaults: () => ({ type: 'springPad', x: 0, y: 0, w: 2.5, h: 2, force: { x: 0, y: 96 }, duration: .3 }) },
+  { toolId: 'spike', type: 'spike', name: '尖刺', category: '危险物', swatch: '#ff4a6a', icon: '▲', fields: [{ key: 'x', label: 'X', type: 'number', step: .5 }, { key: 'y', label: 'Y', type: 'number', step: .5 }], defaults: () => ({ type: 'spike', x: 0, y: 0 }) },
+  { toolId: 'deco', type: 'deco', name: '装饰方块', category: '装饰', swatch: '#994aff', icon: '◇', fields: [{ key: 'x', label: 'X', type: 'number', step: .5 }, { key: 'y', label: 'Y', type: 'number', step: .5 }, { key: 'size', label: '尺寸', type: 'number', step: .1, min: .1 }, { key: 'rotSpeed', label: '转速', type: 'number', step: .1 }], defaults: () => ({ type: 'deco', x: 0, y: 0, size: .8, rotSpeed: .5 }) },
+  { toolId: 'hint', type: 'hint', name: '提示文字', category: '装饰', swatch: '#ffd700', icon: '💬', fields: [{ key: 'x', label: 'X', type: 'number', step: .5 }, { key: 'y', label: 'Y', type: 'number', step: .5 }, { key: 'text', label: '文案', type: 'string' }], defaults: () => ({ type: 'hint', x: 0, y: 0, text: '提示' }) },
+  { toolId: 'nova', type: 'nova', name: 'NOVA 终点', category: '特殊', swatch: '#c07dff', icon: '★', fields: [{ key: 'x', label: 'X', type: 'number', step: .5 }, { key: 'y', label: 'Y', type: 'number', step: .5 }], defaults: () => ({ type: 'nova', x: 0, y: 0 }) }
+];
+
+function k(e) { return O.find(t => t.toolId === e); }
+function De(e) { return O.find(t => t.type === e); }
+function Oe(e, t) { let n = t.split('.'), r = e; for (let e of n) { if (typeof r != 'object' || !r) return; r = r[e]; } return typeof r == 'number' ? r : String(r ?? ''); }
+
+// ==========================================
+// 渲染逻辑
+// ==========================================
+function drawGrid() {
+  let e = o.SL, i = o.SL + n / o.SZ, a = o.SB, l = o.SB + r / o.SZ;
+  t.lineWidth = 1;
+  t.strokeStyle = 'rgba(120,150,255,0.06)';
+  t.beginPath();
+  for (let n = Math.ceil(e); n <= i; n += 1) { t.moveTo(s(n), c(a)); t.lineTo(s(n), c(l)); }
+  for (let n = Math.ceil(a); n <= l; n += 1) { t.moveTo(s(e), c(n)); t.lineTo(s(i), c(n)); }
+  t.stroke();
+  t.strokeStyle = 'rgba(120,150,255,0.14)';
+  t.beginPath();
+  for (let n = Math.ceil(e / 5) * 5; n <= i; n += 5) { t.moveTo(s(n), c(a)); t.lineTo(s(n), c(l)); }
+  for (let n = Math.ceil(a / 5) * 5; n <= l; n += 5) { t.moveTo(s(e), c(n)); t.lineTo(s(i), c(n)); }
+  t.stroke();
+  t.strokeStyle = 'rgba(140,200,255,0.3)'; t.lineWidth = 2;
+  t.beginPath(); t.moveTo(s(0), c(0)); t.lineTo(s(10), c(0)); t.moveTo(s(0), c(0)); t.lineTo(s(0), c(10)); t.stroke();
+}
+
+function drawGeom(e) {
+  let n = g(e), r = 196 + 100 * Math.min(1, Math.max(0, n.x / 240 * .55 + n.y / 72 * .45)),
+      i = y(e).map(e => [s(e.x), c(e.y)]);
+  t.beginPath(); t.moveTo(i[0][0], i[0][1]);
+  for (let e = 1; e < i.length; e++) t.lineTo(i[e][0], i[e][1]);
+  t.closePath();
+  t.fillStyle = 'rgba(15,11,42,.94)'; t.fill();
+  t.shadowColor = 'hsla(' + r + ',100%,60%,.85)'; t.shadowBlur = 12;
+  t.strokeStyle = 'hsla(' + r + ',95%,66%,.9)'; t.lineWidth = 2; t.stroke();
+  t.shadowBlur = 0; t.fillStyle = 'hsla(' + r + ',100%,78%,.95)'; t.lineWidth = 2.2;
+  t.beginPath(); t.moveTo(i[2][0], i[2][1]); t.lineTo(i[3][0], i[3][1]); t.stroke();
+}
+
+function drawObj(e, i) {
+  let a = De(e.type)?.swatch || '#aaa', l = o.SZ, u = ne(e), d = s(u.x), f = c(u.y);
+  if (d < -200 || d > n + 200 || f < -200 || f > r + 200) return;
+  let p = (e.rotation ?? 0) * Math.PI / 180;
+  t.save(); t.shadowColor = a + '66'; t.shadowBlur = 8;
+  if (p !== 0) { t.translate(d, f); t.rotate(-p); t.translate(-d, -f); }
+  // (绘制具体形状省略，保持与原版一致)
+  switch (e.type) {
+    case 'spike': t.fillStyle = a; t.beginPath(); t.moveTo(s(e.x), c(e.y)); t.lineTo(s(e.x+1), c(e.y)); t.lineTo(s(e.x+.5), c(e.y+1)); t.closePath(); t.fill(); break;
+    case 'deco': t.save(); t.translate(d, f); t.rotate(i * e.rotSpeed); t.strokeStyle = a; t.lineWidth = 1.5; let sz = e.size * l * .5; t.strokeRect(-sz, -sz, sz * 2, sz * 2); t.restore(); break;
+    case 'hint': t.font = `${Math.round(.5*l)}px sans-serif`; t.fillStyle = a + '88'; t.textAlign = 'center'; t.fillText(e.text, s(e.x), c(e.y)); t.textAlign = 'left'; break;
+    case 'mover': t.fillStyle = '#140e34'; t.fillRect(s(e.x0), c(e.y+e.h), e.w*l, e.h*l); t.strokeStyle = a; t.lineWidth = 2; t.strokeRect(s(e.x0), c(e.y+e.h), e.w*l, e.h*l); break;
+    case 'laser': t.fillStyle = a + '44'; t.fillRect(s(e.x)-.3*l, c(e.y0+e.len), .6*l, e.len*l); break;
+    case 'orb': t.fillStyle = a; t.shadowBlur = 14; t.beginPath(); t.arc(d, f, .4*l, 0, Math.PI*2); t.fill(); break;
+    case 'jumpBoost': t.fillStyle = a; t.shadowBlur = 14; t.beginPath(); t.arc(d, f, .45*l, 0, Math.PI*2); t.fill(); break;
+    case 'checkpoint': t.fillStyle = a; t.fillRect(s(e.x)-.9*l, c(e.y), 1.8*l, .3*l); break;
+    case 'nova': t.fillStyle = a; t.shadowBlur = 22; t.beginPath(); t.moveTo(d, f-.72*l); t.lineTo(d+.72*l, f); t.lineTo(d, f+.72*l); t.lineTo(d-.72*l, f); t.closePath(); t.fill(); break;
+    case 'springPad': t.fillStyle = '#142210'; t.fillRect(s(e.x), c(e.y+e.h), e.w*l, e.h*l); t.strokeStyle = a; t.lineWidth = 2; t.strokeRect(s(e.x), c(e.y+e.h), e.w*l, e.h*l); break;
+  }
+  t.restore(); t.shadowBlur = 0;
+}
+
+function drawSelection(e) {
+  for (let sel of e.selection) {
+    if (sel.layer === 'geometry') {
+      let n = e.map.layers.geometry[sel.index];
+      if (n && n.type === 'rect') {
+        let pts = y(n).map(p => [s(p.x), c(p.y)]);
+        let rot = ee(n);
+        t.save(); t.setLineDash([4, 4]); t.strokeStyle = '#8ff6ff'; t.lineWidth = 2;
+        t.shadowColor = '#8ff6ff'; t.shadowBlur = 6;
+        t.beginPath(); t.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 1; i < pts.length; i++) t.lineTo(pts[i][0], pts[i][1]);
+        t.closePath(); t.stroke();
+        t.setLineDash([]); t.shadowBlur = 0;
+        t.fillStyle = '#8ff6ff';
+        for (let [px, py] of pts) { t.beginPath(); t.arc(px, py, 4.5, 0, Math.PI*2); t.fill(); }
+      }
+    } else if (sel.layer === 'objects') {
+      let n = e.map.layers.objects[sel.index];
+      if (n) {
+        let b = x(n);
+        t.save(); t.setLineDash([4, 4]); t.strokeStyle = '#8ff6ff'; t.lineWidth = 2;
+        t.strokeRect(s(b.x), c(b.y + b.h), b.w * o.SZ, b.h * o.SZ);
+        t.setLineDash([]); t.restore();
+      }
+    }
+  }
+}
+
+function drawBounds(e) {
+  if (!e.map) return;
+  let { width: n, height: r } = e.map;
+  t.save();
+  t.strokeStyle = 'rgba(150,120,255,0.5)'; t.lineWidth = 2;
+  t.shadowColor = 'rgba(120,90,255,0.6)'; t.shadowBlur = 12;
+  t.strokeRect(s(0), c(r), n * o.SZ, r * o.SZ);
+  t.restore();
+}
+
+function drawSpawn(e) {
+  if (!e.map) return;
+  let { x: n, y: r } = e.map.playerSpawn, i = s(n), a = c(r), o = e.isSpawnSelected();
+  t.save();
+  t.translate(i, a);
+  t.fillStyle = o ? 'rgba(125,249,255,0.9)' : 'rgba(125,249,255,0.7)';
+  t.strokeStyle = o ? 'rgba(125,249,255,0.8)' : 'rgba(125,249,255,0.5)';
+  t.lineWidth = 1.5;
+  let l = 6;
+  t.beginPath(); t.moveTo(0, -l); t.lineTo(l, 0); t.lineTo(0, l); t.lineTo(-l, 0); t.closePath();
+  t.fill(); t.stroke();
+  t.restore();
+}
+
+// ==========================================
+// 小地图渲染
+// ==========================================
+var mm = document.getElementById('minimap'), mmx = mm.getContext('2d');
+function drawMinimap() {
+  let mw = 220, mh = 120;
+  mm.width = mw; mm.height = mh;
+  mmx.clearRect(0, 0, mw, mh);
+  if (!Y.map) return;
+  let sx = mw / Y.map.width, sy = mh / Y.map.height;
+  mmx.fillStyle = 'rgba(10, 8, 32, 0.8)'; mmx.fillRect(0, 0, mw, mh);
+  // 绘制边界
+  mmx.strokeStyle = 'rgba(120, 90, 255, 0.5)'; mmx.lineWidth = 1;
+  mmx.strokeRect(0, 0, mw, mh);
+  // 绘制几何体
+  mmx.fillStyle = 'rgba(120, 90, 255, 0.7)';
+  Y.map.layers.geometry.forEach(g => { if(g.type === 'rect') mmx.fillRect(g.x * sx, mh - (g.y + g.h) * sy, g.w * sx, g.h * sy); });
+  // 绘制对象
+  mmx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+  Y.map.layers.objects.forEach(o => { let p = ne(o); mmx.fillRect(p.x * sx - 1, mh - p.y * sy - 1, 2, 2); });
+  // 绘制出生点
+  mmx.fillStyle = 'cyan';
+  mmx.fillRect(Y.map.playerSpawn.x * sx - 2, mh - Y.map.playerSpawn.y * sy - 2, 4, 4);
+  // 绘制视口框
+  mmx.strokeStyle = 'rgba(143, 246, 255, 0.9)'; mmx.lineWidth = 1;
+  let vx = o.SL * sx, vy = mh - (o.SB + r / o.SZ) * sy;
+  let vw = (n / o.SZ) * sx, vh = (r / o.SZ) * sy;
+  mmx.strokeRect(vx, vy, vw, vh);
+}
+// 小地图点击跳转
+mm.addEventListener('mousedown', e => {
+  let rect = mm.getBoundingClientRect();
+  let mx = (e.clientX - rect.left) / rect.width * Y.map.width;
+  let my = (1 - (e.clientY - rect.top) / rect.height) * Y.map.height;
+  u(mx, my, o.SZ / 48); // 居中到点击位置
+});
+
+// ==========================================
+// 智能参考线
+// ==========================================
+var activeGuides = [];
+function checkSmartGuides(movedObj) {
+  activeGuides = [];
+  let bbox = movedObj.type === 'rect' ? v(movedObj) : x(movedObj, 0.6);
+  let objs = [...Y.map.layers.geometry.map(g => g.type === 'rect' ? v(g) : null).filter(Boolean), ...Y.map.layers.objects.map(o => x(o, 0.6))];
+  let bx = [bbox.x, bbox.x + bbox.w / 2, bbox.x + bbox.w];
+  let by = [bbox.y, bbox.y + bbox.h / 2, bbox.y + bbox.h];
+  for (let ob of objs) {
+    if (Math.abs(ob.x - bbox.x) < 0.1 || Math.abs(ob.x + ob.w - bbox.x) < 0.1) activeGuides.push({ type: 'v', x: bbox.x });
+    if (Math.abs(ob.x - bbox.x + bbox.w) < 0.1 || Math.abs(ob.x + ob.w - bbox.x + bbox.w) < 0.1) activeGuides.push({ type: 'v', x: bbox.x + bbox.w });
+    if (Math.abs(ob.y - bbox.y) < 0.1 || Math.abs(ob.y + ob.h - bbox.y) < 0.1) activeGuides.push({ type: 'h', y: bbox.y });
+    if (Math.abs(ob.y - bbox.y + bbox.h) < 0.1 || Math.abs(ob.y + ob.h - bbox.y + bbox.h) < 0.1) activeGuides.push({ type: 'h', y: bbox.y + bbox.h });
+  }
+}
+function drawSmartGuides() {
+  if (activeGuides.length === 0) return;
+  t.save();
+  t.strokeStyle = 'rgba(255, 50, 255, 0.8)'; t.lineWidth = 1;
+  t.setLineDash([4, 4]);
+  activeGuides.forEach(g => {
+    if (g.type === 'v') { let sx = s(g.x); t.beginPath(); t.moveTo(sx, 0); t.lineTo(sx, r); t.stroke(); }
+    else { let sy = c(g.y); t.beginPath(); t.moveTo(0, sy); t.lineTo(n, sy); t.stroke(); }
+  });
+  t.restore(); t.setLineDash([]);
+}
+
+// ==========================================
+// 场景大纲
+// ==========================================
+function renderOutliner() {
+  let list = document.getElementById('outliner');
+  if (!list) return;
+  let filter = (document.getElementById('outlinerSearch')?.value || '').toLowerCase();
+  list.innerHTML = '';
+  
+  let gGroup = document.createElement('div');
+  gGroup.innerHTML = `<div class="tree-parent">▼ 基础几何 (${Y.map.layers.geometry.length})</div>`;
+  let gChildren = document.createElement('div'); gChildren.className = 'tree-children';
+  Y.map.layers.geometry.forEach((g, i) => {
+    let name = `Rect #${i + 1}`;
+    if (!name.toLowerCase().includes(filter)) return;
+    let node = document.createElement('div'); node.className = 'tree-node';
+    if (Y.selGeomIndex === i) node.classList.add('selected');
+    node.innerHTML = `<span>▭</span> ${name}`;
+    node.onclick = () => { Y.select({ layer: 'geometry', index: i }); Y.onChange(); };
+    gChildren.appendChild(node);
+  });
+  gGroup.appendChild(gChildren);
+  list.appendChild(gGroup);
+
+  let oGroup = document.createElement('div');
+  oGroup.innerHTML = `<div class="tree-parent">▼ 场景对象 (${Y.map.layers.objects.length})</div>`;
+  let oChildren = document.createElement('div'); oChildren.className = 'tree-children';
+  Y.map.layers.objects.forEach((o, i) => {
+    let name = `${o.type} #${i + 1}`;
+    if (!name.toLowerCase().includes(filter)) return;
+    let node = document.createElement('div'); node.className = 'tree-node';
+    if (Y.selObjIndex === i) node.classList.add('selected');
+    node.innerHTML = `<span>${De(o.type)?.icon || '•'}</span> ${name}`;
+    node.onclick = () => { Y.select({ layer: 'objects', index: i }); Y.onChange(); };
+    oChildren.appendChild(node);
+  });
+  oGroup.appendChild(oChildren);
+  list.appendChild(oGroup);
+}
+
+// ==========================================
+// 资源库
+// ==========================================
+function renderPalette() {
+  let p = document.getElementById('palette');
+  p.innerHTML = '';
+  let filter = (document.getElementById('paletteSearch')?.value || '').toLowerCase();
+  
+  let cats = new Map();
+  for (let item of O) {
+    if (!item.name.toLowerCase().includes(filter) && !item.type.toLowerCase().includes(filter)) continue;
+    if (!cats.has(item.category)) cats.set(item.category, []);
+    cats.get(item.category).push(item);
+  }
+  
+  for (let [cat, items] of cats) {
+    let catDiv = document.createElement('div');
+    catDiv.innerHTML = `<div style="color:var(--text-muted);font-size:10px;margin:4px 0;text-transform:uppercase;letter-spacing:1px">${cat}</div>`;
+    for (let item of items) {
+      let entry = document.createElement('div'); entry.className = 'lib-entry';
+      if (Y.objTool === item.toolId) entry.classList.add('active');
+      entry.innerHTML = `<div class="lib-icon" style="background:${item.swatch}33;color:${item.swatch}">${item.icon}</div><span>${item.name}</span>`;
+      entry.onclick = () => { Y.setMode('objects'); Y.setObjTool(Y.objTool === item.toolId ? null : item.toolId); renderPalette(); };
+      catDiv.appendChild(entry);
+    }
+    p.appendChild(catDiv);
+  }
+  
+  // 几何工具
+  let geomDiv = document.createElement('div');
+  geomDiv.innerHTML = `<div style="color:var(--text-muted);font-size:10px;margin:4px 0;text-transform:uppercase;letter-spacing:1px">几何工具</div>`;
+  let rectEntry = document.createElement('div'); rectEntry.className = 'lib-entry';
+  if (Y.mode === 'geometry' && Y.geomTool === 'rect') rectEntry.classList.add('active');
+  rectEntry.innerHTML = `<div class="lib-icon" style="background:rgba(110,200,255,.15);color:#8ff6ff">▭</div><span>矩形画笔</span>`;
+  rectEntry.onclick = () => { Y.setMode('geometry'); Y.setGeomTool('rect'); renderPalette(); };
+  geomDiv.appendChild(rectEntry);
+  p.appendChild(geomDiv);
+}
+
+// ==========================================
+// 属性面板
+// ==========================================
+function renderInspector() {
+  let el = document.getElementById('inspectorInner');
+  if (Y.isSpawnSelected()) {
+    el.innerHTML = `<div class="field-group"><div style="font-size:13px;font-weight:600;color:var(--cyan);margin-bottom:8px">✦ 出生点</div>
+      <label class="field-label">X 坐标</label><input type="number" class="field-input" step="0.5" id="spawnX" value="${Y.map.playerSpawn.x}">
+      <label class="field-label" style="margin-top:6px">Y 坐标</label><input type="number" class="field-input" step="0.5" id="spawnY" value="${Y.map.playerSpawn.y}">
+    </div>`;
+    document.getElementById('spawnX').onchange = e => Y.setSpawnPos(parseFloat(e.target.value) || 0, Y.map.playerSpawn.y);
+    document.getElementById('spawnY').onchange = e => Y.setSpawnPos(Y.map.playerSpawn.x, parseFloat(e.target.value) || 0);
+    return;
+  }
+  if (Y.selGeomIndex !== null) {
+    let g = Y.map.layers.geometry[Y.selGeomIndex];
+    el.innerHTML = `<div class="field-group"><div style="font-size:13px;font-weight:600;color:var(--cyan);margin-bottom:8px">▭ 矩形</div>
+      <label class="field-label">X</label><input type="number" class="field-input" step="0.5" id="gx" value="${g.x}">
+      <label class="field-label" style="margin-top:6px">Y</label><input type="number" class="field-input" step="0.5" id="gy" value="${g.y}">
+      <label class="field-label" style="margin-top:6px">宽度</label><input type="number" class="field-input" step="0.5" id="gw" value="${g.w}">
+      <label class="field-label" style="margin-top:6px">高度</label><input type="number" class="field-input" step="0.5" id="gh" value="${g.h}">
+      <label class="field-label" style="margin-top:6px">旋转 (度)</label><input type="number" class="field-input" step="15" id="grot" value="${g.rotation}">
+    </div>
+    <div class="btn-group">
+      <button class="btn" onclick="Y.duplicateSelected()">📋 克隆</button>
+      <button class="btn danger" onclick="Y.removeSelected()">🗑 删除</button>
+    </div>`;
+    document.getElementById('gx').onchange = e => Y.updateGeometryField(Y.selGeomIndex, 'x', parseFloat(e.target.value) || 0);
+    document.getElementById('gy').onchange = e => Y.updateGeometryField(Y.selGeomIndex, 'y', parseFloat(e.target.value) || 0);
+    document.getElementById('gw').onchange = e => Y.updateGeometryField(Y.selGeomIndex, 'w', parseFloat(e.target.value) || 0.1);
+    document.getElementById('gh').onchange = e => Y.updateGeometryField(Y.selGeomIndex, 'h', parseFloat(e.target.value) || 0.1);
+    document.getElementById('grot').onchange = e => Y.updateGeometryField(Y.selGeomIndex, 'rotation', parseFloat(e.target.value) || 0);
+    return;
+  }
+  if (Y.selObjIndex !== null) {
+    let obj = Y.map.layers.objects[Y.selObjIndex];
+    let def = De(obj.type);
+    let html = `<div class="field-group"><div style="font-size:13px;font-weight:600;color:var(--cyan);margin-bottom:8px">${def.icon} ${def.name}</div>`;
+    for (let f of def.fields) {
+      html += `<label class="field-label">${f.label}</label><input type="${f.type === 'number' ? 'number' : 'text'}" class="field-input" step="${f.step || 1}" id="of_${f.key}" value="${Oe(obj, f.key) ?? ''}">`;
+    }
+    html += `</div><div class="btn-group"><button class="btn" onclick="Y.duplicateSelected()">📋 克隆</button><button class="btn danger" onclick="Y.removeSelected()">🗑 删除</button></div>`;
+    el.innerHTML = html;
+    for (let f of def.fields) {
+      document.getElementById(`of_${f.key}`).onchange = e => {
+        let v = f.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value;
+        Y.updateInstanceField(Y.selObjIndex, f.key, v);
+      };
+    }
+    return;
+  }
+  el.innerHTML = `<div style="color:var(--text-muted);text-align:center;padding:20px;font-size:12px">选择一个对象以编辑属性</div>`;
+}
+
+// ==========================================
+// 地图校验
+// ==========================================
+function validateMap() {
+  let errors = [], warnings = [];
+  if (!Y.map.name) errors.push("缺少地图名称");
+  if (!Y.map.id) errors.push("缺少地图 ID");
+  if (!Y.map.playerSpawn) errors.push("缺少玩家出生点");
+  
+  Y.map.layers.objects.forEach((o, i) => {
+    let p = ne(o);
+    if (p.x < 0 || p.x > Y.map.width) errors.push(`对象 #${i + 1} (${o.type}) 超出水平边界`);
+    if (p.y < 0 || p.y > Y.map.height) errors.push(`对象 #${i + 1} (${o.type}) 超出垂直边界`);
+  });
+  
+  if (Y.map.layers.geometry.length === 0) warnings.push("地图中没有几何体");
+  if (Y.map.layers.objects.length === 0) warnings.push("地图中没有场景对象");
+  
+  // 检查是否有NOVA终点
+  if (!Y.map.layers.objects.some(o => o.type === 'nova')) warnings.push("地图中缺少 NOVA 终点");
+  
+  return { errors, warnings };
+}
+
+// ==========================================
+// Toast 提示
+// ==========================================
+function showToast(msg, type = 'info') {
+  let t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + (type === 'error' ? 'error' : type === 'success' ? 'success' : '');
+  setTimeout(() => { t.className = ''; }, 2500);
+}
+
+// ==========================================
+// 内置地图数据 (水晶洞窟)
+// ==========================================
+var CUSTOM_MAP = {
+  version: 2, id: "crystal-caverns", name: "水晶洞窟 · 对称迷城", width: 180, height: 100, playerSpawn: { x: 90, y: 6 },
+  layers: {
+    geometry: [
+      { type:"rect", x:0, y:0, w:180, h:4, rotation:0 }, { type:"rect", x:0, y:4, w:3, h:96, rotation:0 }, { type:"rect", x:177, y:4, w:3, h:96, rotation:0 },
+      { type:"rect", x:70, y:4, w:40, h:2, rotation:0 },
+      { type:"rect", x:5, y:8, w:12, h:1, rotation:0 }, { type:"rect", x:20, y:12, w:12, h:1, rotation:0 }, { type:"rect", x:5, y:16, w:12, h:1, rotation:0 },
+      { type:"rect", x:163, y:8, w:12, h:1, rotation:0 }, { type:"rect", x:148, y:12, w:12, h:1, rotation:0 }, { type:"rect", x:163, y:16, w:12, h:1, rotation:0 },
+      { type:"rect", x:25, y:54, w:130, h:2, rotation:0 }, { type:"rect", x:40, y:60, w:100, h:2, rotation:0 }
+    ],
+    objects: [
+      { type:"spike", x:60, y:4 }, { type:"spike", x:61, y:4 },
+      { type:"deco", x:90, y:12, size:1.5, rotSpeed:0.3 },
+      { type:"hint", x:90, y:9, text:"深渊 · 对称双塔迷城" },
+      { type:"orb", x:7, y:10 }, { type:"orb", x:22, y:14 },
+      { type:"checkpoint", x:85, y:6 },
+      { type:"nova", x:90, y:86 }
+    ]
+  }
+};
+
+// ==========================================
+// 初始化与事件绑定
+// ==========================================
+var Y = new EditorStore();
+Y.loadMap(CUSTOM_MAP);
+u(Y.map.playerSpawn.x, Y.map.playerSpawn.y, .45);
+
+Y.onChange = () => {
+  renderInspector();
+  renderOutliner();
+  updateStatus();
+  // 自动保存
+  try { localStorage.setItem('mapcreater.autosave', JSON.stringify(Y.mapSnapshot())); } catch {}
+};
+
+function updateStatus() {
+  document.getElementById('statusInfo').textContent = `模式: ${Y.mode} | 工具: ${Y.tool || '无'}`;
+  document.getElementById('statusObjCount').textContent = `几何: ${Y.map.layers.geometry.length} | 对象: ${Y.map.layers.objects.length}`;
+  document.getElementById('statusZoom').textContent = `缩放: ${Math.round(o.SZ / 48 * 100)}%`;
+}
+
+// 尝试恢复草稿
+try {
+  let saved = localStorage.getItem('mapcreater.autosave');
+  if (saved) {
+    let data = JSON.parse(saved);
+    if (data && data.version === 2) {
+      // 不自动加载，只在用户点击恢复时加载
+      console.log("发现自动保存的草稿");
+    }
+  }
+} catch {}
+
+renderPalette();
+Y.onChange();
+
+// 鼠标交互
+var X = { kind: 'none', button: 0, sx: 0, sy: 0, wx: 0, wy: 0, ax: 0, ay: 0, target: null }, Z = 0, Q = 0;
+function getMouse(t) {
+  let i = e.getBoundingClientRect();
+  return [(t.clientX - i.left) * (n / i.width), (t.clientY - i.top) * (r / i.height)];
+}
+
+e.addEventListener('mousedown', ev => {
+  let [tx, ty] = getMouse(ev), pos = l(tx, ty);
+  X.button = ev.button; X.sx = tx; X.sy = ty; X.wx = pos.x; X.wy = pos.y; X.ax = pos.x; X.ay = pos.y; X.target = null;
+  if (ev.button === 0) {
+    if (Math.abs(pos.x - Y.map.playerSpawn.x) < 1.5 && Math.abs(pos.y - Y.map.playerSpawn.y) < 1.5) {
+      Y.selectSpawn(); X.kind = 'move'; X.target = { layer: 'spawn' }; return;
+    }
+    if (Y.mode === 'objects' && Y.objTool) {
+      let def = k(Y.objTool);
+      if (def) {
+        let snapX = p(pos.x, Y.snap), snapY = p(pos.y, Y.snap);
+        let obj = def.defaults();
+        if (obj.type === 'mover') obj.x0 = snapX; else if (obj.type === 'laser') { obj.x = snapX; obj.y0 = snapY; } else { obj.x = snapX; obj.y = snapY; }
+        Y.addInstance(obj);
+        if (!Y.lockPlace) { Y.setObjTool(null); renderPalette(); }
+        return;
+      }
+    }
+    // 选择对象
+    for (let i = Y.map.layers.objects.length - 1; i >= 0; i--) {
+      if (ae(Y.map.layers.objects[i], pos.x, pos.y)) { Y.select({ layer: 'objects', index: i }); X.kind = 'move'; X.target = { layer: 'objects', index: i }; return; }
+    }
+    for (let i = Y.map.layers.geometry.length - 1; i >= 0; i--) {
+      if (b(Y.map.layers.geometry[i], pos.x, pos.y)) { Y.select({ layer: 'geometry', index: i }); X.kind = 'move'; X.target = { layer: 'geometry', index: i }; return; }
+    }
+    // 空白处绘制矩形
+    if (Y.mode === 'geometry') { X.kind = 'draw-rect'; Y.clearSelection(); return; }
+    Y.clearSelection(); X.kind = 'pan';
+  }
+});
+
+e.addEventListener('mousemove', ev => {
+  let [tx, ty] = getMouse(ev), pos = l(tx, ty);
+  Z = pos.x; Q = pos.y;
+  document.getElementById('statusMouse').textContent = `X: ${pos.x.toFixed(1)}, Y: ${pos.y.toFixed(1)}`;
+  
+  if (X.button === 2) { f(tx - X.sx, ty - X.sy); X.sx = tx; X.sy = ty; return; }
+  if (X.button !== 0) return;
+  
+  let dx = pos.x - X.wx, dy = pos.y - X.wy;
+  
+  if (X.kind === 'move') {
+    if (Math.abs(tx - X.sx) < 3 && Math.abs(ty - X.sy) < 3) return;
+    X.wx = pos.x; X.wy = pos.y;
+    if (X.target?.layer === 'spawn') Y.moveSpawn(dx, dy);
+    else if (X.target) {
+      Y.moveSelected(dx, dy);
+      // 智能参考线检查
+      let obj = X.target.layer === 'geometry' ? Y.map.layers.geometry[X.target.index] : Y.map.layers.objects[X.target.index];
+      if (obj) checkSmartGuides(obj);
+    }
+  } else if (X.kind === 'draw-rect') {
+    X.wx = pos.x; X.wy = pos.y;
+  } else if (X.kind === 'pan') {
+    f(tx - X.sx, ty - X.sy); X.sx = tx; X.sy = ty;
+  }
+});
+
+e.addEventListener('mouseup', ev => {
+  if (ev.button !== 0) return;
+  let [tx, ty] = getMouse(ev), pos = l(tx, ty);
+  
+  if (X.kind === 'draw-rect' && (Math.abs(tx - X.sx) > 3 || Math.abs(ty - X.sy) > 3)) {
+    let x1 = p(Math.min(X.ax, pos.x), Y.snap), y1 = p(Math.min(X.ay, pos.y), Y.snap);
+    let x2 = p(Math.max(X.ax, pos.x), Y.snap), y2 = p(Math.max(X.ay, pos.y), Y.snap);
+    Y.addRect(x1, y1, Math.max(.1, x2 - x1), Math.max(.1, y2 - y1));
+  }
+  if (X.kind === 'move') { Y.commitMove(); activeGuides = []; }
+  X.kind = 'none'; X.button = -1;
+});
+
+e.addEventListener('contextmenu', ev => ev.preventDefault());
+e.addEventListener('wheel', ev => { ev.preventDefault(); let [tx, ty] = getMouse(ev); d(tx, ty, ev.deltaY > 0 ? 1.1 : .9); updateStatus(); }, { passive: false });
+
+// 快捷键
+document.addEventListener('keydown', ev => {
+  if (document.activeElement?.tagName === 'INPUT') return;
+  
+  if (ev.ctrlKey && ev.key === 'z') { Y.undo(); ev.preventDefault(); return; }
+  if (ev.ctrlKey && ev.shiftKey && (ev.key === 'Z' || ev.key === 'z')) { Y.redo(); ev.preventDefault(); return; }
+  if (ev.ctrlKey && ev.key === 'y') { Y.redo(); ev.preventDefault(); return; }
+  if (ev.ctrlKey && ev.key === 's') { saveMap(); ev.preventDefault(); return; }
+  if (ev.ctrlKey && ev.key === 'c') { Y.copyToClipboard(); showToast("已复制到剪贴板", "success"); ev.preventDefault(); return; }
+  if (ev.ctrlKey && ev.key === 'v') { if (Y.pasteFromClipboard()) showToast("已粘贴", "success"); ev.preventDefault(); return; }
+  if (ev.ctrlKey && ev.key === 'd') { Y.duplicateSelected(); ev.preventDefault(); return; }
+  if (ev.key === 'Delete' || ev.key === 'Backspace') { Y.removeSelected(); ev.preventDefault(); return; }
+  if (ev.key === 'Escape') { Y.clearSelection(); renderPalette(); }
+});
+
+// 工具栏按钮
+document.querySelectorAll('[data-cmd]').forEach(btn => {
+  btn.onclick = () => {
+    switch (btn.dataset.cmd) {
+      case 'new': Y.loadMap(m()); u(Y.map.playerSpawn.x, Y.map.playerSpawn.y, .8); renderPalette(); break;
+      case 'open': document.getElementById('fileInput').click(); break;
+      case 'save': saveMap(); break;
+      case 'undo': Y.undo(); break;
+      case 'redo': Y.redo(); break;
+      case 'copy': Y.copyToClipboard(); showToast("已复制", "success"); break;
+      case 'paste': Y.pasteFromClipboard(); showToast("已粘贴", "success"); break;
+      case 'duplicate': Y.duplicateSelected(); break;
+      case 'delete': Y.removeSelected(); break;
+      case 'export': validateAndExport(); break;
+      case 'import-game': showImport(); break;
+    }
+  };
+});
+
+document.getElementById('fileInput').onchange = e => {
+  let file = e.target.files?.[0];
+  if (!file) return;
+  let reader = new FileReader();
+  reader.onload = () => {
+    try { Y.loadMap(JSON.parse(reader.result)); u(Y.map.playerSpawn.x, Y.map.playerSpawn.y, .8); showToast("加载成功", "success"); }
+    catch (err) { showToast("加载失败: " + err.message, "error"); }
+  };
+  reader.readAsText(file);
+};
+
+document.getElementById('snapSelect').onchange = e => { Y.snap = parseFloat(e.target.value); };
+document.getElementById('rotSnapSelect').onchange = e => { Y.rotationSnap = parseFloat(e.target.value); };
+document.getElementById('paletteSearch').oninput = renderPalette;
+document.getElementById('outlinerSearch').oninput = renderOutliner;
+
+function saveMap() {
+  let data = JSON.stringify(Y.mapSnapshot(), null, 2);
+  let blob = new Blob([data], { type: 'application/json' });
+  let url = URL.createObjectURL(blob);
+  let a = document.createElement('a'); a.href = url; a.download = `${Y.map.id}.json`; a.click();
+  URL.revokeObjectURL(url);
+  showToast("保存成功", "success");
+}
+
+function validateAndExport() {
+  let { errors, warnings } = validateMap();
+  if (errors.length > 0) {
+    showToast(`校验失败: ${errors[0]}`, "error");
+    if (!confirm("地图存在错误:\n\n" + errors.join("\n") + "\n\n是否仍然导出？")) return;
+  } else if (warnings.length > 0) {
+    showToast(`校验通过 (${warnings.length} 个警告)`, "info");
+  } else {
+    showToast("校验通过，地图完全合法", "success");
+  }
+  document.getElementById('exportCode').value = JSON.stringify(Y.mapSnapshot(), null, 2);
+  document.getElementById('exportOverlay').classList.remove('hidden');
+}
+
+function showImport() {
+  document.getElementById('importOverlay').classList.remove('hidden');
+  let list = document.getElementById('importList');
+  list.innerHTML = '';
+  let maps = [{ name: "水晶洞窟 (当前)", id: "crystal-caverns", data: CUSTOM_MAP }];
+  maps.forEach((m, i) => {
+    let btn = document.createElement('button');
+    btn.className = 'lib-entry'; btn.style.width = '100%';
+    btn.innerHTML = `<span class="lib-icon">🗺️</span> ${m.name} <code style="margin-left:auto;font-size:10px;color:var(--text-muted)">${m.id}</code>`;
+    btn.onclick = () => { Y.loadMap(m.data); u(Y.map.playerSpawn.x, Y.map.playerSpawn.y, .45); document.getElementById('importOverlay').classList.add('hidden'); };
+    list.appendChild(btn);
+  });
+}
+
+window.hideExport = () => document.getElementById('exportOverlay').classList.add('hidden');
+window.hideImport = () => document.getElementById('importOverlay').classList.add('hidden');
+window.copyExport = () => {
+  let t = document.getElementById('exportCode'); t.select();
+  navigator.clipboard.writeText(t.value).then(() => showToast("已复制代码", "success"));
+};
+window.downloadExport = saveMap;
+
+// 渲染循环
+var lastTime = 0;
+function loop(time) {
+  requestAnimationFrame(loop);
+  let dt = (time - lastTime) / 1000; lastTime = time;
+  
+  // 自适应尺寸
+  let parent = e.parentElement;
+  if (parent.clientWidth !== n || parent.clientHeight !== r) {
+    a(); let cx = o.SL + n / (2 * o.SZ), cy = o.SB + r / (2 * o.SZ);
+    o.SL = cx - n / (2 * o.SZ); o.SB = cy - r / (2 * o.SZ);
+  }
+  
+  t.setTransform(i, 0, 0, i, 0, 0);
+  let grad = t.createLinearGradient(0, 0, 0, r);
+  grad.addColorStop(0, '#080517'); grad.addColorStop(.5, '#120a30'); grad.addColorStop(1, '#1d0f45');
+  t.fillStyle = grad; t.fillRect(0, 0, n, r);
+  
+  drawGrid();
+  drawBounds(Y);
+  drawSpawn(Y);
+  
+  Y.map.layers.geometry.forEach(drawGeom);
+  Y.map.layers.objects.forEach(o => drawObj(o, time / 1000));
+  
+  if (X.kind === 'draw-rect') {
+    let x1 = Math.min(X.ax, Z), y1 = Math.min(X.ay, Q);
+    let w = Math.abs(Z - X.ax), h = Math.abs(Q - X.ay);
+    t.save(); t.strokeStyle = 'rgba(143, 246, 255, 0.8)'; t.lineWidth = 1.5; t.setLineDash([4, 4]);
+    t.strokeRect(s(x1), c(y1 + h), w * o.SZ, h * o.SZ);
+    t.restore(); t.setLineDash([]);
+  }
+  
+  drawSelection(Y);
+  drawSmartGuides();
+  drawMinimap();
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

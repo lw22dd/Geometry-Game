@@ -29,7 +29,11 @@ netBus.on(e => {
       net.sendHostEvent('checkpoint', { x: e.x, y: e.y });
       break;
     case 'game:win':
-      net.sendHostEvent('win', { time: e.time, orbs: e.orbs, total: e.total });
+      net.sendHostEvent('win', { time: e.time, orbs: e.orbs, total: e.total, x: e.x, y: e.y, playerId: e.playerId });
+      break;
+    // ── 死亡特效：房主是死亡判定权威，广播给客机播放 ──
+    case 'fx:death':
+      net.sendHostEvent('fx_death', { x: e.x, y: e.y, playerId: e.playerId });
       break;
   }
 });
@@ -42,4 +46,5 @@ net.on('connected', (role, playerId, players) => {
 
 net.on('playerJoined', p => netBus.emit({ type: 'net:playerJoined', player: p }));
 net.on('playerLeft', id => netBus.emit({ type: 'net:playerLeft', playerId: id }));
+net.on('playerUpdated', p => netBus.emit({ type: 'net:playerUpdated', player: p }));
 net.on('disconnected', reason => netBus.emit({ type: 'net:disconnected', reason }));

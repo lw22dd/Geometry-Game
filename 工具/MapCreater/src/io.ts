@@ -9,6 +9,10 @@ import type { MapData } from './mapTypes';
 import { createEmptyMapData, migrateMapData } from './mapTypes';
 import { compileMapData, decompileMapDefinition } from './mapCodec';
 import type { MapDefinition } from '@game/types';
+import { MAP_TEMPLATES } from './templates';
+import { centerOn } from './camera';
+import { showToast } from './toast';
+import { renderIcon } from './td-icons';
 
 /* ==================== 保存（下载标准地图数据 JSON v2） ==================== */
 
@@ -22,6 +26,7 @@ export function saveToFile(store: EditorStore): void {
   a.download = `${data.id}.json`;
   a.click();
   URL.revokeObjectURL(url);
+  showToast(`已保存 ${data.name}（${data.width}×${data.height}）`, 'success');
 }
 
 /* ==================== 加载（从文件读取，兼容 v1/v2） ==================== */
@@ -42,6 +47,7 @@ export function loadFromFile(store: EditorStore): Promise<void> {
           }
           store.loadMap(migrateMapData(raw));
           resolve();
+          showToast(`已加载 ${store.map.name}`, 'success');
         } catch (e) {
           reject(e);
         }
@@ -86,7 +92,7 @@ export function mapDefinitionTSCode(store: EditorStore): string {
   out += `${indent}// ── 实体生成描述 ──\n`;
   out += `${indent}entitySpawners: {\n`;
   out += `${indent}${indent}movers: [\n${map.entitySpawners.movers.map(m => `${indent}${indent}${indent}{ x0: ${fmt(m.x0)}, y: ${fmt(m.y)}, w: ${fmt(m.w)}, h: ${fmt(m.h)}, range: ${fmt(m.range)}, spd: ${fmt(m.spd)}, ph: ${m.ph === Math.PI ? 'Math.PI' : fmt(m.ph)} },`).join('\n')}\n${indent}${indent}],\n`;
-  out += `${indent}${indent}springPads: [\n${map.entitySpawners.springPads.map(s => `${indent}${indent}${indent}{ x: ${fmt(s.x)}, y: ${fmt(s.y)}, w: ${fmt(s.w)}, h: ${fmt(s.h)}, forceX: ${fmt(s.forceX)}, forceY: ${fmt(s.forceY)}, duration: ${fmt(s.duration)} },`).join('\n')}\n${indent}${indent}],\n`;
+  out += `${indent}${indent}springPads: [\n${map.entitySpawners.springPads.map(s => `${indent}${indent}${indent}{ x: ${fmt(s.x)}, y: ${fmt(s.y)}, w: ${fmt(s.w)}, h: ${fmt(s.h)}, force: { x: ${fmt(s.force.x)}, y: ${fmt(s.force.y)} }, duration: ${fmt(s.duration)} },`).join('\n')}\n${indent}${indent}],\n`;
   out += `${indent}${indent}lasers: [\n${map.entitySpawners.lasers.map(l => `${indent}${indent}${indent}{ x: ${fmt(l.x)}, y0: ${fmt(l.y0)}, len: ${fmt(l.len)}, ph: ${fmt(l.ph)} },`).join('\n')}\n${indent}${indent}],\n`;
   out += `${indent}${indent}orbs: [\n${map.entitySpawners.orbs.map(o => `${indent}${indent}${indent}[${fmt(o[0])}, ${fmt(o[1])}],`).join('\n')}\n${indent}${indent}],\n`;
   out += `${indent}${indent}jumpBoosts: [\n${map.entitySpawners.jumpBoosts.map(j => `${indent}${indent}${indent}[${fmt(j[0])}, ${fmt(j[1])}],`).join('\n')}\n${indent}${indent}],\n`;
@@ -134,14 +140,44 @@ export function buildImportDialog(store: EditorStore): void {
   gameMaps.forEach((m, i) => {
     const btn = document.createElement('button');
     btn.className = 'import-item';
-    btn.innerHTML = `<span class="import-icon">🗺️</span><span>${m.name}</span><code>${m.id}</code>`;
+    btn.innerHTML = `<span class="import-icon">${renderIcon('Map', 16)}</span><span>${m.name}</span><code>${m.id}</code>`;
     btn.addEventListener('click', () => {
       importGameMap(store, i);
       overlay.classList.add('hidden');
       store.onChange?.();
+      showToast(`已导入「${m.name}」`, 'success');
     });
     list.appendChild(btn);
   });
+  overlay.classList.remove('hidden');
+}
+
+/* ==================== 模板新建弹窗 ==================== */
+
+/** 构建模板选择列表并打开弹窗 */
+export function buildTemplateDialog(store: EditorStore): void {
+  const overlay = document.getElementById('templateOverlay')!;
+  const list = document.getElementById('templateList')!;
+  list.innerHTML = '';
+  for (const tpl of MAP_TEMPLATES) {
+    const btn = document.createElement('button');
+    btn.className = 'template-item';
+    btn.innerHTML = `
+      <span class="template-icon">${renderIcon(tpl.icon, 18)}</span>
+      <span class="template-main">
+        <span class="template-name">${tpl.name}</span>
+        <span class="template-desc">${tpl.desc}</span>
+      </span>
+      <code>${tpl.id}</code>`;
+    btn.addEventListener('click', () => {
+      store.loadMap(tpl.create());
+      centerOn(store.map.playerSpawn.x, store.map.playerSpawn.y, 0.8);
+      overlay.classList.add('hidden');
+      store.onChange?.();
+      showToast(`已新建「${tpl.name}」`, 'success');
+    });
+    list.appendChild(btn);
+  }
   overlay.classList.remove('hidden');
 }
 
@@ -196,13 +232,14 @@ export function clearAutoSave(): void {
 const win = window as any;
 win.hideExport = () => document.getElementById('exportOverlay')!.classList.add('hidden');
 win.hideImport = () => document.getElementById('importOverlay')!.classList.add('hidden');
+win.hideTemplate = () => document.getElementById('templateOverlay')!.classList.add('hidden');
 win.copyExport = () => {
   const ta = document.getElementById('exportCode') as HTMLTextAreaElement;
   ta.select(); ta.setSelectionRange(0, 999999);
   navigator.clipboard.writeText(ta.value).then(() => {
     const btn = document.querySelector('.copyBtn')!;
     const orig = btn.textContent;
-    btn.textContent = '✅ 已复制！';
+    btn.textContent = '已复制！';
     setTimeout(() => btn.textContent = orig, 1500);
   }).catch(() => {});
 };

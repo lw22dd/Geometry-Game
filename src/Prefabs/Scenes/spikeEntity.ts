@@ -5,9 +5,9 @@
  */
 import { world } from '../../core/ecs';
 import type { EntityId } from '../../core/ecs/Entity';
-import { Position } from '../../components/Position';
-import { Collider } from '../../components/Collider';
-import { Hazard } from '../../components/Hazard';
+import { Position } from '../../components/physics/Position';
+import { Collider } from '../../components/physics/Collider';
+import { Hazard } from '../../components/gameplay/Hazard';
 
 export function createSpike(x: number, y: number): EntityId {
   const e = world.createEntity();

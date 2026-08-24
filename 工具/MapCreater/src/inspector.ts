@@ -2,8 +2,9 @@
  * 属性面板 DOM —— 按选中内容渲染（出生点 / 几何矩形 / 对象实例）。
  */
 import type { EditorStore } from './store';
-import { getEntryByType } from './registry';
+import { getEntryByType, getField } from './registry';
 import { instanceLabel } from './mapTypes';
+import { renderIcon } from './td-icons';
 
 export function buildInspector(store: EditorStore): void {
   const container = document.getElementById('inspectorInner')!;
@@ -34,7 +35,7 @@ export function buildInspector(store: EditorStore): void {
 /* ==================== 出生点 ==================== */
 
 function buildSpawnInspector(store: EditorStore, container: HTMLElement): void {
-  container.innerHTML = '<div class="inspector-header">✦ 出生点</div>'
+  container.innerHTML = `<div class="inspector-header">${renderIcon('Pin', 14)} 出生点</div>`
     + '<div class="inspector-field"><label>X</label><input type="number" step="0.5" id="spawnX" /></div>'
     + '<div class="inspector-field"><label>Y</label><input type="number" step="0.5" id="spawnY" /></div>'
     + '<p style="color:rgba(170,200,255,.45);font-size:12px">拖动地图上的 ✦ 可移动出生点</p>';
@@ -56,7 +57,7 @@ function buildGeometryInspector(store: EditorStore, container: HTMLElement, idx:
   const item = store.map.layers.geometry[idx];
   if (!item || item.type !== 'rect') { container.innerHTML = ''; return; }
 
-  container.innerHTML = '<div class="inspector-header">▭ 矩形（基础几何）</div>'
+  container.innerHTML = `<div class="inspector-header">${renderIcon('Rectangle', 14)} 矩形（基础几何）</div>`
     + field('X', 'gx', item.x)
     + field('Y', 'gy', item.y)
     + field('宽', 'gw', item.w)
@@ -83,9 +84,9 @@ function buildObjectInspector(store: EditorStore, container: HTMLElement, idx: n
   const entry = getEntryByType(inst.type);
   if (!entry) { container.innerHTML = ''; return; }
 
-  container.innerHTML = `<div class="inspector-header">${entry.icon} ${entry.name}</div>`
+  container.innerHTML = `<div class="inspector-header">${renderIcon(entry.icon, 14)} ${entry.name}</div>`
     + `<div style="font-size:11px;color:rgba(170,200,255,.4);margin-bottom:8px">${instanceLabel(inst)}</div>`
-    + entry.fields.map(f => field(f.label, `of_${f.key}`, (inst as any)[f.key])).join('')
+    + entry.fields.map(f => field(f.label, `of_${f.key}`, getField(inst as any, f.key))).join('')
     + actionsHtml();
 
   for (const f of entry.fields) {
@@ -108,8 +109,8 @@ function field(label: string, id: string, value: number | string | undefined): s
 
 function actionsHtml(): string {
   return `<div class="inspector-actions">
-    <button class="del-btn" data-action="delete">🗑 删除</button>
-    <button data-action="duplicate">📋 复制</button>
+    <button class="del-btn" data-action="delete">${renderIcon('Delete', 12)} 删除</button>
+    <button data-action="duplicate">${renderIcon('Copy', 12)} 复制</button>
   </div>`;
 }
 

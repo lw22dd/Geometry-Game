@@ -13,14 +13,14 @@
  */
 import { world } from '../../core/ecs';
 import type { EntityId } from '../../core/ecs/Entity';
-import { Position } from '../../components/Position';
-import { Collider } from '../../components/Collider';
-import { Hazard } from '../../components/Hazard';
-import { Collectible } from '../../components/Collectible';
-import { JumpBoost } from '../../components/JumpBoost';
-import { RespawnPoint } from '../../components/RespawnPoint';
-import { Goal } from '../../components/Goal';
-import { PlayerTag } from '../../components/PlayerTag';
+import { Position } from '../../components/physics/Position';
+import { Collider } from '../../components/physics/Collider';
+import { Hazard } from '../../components/gameplay/Hazard';
+import { Collectible } from '../../components/gameplay/Collectible';
+import { JumpBoost } from '../../components/gameplay/JumpBoost';
+import { RespawnPoint } from '../../components/gameplay/RespawnPoint';
+import { Goal } from '../../components/gameplay/Goal';
+import { PlayerTag } from '../../components/gameplay/PlayerTag';
 import { colliderWorldRect, aabbOverlap } from './OverlapUtils';
 import { collisionBus } from '../../core/collisionBus';
 
@@ -95,5 +95,6 @@ function getEnterEventType(e: EntityId): string | null {
 /** 根据实体组件决定 exit 事件类型 */
 function getExitEventType(e: EntityId): string | null {
   if (world.has(e, Hazard)) return 'exit:player:hazard';
+  if (world.has(e, RespawnPoint)) return 'exit:player:respawn';
   return null;
 }
