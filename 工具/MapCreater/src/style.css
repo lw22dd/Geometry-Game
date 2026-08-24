@@ -1,0 +1,320 @@
+/* ==================== 全局重置 ==================== */
+html, body {
+  margin: 0; padding: 0;
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #0a0820;
+  color: #c0d8ff;
+  font: 14px 'Segoe UI', 'Microsoft YaHei', Arial, sans-serif;
+  user-select: none;
+}
+
+/* ==================== 布局 ==================== */
+#app {
+  display: flex;
+  flex-direction: column;
+  width: 100%; height: 100%;
+}
+
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 44px;
+  padding: 0 12px;
+  background: #0b0822;
+  border-bottom: 1px solid rgba(100, 80, 200, .25);
+  flex-shrink: 0;
+}
+#toolbar .logo { font-weight: 700; font-size: 15px; color: #8ff6ff; margin-right: 6px; }
+#toolbar .sep { width: 1px; height: 24px; background: rgba(100, 80, 200, .25); margin: 0 6px; }
+#toolbar button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #c0d8ff;
+  font-size: 18px;
+  width: 34px; height: 34px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: .15s;
+  display: flex; align-items: center; justify-content: center;
+}
+#toolbar button:hover { background: rgba(100, 70, 255, .25); border-color: rgba(140, 170, 255, .3); }
+#toolbar .spacer { flex: 1; }
+.snap-label { font-size: 12px; color: rgba(170, 200, 255, .6); }
+#snapSelect {
+  background: #0c0930;
+  color: #c0d8ff;
+  border: 1px solid rgba(100, 80, 200, .3);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+#statusBar { font-size: 12px; color: rgba(170, 200, 255, .5); }
+
+/* ==================== 主体：侧边栏 + 画布 + 属性面板 ==================== */
+#body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+#sidebar {
+  width: 240px;
+  background: #0b0822;
+  border-right: 1px solid rgba(100, 80, 200, .2);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+#viewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #06041a;
+}
+#viewport canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#inspector {
+  width: 220px;
+  background: #0b0822;
+  border-left: 1px solid rgba(100, 80, 200, .2);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+/* ==================== 调色板 ==================== */
+#palette {
+  padding: 8px;
+}
+.palette-category {
+  margin-bottom: 10px;
+}
+.palette-category h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: rgba(170, 200, 255, .4);
+  margin: 0 0 4px 6px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+.palette-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin: 1px 0;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: .1s;
+  border: 1px solid transparent;
+}
+.palette-entry:hover { background: rgba(80, 60, 200, .2); }
+.palette-entry.active {
+  background: rgba(80, 60, 200, .35);
+  border-color: rgba(140, 170, 255, .4);
+}
+.palette-swatch {
+  width: 18px; height: 18px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+.palette-entry span { font-size: 13px; }
+
+/* ==================== 属性面板 ==================== */
+#inspectorInner {
+  padding: 10px;
+  font-size: 13px;
+}
+.inspector-empty {
+  color: rgba(170, 200, 255, .35);
+  text-align: center;
+  padding: 30px 0;
+  font-size: 12px;
+}
+.inspector-header {
+  font-weight: 600;
+  font-size: 14px;
+  color: #8ff6ff;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(100, 80, 200, .2);
+}
+.inspector-field {
+  margin-bottom: 8px;
+}
+.inspector-field label {
+  display: block;
+  font-size: 11px;
+  color: rgba(170, 200, 255, .5);
+  margin-bottom: 2px;
+}
+.inspector-field input, .inspector-field select {
+  width: 100%;
+  box-sizing: border-box;
+  background: #0c0930;
+  color: #c0d8ff;
+  border: 1px solid rgba(100, 80, 200, .3);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.inspector-field input:focus { outline: none; border-color: rgba(100, 70, 255, .6); }
+.inspector-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+.inspector-actions button {
+  flex: 1;
+  background: rgba(80, 60, 200, .2);
+  border: 1px solid rgba(100, 80, 200, .3);
+  color: #c0d8ff;
+  padding: 5px 0;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: .15s;
+}
+.inspector-actions button:hover { background: rgba(80, 60, 200, .4); }
+.inspector-actions .del-btn { color: #ff6a8a; }
+.inspector-actions .del-btn:hover { background: rgba(255, 80, 120, .2); border-color: rgba(255, 80, 120, .4); }
+
+/* ==================== 导出弹窗 ==================== */
+#exportOverlay {
+  position: fixed; top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 20;
+  background: rgba(5, 3, 16, .85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#exportOverlay.hidden { display: none; }
+#exportPanel {
+  background: #0b0820;
+  border: 1px solid rgba(140, 170, 255, .35);
+  border-radius: 10px;
+  padding: 20px;
+  width: 800px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow: auto;
+  box-shadow: 0 0 60px rgba(60, 40, 150, .4);
+}
+#exportPanel h2 { color: #c0d8ff; font-size: 15px; margin: 0 0 4px 0; }
+#exportPanel p { color: rgba(170, 200, 255, .5); font-size: 12px; margin: 0 0 10px 0; }
+#exportPanel textarea {
+  width: 100%; height: 420px;
+  background: #06041a;
+  color: #e0ecff;
+  font: 500 12px 'Consolas', 'Courier New', monospace;
+  border: 1px solid rgba(140, 170, 255, .2);
+  border-radius: 6px;
+  padding: 12px;
+  box-sizing: border-box;
+  resize: vertical;
+  white-space: pre;
+  tab-size: 2;
+}
+#exportPanel .actions { display: flex; gap: 10px; margin-top: 10px; justify-content: space-between; }
+#exportPanel .actions .action-row { display: flex; gap: 10px; }
+#exportPanel .actions button {
+  padding: 6px 18px;
+  font-size: 13px;
+  border-radius: 5px;
+  cursor: pointer;
+  border: 1px solid rgba(140, 170, 255, .4);
+  transition: .2s;
+  background: rgba(100, 70, 255, .35);
+  color: #c0d8ff;
+}
+#exportPanel .actions button:hover { background: rgba(100, 70, 255, .6); color: #fff; }
+#exportPanel .closeBtn { background: transparent; color: rgba(170, 200, 255, .5); border-color: rgba(140, 170, 255, .15); }
+#exportPanel .closeBtn:hover { color: #c0d8ff; border-color: rgba(140, 170, 255, .35); }
+
+/* tab 切换 */
+.tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.tabs .tab {
+  background: rgba(80, 60, 200, .15);
+  border: 1px solid rgba(100, 80, 200, .25);
+  color: rgba(170, 200, 255, .6);
+  padding: 5px 14px;
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: .15s;
+}
+.tabs .tab:hover { color: #c0d8ff; }
+.tabs .tab.active {
+  background: rgba(100, 70, 255, .3);
+  border-color: rgba(140, 170, 255, .5);
+  color: #fff;
+}
+
+/* ==================== 导入弹窗 ==================== */
+#importOverlay {
+  position: fixed; top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 20;
+  background: rgba(5, 3, 16, .85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#importOverlay.hidden { display: none; }
+#importPanel {
+  background: #0b0820;
+  border: 1px solid rgba(140, 170, 255, .35);
+  border-radius: 10px;
+  padding: 20px;
+  width: 480px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow: auto;
+  box-shadow: 0 0 60px rgba(60, 40, 150, .4);
+}
+#importPanel h2 { color: #c0d8ff; font-size: 15px; margin: 0 0 4px 0; }
+#importPanel p { color: rgba(170, 200, 255, .5); font-size: 12px; margin: 0 0 12px 0; }
+#importList { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.import-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(80, 60, 200, .15);
+  border: 1px solid rgba(100, 80, 200, .25);
+  color: #c0d8ff;
+  padding: 9px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+  transition: .15s;
+}
+.import-item:hover { background: rgba(100, 70, 255, .3); border-color: rgba(140, 170, 255, .5); }
+.import-item .import-icon { font-size: 16px; }
+.import-item code { margin-left: auto; color: rgba(170, 200, 255, .45); font-size: 11px; }
+#importPanel .actions { display: flex; justify-content: flex-end; }
+#importPanel .actions button {
+  padding: 6px 18px;
+  font-size: 13px;
+  border-radius: 5px;
+  cursor: pointer;
+  border: 1px solid rgba(140, 170, 255, .15);
+  transition: .2s;
+  background: transparent;
+  color: rgba(170, 200, 255, .5);
+}
+#importPanel .actions button:hover { color: #c0d8ff; border-color: rgba(140, 170, 255, .35); }
+
+/* 滚动条 */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(100, 80, 200, .25); border-radius: 3px; }

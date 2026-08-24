@@ -14,12 +14,14 @@ import { Collider } from '../../components/Collider';
 import { Timer } from '../../components/Timer';
 import { Hazard } from '../../components/Hazard';
 import { Collectible } from '../../components/Collectible';
+import { JumpBoost } from '../../components/JumpBoost';
 import { RespawnPoint } from '../../components/RespawnPoint';
 import { Goal } from '../../components/Goal';
 import { collisionBus } from '../../core/collisionBus';
 import { gs } from '../game/gameState';
 import { playerController } from '../player';
-import { spawnFx, FX } from '../../Prefabs/Fx';
+import { FX } from '../../Prefabs/Fx';
+import { spawnParticles } from '../particles';
 import { sfx } from '../../core/audio';
 import { cpPoint } from '../../config';
 import { netBus } from '../../core/netBus';
@@ -57,7 +59,7 @@ export function initCollisionHooks(): void {
     col.collected = true;
     gs.gotN++;
     const pos = world.get<Position>(b, Position);
-    spawnFx(FX.sparkle, pos.x, pos.y);
+    spawnParticles(FX.sparkle, pos.x, pos.y);
     sfx.orb();
     netBus.emit({ type: 'game:orb', count: gs.gotN, total: world.query(Collectible).length });
     if (signals) signals.collected = true;
@@ -65,9 +67,30 @@ export function initCollisionHooks(): void {
     if (gs.gotN === world.query(Collectible).length) {
       gs.toast = '✦ 全部光球收集完成！';
       gs.toastT = 3;
-      spawnFx(FX.confetti, pos.x, pos.y);
+      spawnParticles(FX.confetti, pos.x, pos.y);
       sfx.cp();
     }
+  });
+
+  // ── 双跳光球 ──
+  collisionBus.on('enter:player:jumpboost', ({ b, signals }) => {
+    const jb = world.get<JumpBoost>(b, JumpBoost);
+    if (jb.collected) return;
+    jb.collected = true;
+
+    const s = playerController.getState();
+    s.extraJumpsMax = 1; // 获得一次二段跳能力
+    s.extraJumps = s.extraJumpsMax;
+
+    const pos = world.get<Position>(b, Position);
+    spawnParticles(FX.sparkle, pos.x, pos.y);
+    spawnParticles(FX.arrowBoost, pos.x, pos.y, 8);
+    sfx.orb();
+    netBus.emit({ type: 'game:jumpboost' });
+    if (signals) signals.jumpBoostPicked = true;
+
+    gs.toast = '⚡ 二段跳激活！';
+    gs.toastT = 2;
   });
 
   // ── 检查点 ──
@@ -79,7 +102,7 @@ export function initCollisionHooks(): void {
     const pos = world.get<Position>(b, Position);
     cpPoint.x = pos.x;
     cpPoint.y = pos.y;
-    spawnFx(FX.cp, pos.x, pos.y);
+    spawnParticles(FX.cp, pos.x, pos.y);
     sfx.cp();
     netBus.emit({ type: 'game:checkpoint', x: pos.x, y: pos.y });
     if (signals) signals.checkpointHit = true;
@@ -94,7 +117,7 @@ export function initCollisionHooks(): void {
     gs.win = true;
     gs.winTime = gs.gt;
     sfx.win();
-    spawnFx(FX.confetti, playerController.getState().x, playerController.getState().y);
+    spawnParticles(FX.confetti, playerController.getState().x, playerController.getState().y);
     gs.shake = 0.5;
     netBus.emit({ type: 'game:win', time: gs.winTime, orbs: gs.gotN, total: world.query(Collectible).length });
     if (signals) signals.goalReached = true;

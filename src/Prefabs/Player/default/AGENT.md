@@ -8,10 +8,10 @@
 
 ```
 Prefabs/Player/default/
-├── states.ts          # AnimState 枚举 + ANIM_TRANSITIONS 转换表（纯数据）
 ├── animation.ts       # DefaultAnimState + stepDefaultAnimation（边沿检测/状态转换/形变）/ getDefaultOutput
+├── defaultPrefab.ts   # 组合：实现 PlayerPrefab 接口的 defaultPrefab 对象
 ├── render.ts          # renderDefaultPlayer：纯绘制（发光圆球 + 双眼 + 眨眼 + 受伤闪烁）
-└── defaultPrefab.ts   # 组合：实现 PlayerPrefab 接口的 defaultPrefab 对象
+└── states.ts          # AnimState 枚举 + ANIM_TRANSITIONS 转换表（纯数据）
 ```
 
 # 数据流

@@ -17,6 +17,7 @@ import { Position } from '../../components/Position';
 import { Collider } from '../../components/Collider';
 import { Hazard } from '../../components/Hazard';
 import { Collectible } from '../../components/Collectible';
+import { JumpBoost } from '../../components/JumpBoost';
 import { RespawnPoint } from '../../components/RespawnPoint';
 import { Goal } from '../../components/Goal';
 import { PlayerTag } from '../../components/PlayerTag';
@@ -85,6 +86,7 @@ function emitTransitions(
 function getEnterEventType(e: EntityId): string | null {
   if (world.has(e, Hazard)) return 'enter:player:hazard';
   if (world.has(e, Collectible)) return 'enter:player:collectible';
+  if (world.has(e, JumpBoost)) return 'enter:player:jumpboost';
   if (world.has(e, RespawnPoint)) return 'enter:player:respawn';
   if (world.has(e, Goal)) return 'enter:player:goal';
   return null;

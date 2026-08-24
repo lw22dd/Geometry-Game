@@ -5,17 +5,21 @@ check_agent_files.py — 检查 src/ 下所有目录是否都包含 AGENT.md 文
 
 遍历 src/ 目录（默认：本脚本所在目录的 ../src），逐个检查所有子目录
 是否都存在 AGENT.md；若存在缺失，输出缺失目录列表并以非零码退出。
-支持 --create 自动创建缺失文件。
+支持 --create 自动创建缺失文件，--clean 清理空文件夹中的 AGENT.md。
+
+空文件夹规则：空文件夹（仅含 AGENT.md 或完全空）不需要 AGENT.md，
+检查时会自动跳过，不会报缺失。
 
 用法：
     python script/check_agent_files.py                       # 默认检查 AGENT.md
     python script/check_agent_files.py --create             # 自动创建缺失的 AGENT.md
+    python script/check_agent_files.py --clean              # 删除空文件夹中的 AGENT.md
     python script/check_agent_files.py --name AGENTS.md     # 检查其他文件名
     python script/check_agent_files.py --top-level          # 仅检查第一层子目录
     python script/check_agent_files.py --root <dir>         # 指定根目录
 
 退出码：
-    0  所有目录都包含目标文件（或 --create 创建成功）
+    0  所有非空目录都包含目标文件（或 --create/--clean 成功）
     1  存在缺失（且未使用 --create）
     2  根目录不存在
 """
@@ -55,6 +59,15 @@ def is_own_dir(name: str) -> bool:
     return not name.startswith(".") and name not in SKIP_DIRS
 
 
+def is_empty_dir(dirpath: str, filename: str) -> bool:
+    """检查目录是否为空（仅含 filename 或无任何内容）。"""
+    try:
+        entries = [e for e in os.listdir(dirpath) if e != filename]
+        return len(entries) == 0
+    except PermissionError:
+        return False
+
+
 def create_agent_file(dirpath: str, rel: str, filename: str) -> str:
     """在 dirpath 下创建 AGENT.md 文件，返回文件路径。"""
     dirname = os.path.basename(dirpath) or "src"
@@ -73,6 +86,7 @@ def main() -> int:
     parser.add_argument("--name", default=DEFAULT_NAME, help="要检查的文件名（默认 AGENT.md）")
     parser.add_argument("--top-level", action="store_true", help="仅检查第一层子目录")
     parser.add_argument("--create", action="store_true", help="自动创建缺失的 AGENT.md 文件")
+    parser.add_argument("--clean", action="store_true", help="删除空文件夹中的 AGENT.md 文件")
     args = parser.parse_args()
 
     root = os.path.abspath(args.root)
@@ -101,22 +115,61 @@ def main() -> int:
         return 2
 
     missing = []
+    empty_with_agent = []
     present = 0
     for dirpath, rel in dirs_to_check:
-        if os.path.isfile(os.path.join(dirpath, args.name)):
-            present += 1
+        agent_path = os.path.join(dirpath, args.name)
+        if os.path.isfile(agent_path):
+            # 有 AGENT.md → 检查是否空文件夹
+            if is_empty_dir(dirpath, args.name):
+                empty_with_agent.append((dirpath, rel or "."))
+            else:
+                present += 1
         else:
-            missing.append((dirpath, rel or "."))
+            # 无 AGENT.md → 检查是否空文件夹（空则不报缺失）
+            if is_empty_dir(dirpath, args.name):
+                pass  # 空文件夹，跳过
+            else:
+                missing.append((dirpath, rel or "."))
 
     mode = "仅第一层子目录" if args.top_level else "递归（含根目录及全部子目录）"
     print(f"[扫描] {root}")
     print(f"[文件] {args.name}")
     print(f"[模式] {mode}")
-    print(f"[目录] {len(dirs_to_check)} 个，其中 {present} 个包含 {args.name}")
+    print(f"[目录] {len(dirs_to_check)} 个，其中 {present} 个包含 {args.name}，"
+          f"{len(empty_with_agent)} 个空文件夹含 {args.name}，"
+          f"{len(missing)} 个非空目录缺少 {args.name}")
     print("-" * 60)
 
-    if not missing:
+    # --clean 模式：删除空文件夹中的 AGENT.md
+    if args.clean:
+        if not empty_with_agent:
+            print(f"[OK] 没有需要清理的空文件夹 AGENT.md。")
+            return 0
+        cleaned = 0
+        for dirpath, rel in empty_with_agent:
+            agent_path = os.path.join(dirpath, args.name)
+            os.remove(agent_path)
+            cleaned += 1
+            print(f"  [清理] {rel}/  → 已删除 {args.name}（空文件夹）")
+        print("-" * 60)
+        print(f"[结果] 已清理 {cleaned} 个空文件夹中的 {args.name}。")
+        return 0
+
+    if not missing and not empty_with_agent:
         print(f"[OK] 所有目录均包含 {args.name}。")
+        return 0
+
+    # 报告空文件夹中的 AGENT.md（非 --clean 模式仅提示）
+    if empty_with_agent:
+        print(f"[提示] 以下 {len(empty_with_agent)} 个空文件夹包含 {args.name}（空文件夹不需要）：")
+        for _, rel in empty_with_agent:
+            clean = rel.replace("\\", "/").rstrip("/")
+            print(f"  - {clean}/")
+        print(f"      使用 --clean 删除它们。")
+        print("-" * 60)
+
+    if not missing:
         return 0
 
     if args.create:

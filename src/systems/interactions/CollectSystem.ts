@@ -8,7 +8,8 @@ import { Collider } from '../../components/Collider';
 import { Collectible } from '../../components/Collectible';
 import { PlayerTag } from '../../components/PlayerTag';
 import { gs } from '../game/gameState';
-import { spawnFx, FX } from '../../Prefabs/Fx';
+import { FX } from '../../Prefabs/Fx';
+import { spawnParticles } from '../particles';
 import { sfx } from '../../core/audio';
 import { netBus } from '../../core/netBus';
 import { pointInCollider } from '../level';
@@ -42,13 +43,13 @@ export function updateCollectSystem(tx?: number, ty?: number): boolean {
     gs.gotN++;
     collected = true;
     const pos = world.get<Position>(e, Position);
-    spawnFx(FX.sparkle, pos.x, pos.y);
+    spawnParticles(FX.sparkle, pos.x, pos.y);
     sfx.orb();
     netBus.emit({ type: 'game:orb', count: gs.gotN, total: totalOrbs });
     if (gs.gotN === totalOrbs) {
       gs.toast = '✦ 全部 42 枚光球收集完成！';
       gs.toastT = 3;
-      spawnFx(FX.confetti, px, py);
+      spawnParticles(FX.confetti, px, py);
       sfx.cp();
     }
   }

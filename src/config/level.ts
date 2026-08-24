@@ -4,13 +4,16 @@
  * 只依赖 types（及 physics 的 MAP 常量）。
  */
 import type { Rect, Spike, MapDefinition } from '../types';
-import { createOrb } from '../Prefabs/Entities/orb';
-import { createCheckpoint } from '../Prefabs/Entities/checkpoint';
-import { createNova } from '../Prefabs/Entities/nova';
-import { createMovingPlatform } from '../Prefabs/Entities/movingPlatform';
-import { createLaser } from '../Prefabs/Entities/laser';
-import { createSpike } from '../Prefabs/Entities/spike';
-import { initPlayerEntity } from '../Prefabs/Entities/playerEntity';
+import { createOrb } from '../Prefabs/Scenes/orbEntity';
+import { createJumpBoost } from '../Prefabs/Scenes/jumpBoostEntity';
+import { createCheckpoint } from '../Prefabs/Scenes/checkpointEntity';
+import { createNova } from '../Prefabs/Scenes/novaEntity';
+import { createMovingPlatform } from '../Prefabs/Scenes/movingPlatformEntity';
+import { createSpringPad } from '../Prefabs/Scenes/springPadEntity';
+import { createLaser } from '../Prefabs/Scenes/laserEntity';
+import { createSpike } from '../Prefabs/Scenes/spikeEntity';
+import { initPlayerEntity } from '../Prefabs/Player/playerEntity';
+import { createLoopTrack } from '../Prefabs/Scenes/loopTrackEntity';
 
 const R = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h, top: y + h });
 
@@ -31,10 +34,12 @@ export const maps: MapDefinition[] = [
       // 二 · 阶梯塔
       R(64, 0, 24, 4),
       R(68, 4, 3.5, 2), R(73, 4, 3.5, 4), R(78, 4, 3.5, 6.5), R(83, 4, 4, 8), R(87, 11.2, 5, 0.8),
-      // 三 · 尖刺谷高空走廊
-      R(92, 0, 34, 4),
+      // 三 · 冲刺走廊（原尖刺谷 → 半环轨道）
+      R(92, 0, 38, 4),
       R(93, 11.6, 3.5, 0.8), R(99, 11.2, 3, 0.8), R(104.5, 11.6, 3, 0.8), R(109, 12, 3, 0.8),
       R(113.5, 11.4, 3.5, 0.8), R(118, 12, 6, 1),
+      // 三·b · 半环出口衔接台（捕捉 / 阶梯 / 通往高空走廊）
+      R(124, 5.0, 6, 0.8), R(121, 7.2, 6, 0.8), R(117, 9.6, 6, 0.8),
       // 四 · 攀升塔
       R(126, 14.6, 2.5, 0.7), R(131, 16.8, 2.5, 0.7), R(126, 19, 2.5, 0.7), R(131, 21.2, 2.5, 0.7),
       R(126, 23.4, 2.5, 0.7), R(131, 25.6, 2.5, 0.7), R(126, 27.8, 2.5, 0.7), R(131, 29.4, 12, 1),
@@ -48,7 +53,7 @@ export const maps: MapDefinition[] = [
 
     spikes: [
       { x: 24, y: 4 }, { x: 25, y: 4 }, { x: 26, y: 4 },
-      ...(() => { const a: Spike[] = []; for (let x = 94; x <= 124; x++) a.push({ x, y: 4 }); return a; })(),
+      // 原 x=94~124 地刺已删除（90~130 区域改为冲刺半环轨道）
     ],
 
     decos: [
@@ -61,6 +66,7 @@ export const maps: MapDefinition[] = [
       [8, 6.4, '→ 出发'],
       [56, 8.8, '深渊 · 浮岛'],
       [96, 16.5, '尖刺谷 · 高空走廊'],
+      [125, 10.5, '⚡ SHIFT 冲刺进环'],
       [129, 17.5, '攀 升 塔'],
       [147, 33.4, '节奏平台'],
       [188, 38.6, '激光栅栏 · 计时通过'],
@@ -74,6 +80,24 @@ export const maps: MapDefinition[] = [
       movers: [
         { x0: 145, y: 29.6, w: 3, h: 0.8, range: 4, spd: 0.8, ph: 0 },
         { x0: 157, y: 29.2, w: 3, h: 0.8, range: 4, spd: 0.8, ph: Math.PI },
+        // 电梯平台（八·终章前后，垂直升降）
+        { x0: 200, y: 27, w: 3, h: 0.8, range: 0, spd: 0.7, ph: 0, axis: 'y', yRange: 5 },
+        { x0: 222, y: 26.5, w: 3, h: 0.8, range: 0, spd: 0.9, ph: 1.2, axis: 'y', yRange: 6 },
+      ],
+      // 弹簧平台（弹射台）
+      springPads: [
+        // 阶梯塔入口前：垂直弹跳过深谷
+        { x: 61.5, y: 4, w: 2.5, h: 0.8, forceX: 0, forceY: 28, duration: 0.3 },
+        // 尖刺谷地面：垂直弹射进入高空走廊
+        { x: 100, y: 4, w: 2.5, h: 0.8, forceX: 0, forceY: 28, duration: 0.3 },
+        // 攀升塔中段：帮助向上攀爬
+        { x: 133.5, y: 24, w: 2.2, h: 0.7, forceX: 0, forceY: 110, duration: 0.3 },
+        // 终章登顶台：NOVA 前最后弹射
+        { x: 233, y: 44.2, w: 2.2, h: 0.8, forceX: 0, forceY: 105, duration: 0.3 },
+        // 阶梯塔墙壁弹簧：从第二阶梯右壁弹向第三阶梯（横向放置）
+        { x: 47, y: 6, w: 2, h: 2.5, forceX: 20, forceY: 28, duration: 0.3 },
+        // 攀升塔墙壁弹簧：左右平台之间横向弹射跨越
+        { x: 129.5, y: 15, w: 0.5, h: 2, forceX: 20, forceY: 18, duration: 0.3 },
       ],
       // 激光栅栏（六章节）
       lasers: [
@@ -92,6 +116,12 @@ export const maps: MapDefinition[] = [
         [181, 33], [184.5, 31.4], [191.5, 31.4], [198.5, 31.4],
         [211, 33.4], [215.5, 31.6], [225.5, 33], [235.5, 34.6], [229.5, 36.8], [237.7, 40.6],
         [231.5, 43.4], [238.5, 41], [235, 45.6],
+      ],
+      // 双跳光球（拾取后永久二段跳）
+      jumpBoosts: [
+        [10, 7.6],
+        [96, 16.8],
+        [215, 35.6],
       ],
       // 检查点坐标（复活点激活位置）
       checkpoints: [
@@ -127,9 +157,13 @@ export function initECSFromLevel(): void {
   initPlayerEntity();
   const s = currentMap.entitySpawners;
   for (const m of s.movers) createMovingPlatform(m);
+  for (const sp of s.springPads) createSpringPad(sp);
   for (const l of s.lasers) createLaser(l);
   for (let i = 0; i < s.orbs.length; i++) {
     createOrb(s.orbs[i][0], s.orbs[i][1], i * 1.7);
+  }
+  for (const [x, y] of s.jumpBoosts) {
+    createJumpBoost(x, y, 0);
   }
   for (const [x, y] of s.checkpoints) {
     createCheckpoint(x, y);
@@ -139,4 +173,12 @@ export function initECSFromLevel(): void {
   for (const sp of currentMap.spikes) {
     createSpike(sp.x, sp.y);
   }
+  // 冲刺半环轨道（三章：走廊 → 半环翻越 → 衔接台）
+  // 圆弧段：圆心 (130, 5.42) 半径 1.0，底部 (-π/2) → 顶部 (+π/2)，逆时针
+  createLoopTrack(
+    [{ type: 'arc', cx: 130, cy: 5.42, radius: 1.0, startAngle: -Math.PI / 2, endAngle: Math.PI / 2, dir: 1 }],
+    0,
+    Math.PI * 1.0,
+    7,
+  );
 }

@@ -86,6 +86,26 @@ export function drawParticles(): void {
       ctx.fillRect(-s / 2, -s / 2, s, s);
       ctx.restore();
       ctx.globalAlpha = 1;
+    } else if (q.type === 'arrow') {
+      // 小绿色箭头（向上）
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(q.rot);
+      ctx.globalAlpha = a * 0.85;
+      ctx.fillStyle = q.col;
+      const s = q.size * view.SZ;
+      ctx.beginPath();
+      ctx.moveTo(0, -s);
+      ctx.lineTo(s * 0.5, 0);
+      ctx.lineTo(s * 0.2, 0);
+      ctx.lineTo(s * 0.2, s);
+      ctx.lineTo(-s * 0.2, s);
+      ctx.lineTo(-s * 0.2, 0);
+      ctx.lineTo(-s * 0.5, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      ctx.globalAlpha = 1;
     } else {
       ctx.globalAlpha = a * 0.9;
       ctx.fillStyle = q.col;

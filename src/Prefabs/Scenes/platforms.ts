@@ -1,6 +1,7 @@
 /**
  * 场景预制体 —— 平台（长方形）建模。
  * 静态平台 / 移动平台（ECS）/ 地图边框 / 装饰方块 / 网格线。
+ * 所有绘制归一到 theme.ts 的 neonBox 原语 + 令牌。
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
@@ -11,7 +12,12 @@ import { world } from '../../core/ecs';
 import { Position } from '../../components/Position';
 import { Collider } from '../../components/Collider';
 import { PathMotion } from '../../components/PathMotion';
+import { SpringPad } from '../../components/SpringPad';
 import { colliderWorldRect } from '../../systems/level';
+import { T, neonBox } from './theme';
+
+/** 功能色：绿 = 弹射/加速 */
+const HUE_SPRING = 145;
 
 /** 颜色渐变（随位置从青 → 紫 → 品红） */
 const hue2 = (x: number, y: number): number =>
@@ -65,23 +71,10 @@ export function drawSolids(): void {
   const vb = view.SB, vt = view.SB + VH / view.SZ;
   for (const r of currentMap.solids) {
     if (r.x + r.w < vl || r.x > vr || r.top < vb || r.y > vt) continue;
-    const x = sx(r.x), y = sy(r.top), w = r.w * view.SZ, h = r.h * view.SZ;
-    const hu = hue2(r.x + r.w / 2, r.top);
-    ctx.fillStyle = 'rgba(15,11,42,.94)';
-    ctx.fillRect(x, y, w, h);
-    if (w > 8 && h > 8) {
-      ctx.strokeStyle = 'hsla(' + hu + ',90%,65%,.12)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x + 3, y + 3, w - 6, h - 6);
-    }
-    ctx.shadowColor = 'hsla(' + hu + ',100%,60%,.85)';
-    ctx.shadowBlur = 12;
-    ctx.strokeStyle = 'hsla(' + hu + ',95%,66%,.9)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, w, h);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = 'hsla(' + hu + ',100%,78%,.95)';
-    ctx.fillRect(x, y, w, 2.2);
+    neonBox(
+      sx(r.x), sy(r.top), r.w * view.SZ, r.h * view.SZ,
+      hue2(r.x + r.w / 2, r.top),
+    );
   }
 }
 
@@ -92,27 +85,161 @@ export function drawMovers(): void {
     const col = world.get<Collider>(e, Collider);
     const pm = world.get<PathMotion>(e, PathMotion);
     const r = colliderWorldRect(pos, col);
+    const hu = hue2(r.x + r.w / 2, r.top); // 采样点与静态平台统一
 
-    ctx.setLineDash([3, 7]);
-    ctx.strokeStyle = 'rgba(150,170,255,.25)';
+    // 轨迹虚线：统一令牌 + 沿运动方向流动（强化可动感）
+    const vertical = pm.axis === 'y';
+    ctx.setLineDash(T.trailDash);
+    ctx.strokeStyle = T.trailColor;
     ctx.lineWidth = 1;
+    ctx.lineDashOffset = -(gs.time * T.dashFlow) * (vertical ? Math.sign(pm.dy || 1) : Math.sign(pm.dx || 1));
     ctx.beginPath();
-    ctx.moveTo(sx(pm.x0), sy(r.y + r.h / 2));
-    ctx.lineTo(sx(pm.x0 + pm.range + r.w), sy(r.y + r.h / 2));
+    if (vertical) {
+      ctx.moveTo(sx(r.x + r.w / 2), sy(pm.y0));
+      ctx.lineTo(sx(r.x + r.w / 2), sy(pm.y0 + pm.yRange));
+    } else {
+      ctx.moveTo(sx(pm.x0), sy(r.y + r.h / 2));
+      ctx.lineTo(sx(pm.x0 + pm.range + r.w), sy(r.y + r.h / 2));
+    }
     ctx.stroke();
     ctx.setLineDash([]);
+    ctx.lineDashOffset = 0;
 
-    const x = sx(r.x), y = sy(r.top), w = r.w * view.SZ, h = r.h * view.SZ;
-    const hu = hue2(r.x, r.y);
-    ctx.fillStyle = 'rgba(20,14,52,.95)';
-    ctx.fillRect(x, y, w, h);
-    ctx.shadowColor = 'hsla(' + hu + ',100%,65%,.9)';
-    ctx.shadowBlur = 14;
-    ctx.strokeStyle = 'hsla(' + hu + ',100%,70%,.95)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, w, h);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = 'hsla(' + hu + ',100%,80%,.95)';
-    ctx.fillRect(x, y, w, 2);
+    // 本体：同一套 neonBox，仅底色/光晕换可动档
+    neonBox(sx(r.x), sy(r.top), r.w * view.SZ, r.h * view.SZ, hu, {
+      glow: T.glowMovable,
+      body: T.bodyMovable,
+    });
+  }
+}
+
+/** 弹簧平台（ECS 实体：Position + Collider + SpringPad） */
+export function drawSpringPads(): void {
+  for (const e of world.query(Position, Collider, SpringPad)) {
+    const pos = world.get<Position>(e, Position);
+    const col = world.get<Collider>(e, Collider);
+    const spring = world.get<SpringPad>(e, SpringPad);
+    const r = colliderWorldRect(pos, col);
+
+    const px = sx(r.x);
+    if (px < -60 || px > VW + 60) continue;
+    const w = r.w * view.SZ;
+    const restH = r.h * view.SZ;
+    const isWall = r.w < r.h; // 细长竖放 → 墙壁弹簧（横向绘制）
+
+    // 压缩动画（通用）
+    let scale = 1;
+    if (spring.animTimer > 0) {
+      const u = Math.min(1, spring.animTimer / spring.duration);
+      scale = 0.55 + 0.45 * Math.pow(1 - u, 0.7);
+    }
+    const py = sy(r.top); // 顶/右端屏幕 y
+    const h = r.h * view.SZ;
+
+    if (isWall) {
+      // ═══════════════ 墙壁弹簧（横向线圈）═══════════════
+      const barW = Math.max(4, w * 0.35);
+      const faceX = px + w * scale - barW * 0.5; // 右端顶板（可左右移动）
+      const backX = px;                           // 左端底座（固定）
+
+      // ① 待机呼吸（在顶板位置）
+      if (!spring.firing) {
+        const breath = 0.07 + 0.05 * Math.sin(gs.time * T.breathSpeed + r.x * 0.6);
+        ctx.fillStyle = `hsla(${HUE_SPRING},100%,70%,${breath.toFixed(3)})`;
+        ctx.fillRect(faceX - 3, py - 3, barW + 6, h + 6);
+      }
+
+      // ② 底座（左端竖条）
+      ctx.fillStyle = T.bodySoft;
+      ctx.fillRect(backX, py, barW, h);
+      ctx.strokeStyle = `hsla(${HUE_SPRING},80%,60%,.6)`;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(backX, py, barW, h);
+
+      // ③ 横向线圈
+      const coilLeft = backX + barW;
+      const coilRight = faceX + barW * 0.5;
+      ctx.strokeStyle = `hsla(${HUE_SPRING},100%,62%,.85)`;
+      ctx.lineWidth = 2.2;
+      ctx.shadowColor = `hsla(${HUE_SPRING},100%,55%,.7)`;
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      for (let i = 0; i <= 10; i++) {
+        const t = i / 10;
+        const cx = coilLeft + (coilRight - coilLeft) * t;
+        const cy = py + h * (i % 2 === 0 ? 0.15 : 0.85);
+        if (i === 0) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // ④ 顶板（右端竖条，模拟 neonBox 语法）
+      ctx.fillStyle = 'rgba(14,32,24,.95)';
+      ctx.fillRect(faceX, py, barW, h);
+      ctx.shadowColor = `hsla(${HUE_SPRING},100%,60%,.85)`;
+      ctx.shadowBlur = spring.firing ? T.glowFiring : T.glowMovable;
+      ctx.strokeStyle = `hsla(${HUE_SPRING},95%,66%,.9)`;
+      ctx.lineWidth = T.strokeW;
+      ctx.strokeRect(faceX, py, barW, h);
+      ctx.shadowBlur = 0;
+      // 右侧高光（对应顶光语法）
+      ctx.fillStyle = `hsla(${HUE_SPRING},100%,78%,.95)`;
+      ctx.fillRect(faceX + barW - T.topBarH, py, T.topBarH, h);
+
+      // ⑤ 弹射脉冲
+      if (spring.firing) {
+        const pulse = 0.15 + 0.12 * Math.sin(gs.time * 24);
+        ctx.fillStyle = `hsla(${HUE_SPRING},100%,75%,${pulse.toFixed(3)})`;
+        ctx.fillRect(faceX - 4, py - 4, barW + 8, h + 8);
+      }
+    } else {
+      // ═══════════════ 普通垂直弹簧 ═══════════════
+      const topY = sy(r.y + r.h * scale);
+      const baseY = sy(r.y);
+      const barH = Math.max(4, restH * 0.15);
+
+      // ① 待机呼吸光环
+      if (!spring.firing) {
+        const breath = 0.07 + 0.05 * Math.sin(gs.time * T.breathSpeed + r.x * 0.6);
+        ctx.fillStyle = `hsla(${HUE_SPRING},100%,70%,${breath.toFixed(3)})`;
+        ctx.fillRect(px - 3, topY - 3, w + 6, barH + 6);
+      }
+
+      // ② 底座
+      ctx.fillStyle = T.bodySoft;
+      ctx.fillRect(px, baseY - barH * 0.5, w, barH);
+      ctx.strokeStyle = `hsla(${HUE_SPRING},80%,60%,.6)`;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(px, baseY - barH * 0.5, w, barH);
+
+      // ③ 纵向线圈
+      const coilTop = topY + barH * 0.5;
+      ctx.strokeStyle = `hsla(${HUE_SPRING},100%,62%,.85)`;
+      ctx.lineWidth = 2.2;
+      ctx.shadowColor = `hsla(${HUE_SPRING},100%,55%,.7)`;
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      for (let i = 0; i <= 10; i++) {
+        const t = i / 10;
+        const cy = baseY - (baseY - coilTop) * t;
+        const cx = px + w * (i % 2 === 0 ? 0.22 : 0.78);
+        if (i === 0) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // ④ 顶板：neonBox 语法
+      neonBox(px, topY, w, barH, HUE_SPRING, {
+        glow: spring.firing ? T.glowFiring : T.glowMovable,
+        body: 'rgba(14,32,24,.95)',
+      });
+
+      // ⑤ 弹射脉冲
+      if (spring.firing) {
+        const pulse = 0.15 + 0.12 * Math.sin(gs.time * 24);
+        ctx.fillStyle = `hsla(${HUE_SPRING},100%,75%,${pulse.toFixed(3)})`;
+        ctx.fillRect(px - 4, topY - 4, w + 8, barH + 8);
+      }
+    }
   }
 }

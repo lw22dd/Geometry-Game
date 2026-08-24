@@ -11,6 +11,16 @@ export const TLIFE = 0.5; // 曳光轨迹寿命（秒）
 export const MAP_W = 240; // 地图宽（格）
 export const MAP_H = 72; // 地图高（格）
 
+// ── 轨道运动参数 ──
+/** 轨道捕获半径（玩家中心距入口点的欧氏距离阈值，格） */
+export const TRACK_CAPTURE_RADIUS = 1.5;
+/** 轨道最低捕获速度（m/s，低于此值不进环） */
+export const TRACK_MIN_SPEED = 7;
+/** 轨道速度耗尽阈值（m/s，低于此值爬升反向滚回） */
+export const TRACK_STOP_SPEED = 0.3;
+/** 轨道摩擦系数（每帧速度乘子，轻微阻尼） */
+export const TRACK_FRICTION = 0.06;
+
 /** 两套物理模式：手感优化 tuned / 经典 classic */
 export const PHYS: Record<'tuned' | 'classic', PhysicsMode> = {
   tuned: {

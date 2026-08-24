@@ -7,11 +7,15 @@ import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
 import { world } from '../../core/ecs';
 import { Position } from '../../components/Position';
+import { Collider } from '../../components/Collider';
 import { Collectible } from '../../components/Collectible';
+import { JumpBoost } from '../../components/JumpBoost';
 import { RespawnPoint } from '../../components/RespawnPoint';
 import { Goal } from '../../components/Goal';
 import { Renderable } from '../../components/Renderable';
 import { gs } from '../../systems/game/gameState';
+import { colliderWorldRect } from '../../systems/level';
+import { T } from './theme';
 
 /** 光球 */
 export function drawOrbs(): void {
@@ -116,4 +120,52 @@ export function drawNOVA(p: number): void {
   ctx.fillStyle = 'rgba(240,225,255,.85)';
   ctx.fillText('NOVA ★', px, py - d - 14);
   ctx.textAlign = 'left';
+}
+
+/** 双跳增益箭（绿色箭头 + 淡绿泛光圈，拾取后获得一次二段跳） */
+export function drawJumpBoosts(): void {
+  for (const e of world.query(Position, Collider, JumpBoost, Renderable)) {
+    const pos = world.get<Position>(e, Position);
+    const col = world.get<Collider>(e, Collider);
+    const ren = world.get<Renderable>(e, Renderable);
+    if (world.get<JumpBoost>(e, JumpBoost).collected) continue;
+    const r = colliderWorldRect(pos, col);
+    const bob = Math.sin(gs.time * ren.bobSpeed + ren.phase) * 0.16;
+    const cx = sx(r.x + r.w / 2);
+    const cy = sy(r.top + r.h / 2 + bob);
+    const R = ren.radius * view.SZ;
+
+    // ① 淡绿泛光圈（外发光层）
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.4);
+    g.addColorStop(0, 'rgba(120,255,170,.28)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+
+    // ② 绿色上行箭头
+    ctx.save();
+    ctx.translate(cx, cy + R * 0.1);
+    // 轻微摆动（不旋转一整圈，只摇摆）
+    ctx.rotate(Math.sin(gs.time * ren.rotSpeed + ren.phase) * 0.18);
+    ctx.shadowColor = 'rgba(120,255,170,.9)';
+    ctx.shadowBlur = T.glowMovable;
+    ctx.fillStyle = '#59ff8f';
+    ctx.beginPath();
+    ctx.moveTo(0, -R * 1.3);
+    ctx.lineTo(R * 0.65, -R * 0.15);
+    ctx.lineTo(R * 0.24, -R * 0.15);
+    ctx.lineTo(R * 0.24, R);
+    ctx.lineTo(-R * 0.24, R);
+    ctx.lineTo(-R * 0.24, -R * 0.15);
+    ctx.lineTo(-R * 0.65, -R * 0.15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // 箭头高光竖线（对应"顶光"语法）
+    ctx.fillStyle = 'rgba(230,255,240,.9)';
+    ctx.fillRect(-R * 0.08, -R * 1.1, R * 0.16, R * 0.9);
+    ctx.restore();
+  }
 }

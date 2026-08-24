@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MapCreater · 地图编辑器</title>
+<link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+<div id="app">
+  <!-- 工具栏 -->
+  <div id="toolbar">
+    <span class="logo">🧊 MapCreater</span>
+    <span class="sep"></span>
+    <button data-cmd="new" title="新建">📄</button>
+    <button data-cmd="open" title="打开">📂</button>
+    <button data-cmd="save" title="保存 Ctrl+S">💾</button>
+    <span class="sep"></span>
+    <button data-cmd="import-game" title="从游戏导入">🎮</button>
+    <button data-cmd="export" title="导出标准地图数据">📋</button>
+    <span class="sep"></span>
+    <button data-cmd="undo" title="撤销 Ctrl+Z">↩</button>
+    <button data-cmd="redo" title="重做 Ctrl+Shift+Z">↪</button>
+    <span class="sep"></span>
+    <label class="snap-label">
+      吸附 <select id="snapSelect">
+        <option value="0.5">0.5</option>
+        <option value="0.1">0.1</option>
+        <option value="1">1</option>
+      </select>
+    </label>
+    <span class="spacer"></span>
+    <span id="statusBar">就绪</span>
+  </div>
+
+  <!-- 主体 -->
+  <div id="body">
+    <!-- 侧边栏：调色板 -->
+    <aside id="sidebar">
+      <div id="palette"></div>
+    </aside>
+
+    <!-- 画布视口 -->
+    <main id="viewport">
+      <canvas id="c"></canvas>
+    </main>
+
+    <!-- 属性面板 -->
+    <aside id="inspector">
+      <div id="inspectorInner"></div>
+    </aside>
+  </div>
+</div>
+
+<!-- 导出弹窗 -->
+<div id="exportOverlay" class="hidden" onclick="if(event.target===this)hideExport()">
+<div id="exportPanel">
+  <h2>📋 导出 · 标准地图数据</h2>
+  <p>编辑器只产出标准地图数据（版本化 JSON）。点击「复制代码」使用；或切换查看 MapDefinition TS 兼容视图。</p>
+  <div id="exportTabs" class="tabs">
+    <button class="tab active" data-tab="standard">标准数据 JSON</button>
+    <button class="tab" data-tab="ts">MapDefinition TS</button>
+  </div>
+  <textarea id="exportCode" readonly></textarea>
+  <div class="actions">
+    <button class="closeBtn" onclick="hideExport()">关闭</button>
+    <button class="copyBtn" onclick="copyExport()">📋 复制代码</button>
+  </div>
+</div>
+</div>
+
+<!-- 从游戏导入弹窗 -->
+<div id="importOverlay" class="hidden" onclick="if(event.target===this)hideImport()">
+<div id="importPanel">
+  <h2>🎮 从游戏源码导入地图</h2>
+  <p>选择一张游戏 <code>config/level.ts</code> 中的现有地图，decompile 为编辑器格式进行逆向编辑。</p>
+  <div id="importList"></div>
+  <div class="actions">
+    <button class="closeBtn" onclick="hideImport()">关闭</button>
+  </div>
+</div>
+</div>
+
+<!-- 隐藏的文件输入 -->
+<input type="file" id="fileInput" accept=".json" style="display:none">
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

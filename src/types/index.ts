@@ -1,7 +1,9 @@
 /**
  * 共享类型定义 —— 全项目统一在此声明跨模块类型。
- * 依赖规则：types/ 不得依赖任何其他模块。
+ * 依赖规则：types/ 不得依赖任何其他模块（types 内部相互引用允许）。
  */
+export type { PathSegment } from './path';
+import type { PathSegment } from './path';
 
 /** 矩形刚体（平台 / 移动平台 / 碰撞盒） */
 export interface Rect {
@@ -13,11 +15,14 @@ export interface Rect {
   top: number;
   /** 若属于移动平台，指向其运动组件（用于携带） */
   plat?: PlatRef;
+  /** 若属于弹簧平台，指向其 ECS 实体 ID（用于弹射检测） */
+  springPad?: number;
 }
 
-/** 平台携带引用 —— 只需每帧位移增量 dx */
-interface PlatRef {
+/** 平台携带引用 —— 每帧位移增量 dx（水平）/ dy（垂直） */
+export interface PlatRef {
   dx: number;
+  dy: number;
 }
 
 /** 移动平台生成数据（地图描述符使用） */
@@ -28,10 +33,14 @@ export interface MoverSpawnData {
   y: number;
   w: number;
   h: number;
-  /** 摆动范围（格） */
+  /** 水平摆动范围（格，axis='x' 时生效） */
   range: number;
   spd: number;
   ph: number;
+  /** 运动轴：'x' 水平往返（默认）/ 'y' 垂直升降（电梯） */
+  axis?: 'x' | 'y';
+  /** 垂直升降范围（格，axis='y' 时生效；以 y 为基线上下摆动） */
+  yRange?: number;
 }
 
 /** 尖刺 */
@@ -48,6 +57,22 @@ export interface LaserSpawnData {
   /** 高度（格） */
   len: number;
   ph: number;
+}
+
+/** 弹簧平台生成数据（地图描述符使用） */
+export interface SpringPadSpawnData {
+  /** 底座底部 X（左缘） */
+  x: number;
+  /** 底座底部 Y（格，y 轴向上） */
+  y: number;
+  w: number;
+  h: number;
+  /** 弹射方向 X 分量（格/秒），朝右为正 */
+  forceX: number;
+  /** 弹射方向 Y 分量（格/秒），朝上为正 */
+  forceY: number;
+  /** 加速度持续时长（秒） */
+  duration: number;
 }
 
 /** HUD 提示（x, y, 文案） */
@@ -73,6 +98,24 @@ export interface MidShape {
   sp: number;
   ph: number;
   t: number;
+}
+
+/** 轨道运动状态（玩家在路径上时） */
+export interface TrackState {
+  /** 路径段数组（定义曲线几何） */
+  segments: PathSegment[];
+  /** 已构造的累积长度数组 */
+  cumulative: number[];
+  /** 当前沿路径行驶距离（格） */
+  dist: number;
+  /** 沿路径线速度（m/s） */
+  speed: number;
+  /** 路径总长（格） */
+  totalLength: number;
+  /** 入口距离（格，捕获时从此处开始） */
+  entryDist: number;
+  /** 出口距离（格，到达后释放） */
+  exitDist: number;
 }
 
 /** 双物理模式参数 */
@@ -103,6 +146,20 @@ export interface PlayerState {
   sprint: boolean;
   wasSpr: boolean;
   inv: number;
+  /** 剩余额外跳跃次数（当前滞空期内可用；每次着陆刷新为 extraJumpsMax） */
+  extraJumps: number;
+  /** 额外跳跃最大次数（双跳光球永久升级，拾取后 = 1；0 = 未拾取） */
+  extraJumpsMax: number;
+  /** 上一物理步跳跃键是否按下（用于二段跳"新按下沿"检测：按下一次跳一次） */
+  jumpWasDown: boolean;
+  /** 弹簧加速剩余时长（秒，>0 时每帧施加 springX/springY 加速度） */
+  springT: number;
+  /** 弹簧加速度 X 分量（格/秒²） */
+  springX: number;
+  /** 弹簧加速度 Y 分量（格/秒²） */
+  springY: number;
+  /** 轨道运动状态（null = 自由运动） */
+  track: TrackState | null;
 }
 
 /** 曳光轨迹点 */
@@ -113,7 +170,7 @@ export interface TrailPoint {
 }
 
 /** 粒子类型 */
-export type ParticleKind = 'dot' | 'frag';
+export type ParticleKind = 'dot' | 'frag' | 'arrow';
 
 /** 粒子 */
 export interface Particle {
@@ -161,6 +218,20 @@ export interface FrameSignals {
   goalReached?: boolean;
   /** 本帧撞墙（水平碰撞且速度较大） */
   wallBump?: boolean;
+  /** 本帧拾取了双跳光球 */
+  jumpBoostPicked?: boolean;
+  /** 本帧触发了弹簧平台 */
+  spring?: boolean;
+  /** 本帧使用了空中二段跳 */
+  doubleJump?: boolean;
+  /** 本帧进入轨道 */
+  trackEntered?: boolean;
+  /** 本帧通过出口离开轨道 */
+  trackExited?: boolean;
+  /** 本帧向心力不足脱落 */
+  trackDetached?: boolean;
+  /** 本帧速度耗尽滚回 */
+  trackRollback?: boolean;
 }
 
 /** 游戏全局状态（game 系统持有） */
@@ -198,8 +269,11 @@ export interface MapDefinition {
   /** ── 实体生成描述（ECS 实体工厂使用）── */
   entitySpawners: {
     movers: MoverSpawnData[];
+    springPads: SpringPadSpawnData[];
     lasers: LaserSpawnData[];
     orbs: [number, number][];
+    /** 双跳光球坐标 */
+    jumpBoosts: [number, number][];
     checkpoints: [number, number][];
     nova: { x: number; y: number };
   };
@@ -210,6 +284,7 @@ export type NetBusEvent =
   | { type: 'game:started' }
   | { type: 'game:checkpoint'; x: number; y: number }
   | { type: 'game:orb'; count: number; total: number }
+  | { type: 'game:jumpboost' }
   | { type: 'game:death'; deaths: number }
   | { type: 'game:win'; time: number; orbs: number; total: number }
   // ── 联机扩展 ──
@@ -251,6 +326,17 @@ export interface NetPlayerState {
   inv: number;
   hasPlat: boolean;
   platDx: number;
+  /** 轨道运动状态 */
+  trackOn: boolean;
+  /** 沿路径行驶距离（格） */
+  trackDist: number;
+  trackSpeed: number;
+  /** 入口距离（格） */
+  trackEntry: number;
+  /** 出口距离（格） */
+  trackExit: number;
+  /** 路径段定义（客户端由此重建 TrackState） */
+  trackSegments: PathSegment[];
 }
 
 /** 光球权威状态 */

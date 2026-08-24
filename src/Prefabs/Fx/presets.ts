@@ -1,6 +1,6 @@
 /**
  * 特效预设表 —— 粒子特效发射参数（预制体化数据模板）。
- * 每个特效 = 一条纯数据，由 Prefabs/Fx/spawnFx 统一发射。
+ * 每个特效 = 一条纯数据，由 systems/particles 的 spawnParticles 统一发射。
  */
 import type { ParticleKind } from '../../types';
 
@@ -84,5 +84,16 @@ export const FX: Record<string, FxPreset> = {
     size: [0.12, 0.12],
     colors: ['#7de8ff', '#c77dff', '#ff8ad8', '#ffffff'],
     spin: { start: [0, 3], rate: [-5, 5] },
+  },
+
+  /** 双跳增益环绕：小绿色箭头持续飘散 */
+  arrowBoost: {
+    count: 2,
+    kind: 'arrow',
+    vel: { mode: 'radial', uniform: false, speed: [0.3, 1.0], vyBias: 0.5 },
+    gravity: 0,
+    life: [0.8, 1.4],
+    size: [0.08, 0.12],
+    colors: ['#66ff99', '#33cc66', '#99ffbb'],
   },
 };

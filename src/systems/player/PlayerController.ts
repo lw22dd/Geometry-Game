@@ -11,10 +11,10 @@
  * 不依赖：
  *  - 不直接读 keys 表（输入由 Game 注入）
  *  - 不直接写 gs（GameState）
- *  - 不直接调 sfx / spawnFx
+ *  - 不直接调 sfx / spawnParticles
  *  - 不直接发 netBus
  */
-import type { FrameSignals, PlayerState, InputKeys } from '../../types';
+import type { FrameSignals, PlayerState, InputKeys, TrackState } from '../../types';
 import type { PhysicsKey } from '../game/gameMode';
 import { stepPlayerGeneric } from './index';
 import { stepPlayerAnimation } from '../../Prefabs/Player';
@@ -29,7 +29,8 @@ export type PlayerEvent =
   | { type: 'respawned' }
   | { type: 'dashed' }
   | { type: 'jumped' }
-  | { type: 'landed'; impact: number };
+  | { type: 'landed'; impact: number }
+  | { type: 'springed' };
 
 /* ==================== Controller ==================== */
 
@@ -47,6 +48,10 @@ export class PlayerController {
       grounded: false, coyote: 0, jbuf: 0, face: 1,
       dead: false, deadT: 0, plat: null,
       sprint: false, wasSpr: false, inv: 0,
+      extraJumps: 0, extraJumpsMax: 0,
+      jumpWasDown: false,
+      springT: 0, springX: 0, springY: 0,
+      track: null,
     };
     this.input = { left: false, right: false, jump: false, sprint: false };
     this.deathCount = 0;
@@ -116,6 +121,10 @@ export class PlayerController {
     if (isLocal && !wasGrounded && this.state.grounded && prevVy < 0) {
       this.onEvent?.({ type: 'landed', impact: -prevVy });
     }
+    // 弹簧弹射
+    if (isLocal && signals.spring) {
+      this.onEvent?.({ type: 'springed' });
+    }
 
     // ── 碰撞检测（事件分发 → CollisionHooks） ──
     updateCollisionSystem(signals as Record<string, boolean>);
@@ -157,6 +166,12 @@ export class PlayerController {
     this.state.vy = 0;
     this.state.inv = 1.2;
     this.state.plat = null;
+    this.state.springT = 0;
+    this.state.springX = 0;
+    this.state.springY = 0;
+    this.state.track = null;
+    // 双跳为永久升级，复活保留 extraJumpsMax；但本次滞空期清零，着陆后刷新
+    this.state.extraJumps = 0;
     trail.length = 0;
     this.onEvent?.({ type: 'respawned' });
   }
@@ -170,6 +185,7 @@ export class PlayerController {
   applyCorrection(
     x: number, y: number, vx: number, vy: number,
     face: number, grounded: boolean,
+    track?: TrackState | null,
   ): void {
     this.state.x = x;
     this.state.y = y;
@@ -177,6 +193,7 @@ export class PlayerController {
     this.state.vy = vy;
     this.state.face = face;
     this.state.grounded = grounded;
+    if (track !== undefined) this.state.track = track;
   }
 
   /**

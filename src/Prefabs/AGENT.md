@@ -8,15 +8,16 @@
 
 ```
 Prefabs/
-├── Enemy/  # 敌人预制体（含 boss；预留，未建模）
-├── NPC/  # NPC 预制体（预留）
-├── Player/  # 玩家角色建模（已实现）
-│   └── characters/  # 角色样式注册表
-├── Scenes/  # 场景道具建模（已实现）
-├── Entities/  # ECS 实体工厂（已实现）
-├── Fx/  # 特效发射预制体（已实现）
-├── WeaponVis/  # 武器外观预制体（预留）
-└── AGENT.md
+├── AGENT.md        # 本文件（目录说明）
+├── Enemy/          # 敌人预制体（含 boss；预留，未建模）
+├── Fx/             # 特效预制体（已实现，纯数据预设表）
+├── NPC/            # NPC 预制体（预留）
+├── Player/         # 玩家角色建模（已实现）
+│   ├── characters/     #   角色样式注册表
+│   ├── default/        #   默认预制体「霓虹跑者」
+│   └── playerEntity.ts #   玩家 ECS 实体注册
+├── Scenes/         # 场景道具建模（已实现）：绘制层 + 各场景实体的 ECS 工厂（*Entity.ts）
+└── WeaponVis/      # 武器外观预制体（预留）
 ```
 
 # 数据流
@@ -29,8 +30,8 @@ Prefabs/
 2. 本模块：经过 Prefabs 做了什么
 
 
-实体模板工厂——将逻辑数据（platform Rect、spike 坐标、orb 属性、player 状态）转化为 Canvas 2D 绘制命令。角色样式参数化（drawPlayer 接受 CharacterStyle），场景道具按类型分组模块（platforms / hazards / items / atmosphere），特效按 FX 预设表 + spawnFx 统一发射。systems 直接导入本层 drawXxx 函数调用。
+实体模板工厂——将逻辑数据（platform Rect、spike 坐标、orb 属性、player 状态）转化为 Canvas 2D 绘制命令。角色样式参数化（drawPlayer 接受 CharacterStyle），场景道具按类型分组模块（platforms / hazards / items / atmosphere），特效按 FX 预设表 + spawnParticles 统一发射。systems 直接导入本层 drawXxx 函数调用；config/level 导入各 *Entity 工厂创建 ECS 实体。
 
 3. 输出：流出的方向和目的
 
-纯绘制函数 → `systems/game/index.ts` render() 直接调用（按顺序绘制各 drawXxx）。`spawnFx` + FX 预设 → `systems/player` / `CheckpointSystem` / `NovaSystem` 发射粒子到 `systems/particles` 粒子池。
+纯绘制函数 → `systems/game/index.ts` render() 直接调用（按顺序绘制各 drawXxx）。FX 预设表 → `systems/particles` spawnParticles 发射粒子到粒子池；*Entity 工厂 → `config/level` initECSFromLevel 创建 ECS 实体。

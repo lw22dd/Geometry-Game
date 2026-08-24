@@ -19,6 +19,9 @@ netBus.on(e => {
     case 'game:orb':
       net.sendHostEvent('orb', { count: e.count, total: e.total });
       break;
+    case 'game:jumpboost':
+      net.sendHostEvent('jumpboost', {});
+      break;
     case 'game:death':
       net.sendHostEvent('death', { deaths: e.deaths });
       break;

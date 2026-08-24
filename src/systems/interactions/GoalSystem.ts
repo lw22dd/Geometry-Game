@@ -8,7 +8,8 @@ import { Goal } from '../../components/Goal';
 import { Collectible } from '../../components/Collectible';
 import { PlayerTag } from '../../components/PlayerTag';
 import { gs } from '../game/gameState';
-import { spawnFx, FX } from '../../Prefabs/Fx';
+import { FX } from '../../Prefabs/Fx';
+import { spawnParticles } from '../particles';
 import { sfx } from '../../core/audio';
 import { netBus } from '../../core/netBus';
 import { pointInCollider } from '../level';
@@ -27,7 +28,7 @@ export function updateGoalSystem(): boolean {
     gs.win = true;
     gs.winTime = gs.gt;
     sfx.win();
-    spawnFx(FX.confetti, pp.x, pp.y);
+    spawnParticles(FX.confetti, pp.x, pp.y);
     gs.shake = 0.5;
     netBus.emit({ type: 'game:win', time: gs.winTime, orbs: gs.gotN, total: world.query(Collectible).length });
     return true;

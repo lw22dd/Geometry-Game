@@ -11,13 +11,13 @@ import { gs } from './gameState';
 import { getMode, setMode } from './gameMode';
 import { playerController } from '../player';
 import { stepPlayerGeneric } from '../player';
-import { spawnFx, FX } from '../../Prefabs/Fx';
-import { stepParticles } from '../particles';
-import { updateMotion, updateLaserTimer } from '../level';
+import { FX } from '../../Prefabs/Fx';
+import { spawnParticles, stepParticles } from '../particles';
+import { updateMotion, updateLaserTimer, updateSpringPads } from '../level';
 import {
-  drawParallax, drawGrid, drawBorder, drawDecos, drawSolids, drawMovers,
-  drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawNOVA,
-  drawTrail, drawParticles, drawHints,
+  drawParallax, drawGrid, drawBorder, drawDecos, drawSolids, drawMovers, drawSpringPads,
+  drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawJumpBoosts, drawNOVA,
+  drawTrail, drawParticles, drawHints, drawTracks,
 } from '../../Prefabs/Scenes';
 import { drawPlayer, drawPlayerFor, stepPlayerAnimation, characterStyleForId } from '../../Prefabs/Player';
 import { drawHUD, drawMinimap } from '../ui';
@@ -31,11 +31,38 @@ import {
   remotes, resetRemotes, registerRemote, removeRemote,
   setClientInput, getClientInput, applyNetPlayers, getSelfAuthority,
 } from '../player/remote';
-import type { FrameSignals, InputKeys, NetPlayerState, NetOrbState, RemotePlayer } from '../../types';
+import type { FrameSignals, InputKeys, NetPlayerState, NetOrbState, RemotePlayer, TrackState, PathSegment } from '../../types';
 import { world } from '../../core/ecs';
 import { Position } from '../../components/Position';
 import { Collectible } from '../../components/Collectible';
-import { initCollisionHooks, updateCollectSystem, updateRespawnPointSystem } from '../interactions';
+import { initCollisionHooks, updateCollectSystem, updateRespawnPointSystem, updateJumpBoostSystem } from '../interactions';
+import { buildCumulativeLengths, pathTotalLength } from '../../core/path';
+
+/* ==================== 轨道状态序列化辅助 ==================== */
+
+/** 将 TrackState 转为 NetPlayerState 的平铺字段 */
+function packTrack(t: TrackState | null): {
+  trackOn: boolean; trackDist: number; trackSpeed: number;
+  trackEntry: number; trackExit: number; trackSegments: PathSegment[];
+} {
+  if (!t) return { trackOn: false, trackDist: 0, trackSpeed: 0, trackEntry: 0, trackExit: 0, trackSegments: [] };
+  return { trackOn: true, trackDist: t.dist, trackSpeed: t.speed, trackEntry: t.entryDist, trackExit: t.exitDist, trackSegments: t.segments };
+}
+
+/** 从平铺字段重建 TrackState（仅 trackOn 时返回非 null） */
+function unpackTrack(fields: ReturnType<typeof packTrack>): TrackState | null {
+  if (!fields.trackOn) return null;
+  const cl = buildCumulativeLengths(fields.trackSegments);
+  return {
+    segments: fields.trackSegments,
+    cumulative: cl,
+    dist: fields.trackDist,
+    speed: fields.trackSpeed,
+    totalLength: cl[cl.length - 1],
+    entryDist: fields.trackEntry,
+    exitDist: fields.trackExit,
+  };
+}
 
 /* ==================== 网络状态序号 ==================== */
 let _netSeq = 0;
@@ -64,8 +91,9 @@ function step(dt: number): void {
   // 1. 时间
   gs.time += dt;
 
-  // 2. 关卡级系统（移动平台运动 / 激光计时）
+  // 2. 关卡级系统（移动平台运动 / 弹簧动画 / 激光计时）
   updateMotion();
+  updateSpringPads(dt);
   updateLaserTimer();
 
   // 3. 粒子 + 曳光
@@ -105,6 +133,9 @@ function step(dt: number): void {
   // 物理 + 碰撞 + 动画（单机/房主/客机统一走 controller.step）
   playerController.step(dt, getMode(), true);
 
+  // 持有双跳增益时：持续飘散小绿色箭头（玩家持有的可视化指示）
+  spawnBoostArrows();
+
   // 9. 房主模式：模拟所有客机物理 + 广播状态
   if (isHost()) {
     stepRemoteClients(dt);
@@ -114,6 +145,21 @@ function step(dt: number): void {
       broadcastHostState();
     }
   }
+}
+
+/** 双跳增益持续粒子 —— 玩家持有 extraJumps 能力时，围绕身体周期飘散小绿箭头 */
+function spawnBoostArrows(): void {
+  const s = playerController.getState();
+  if (s.dead || s.extraJumpsMax <= 0) return;
+  // 每 0.2s 发射 1 枚（gs.time 固定步长递增，帧率无关）
+  if (Math.floor(gs.time * 20) % 4 !== 0) return;
+  const t = gs.time * 3;
+  spawnParticles(
+    FX.arrowBoost,
+    s.x + Math.sin(t) * 0.5,
+    s.y + 0.2 + Math.cos(t * 1.3) * 0.4,
+    1,
+  );
 }
 
 /** 步进所有客机玩家（房主用） */
@@ -131,6 +177,7 @@ function stepRemoteClients(dt: number): void {
         rp.vy = 0;
         rp.inv = 1.2;
         rp.plat = null;
+        rp.track = null;
       }
       continue;
     }
@@ -147,6 +194,12 @@ function stepRemoteClients(dt: number): void {
       rp.cpX = cp.x;
       rp.cpY = cp.y;
       signals.checkpointHit = true;
+    }
+    // 远程玩家双跳光球收集
+    if (updateJumpBoostSystem(rp.x, rp.y)) {
+      rp.extraJumpsMax = 1;
+      rp.extraJumps = 1;
+      signals.jumpBoostPicked = true;
     }
 
     stepPlayerAnimation(rp, dt, signals);
@@ -165,6 +218,7 @@ function broadcastHostState(): void {
     face: pS.face, grounded: pS.grounded, dead: pS.dead,
     sprint: pS.sprint, inv: pS.inv,
     hasPlat: pS.plat !== null, platDx: pS.plat ? pS.plat.dx : 0,
+    ...packTrack(pS.track),
   }];
 
   // 远程玩家
@@ -175,6 +229,7 @@ function broadcastHostState(): void {
       face: rp.face, grounded: rp.grounded, dead: rp.dead,
       sprint: rp.sprint, inv: rp.inv,
       hasPlat: false, platDx: 0,
+      ...packTrack(rp.track),
     });
   }
 
@@ -234,9 +289,25 @@ function wireNetEvents(): void {
           selfPs?.vy ?? pS.vy,
           selfPs?.face ?? pS.face,
           selfPs?.grounded ?? pS.grounded,
+          selfPs ? unpackTrack(selfPs) : undefined,
         );
       }
       // 偏差小于 0.5 格：保持本地预测，不做矫正（手感优先）
+      // 轨道状态差异（如房主已捕获/已释放而客机未同步）：无条件跟随权威
+      else {
+        const selfPs = players.find(p => p.playerId === room.playerId);
+        if (selfPs) {
+          const hostTrack = unpackTrack(selfPs);
+          if (hostTrack === null && pS.track !== null) {
+            // 房主已离开轨道 → 本地解除（位置由下帧矫正兜底）
+            pS.track = null;
+          } else if (hostTrack !== null) {
+            // 房主在轨 → 本地若已捕获则同步 θ/速度，若未捕获则直接接管
+            pS.track = hostTrack;
+            pS.grounded = false;
+          }
+        }
+      }
 
       // 死亡同步（权威为准）
       const selfPs = players.find(p => p.playerId === room.playerId);
@@ -279,6 +350,10 @@ function wireNetEvents(): void {
       case 'checkpoint':
         gs.toast = '◆ 检查点';
         gs.toastT = 1.5;
+        break;
+      case 'jumpboost':
+        gs.toast = '⚡ 双跳激活！';
+        gs.toastT = 2;
         break;
       case 'win':
         gs.win = true;
@@ -395,11 +470,14 @@ function renderGame(dt: number): void {
   drawBorder();
   drawDecos();
   drawSolids();
+  drawTracks();
   drawMovers();
+  drawSpringPads();
   drawCheckpoints(pulse);
   drawSpikes();
   drawLasers();
   drawOrbs();
+  drawJumpBoosts();
   drawNOVA(pulse);
   drawTrail();
   drawParticles();
@@ -486,20 +564,27 @@ function wirePlayerEvents(): void {
         gs.deaths = event.deaths;
         gs.shake = 1;
         gs.flash = 0.6;
-        spawnFx(FX.death, playerController.getState().x, playerController.getState().y);
+        spawnParticles(FX.death, playerController.getState().x, playerController.getState().y);
         sfx.die();
         netBus.emit({ type: 'game:death', deaths: event.deaths });
         break;
       case 'jumped':
         sfx.jump();
         break;
+      case 'springed': {
+        const sps = playerController.getState();
+        sfx.spring();
+        spawnParticles(FX.dust, sps.x, sps.y - sps.half, 8);
+        gs.shake = Math.max(gs.shake, 0.25);
+        break;
+      }
       case 'dashed':
         sfx.dash();
         break;
       case 'landed':
         if (event.impact > 7.5) {
           const s = playerController.getState();
-          spawnFx(FX.dust, s.x, s.y - s.half, 6);
+          spawnParticles(FX.dust, s.x, s.y - s.half, 6);
           sfx.land(event.impact * 0.02);
         }
         break;

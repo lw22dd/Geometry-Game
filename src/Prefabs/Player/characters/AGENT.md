@@ -8,8 +8,8 @@
 
 ```
 Prefabs/Player/characters/
-├── index.ts    # CHARACTERS 角色数组 + DEFAULT_CHARACTER 默认角色 + re-export CharacterStyle
-└── default.ts  # CharacterStyle 接口定义 + 默认角色「霓虹跑者」数据
+├── default.ts  # CharacterStyle 接口定义 + 默认角色「霓虹跑者」数据
+└── index.ts    # CHARACTERS 角色数组 + DEFAULT_CHARACTER 默认角色 + re-export CharacterStyle
 ```
 
 # 数据流
