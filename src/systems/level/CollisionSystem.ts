@@ -19,7 +19,7 @@ import { Hazard } from '../../components/gameplay/Hazard';
 import { Collectible } from '../../components/gameplay/Collectible';
 import { RespawnPoint } from '../../components/gameplay/RespawnPoint';
 import { Goal } from '../../components/gameplay/Goal';
-import { PlayerTag } from '../../components/gameplay/PlayerTag';
+import { queryByTag, TAG_PLAYER } from '../../components/gameplay/tagHelpers';
 import { colliderWorldRect, aabbOverlap } from './OverlapUtils';
 import { collisionBus } from '../../core/collisionBus';
 
@@ -32,7 +32,7 @@ let lastFrame = new Map<string, boolean>();
  * @param signals 可选帧信号对象，碰撞处理器可写入
  */
 export function updateCollisionSystem(signals?: Record<string, boolean>): void {
-  const players = world.query(PlayerTag, Position, Collider);
+  const players = queryByTag(TAG_PLAYER, Position, Collider);
   if (players.length === 0) return;
 
   const playerEntity = players[0];

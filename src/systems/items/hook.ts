@@ -1,15 +1,18 @@
 /**
- * 钩锁系统 —— 主动道具"钩锁"的发射、滑索轨道构造与瞄准渲染。
+ * 钩锁系统 —— 主动道具"钩锁"的发射、绳索物理与瞄准渲染。
  *
  * 玩法：拥有钩锁（背包 active 道具）时，鼠标方向引导钩锁发射方向
  * （非追踪鼠标坐标），左键发射一条长度 10 格（世界单位）的方向射线，
- * 命中墙面/平台后玩家沿该直线轨道匀速滑行（滑索式，不受切向重力/摩擦/滚回影响），
- * 到锚点自动脱离并保留切线方向速度；未命中则钩锁收回（短暂收回动画 + 收手冷却）。
+ * 命中墙面/平台后玩家沿直线轨道匀速滑向锚点**安全位置**（自碰撞面外推
+ * 玩家半径 + 余量，避免嵌入碰撞体被推挤到左右边缘），到站后：
+ *   - 长按左键 → 锁定在锚点（拉住不动，绳索持续可见）
+ *   - 松开左键 → 脱钩自由下坠
+ * 未命中则钩锁收回（短暂收回动画 + 收手冷却）。
  *
  * 主动道具语义：仅当钩锁所在的背包槽位被选中（数字键 1-5）时，左键才会发射。
  *
  * 轨道复用 TrackState + stepTrackMotion：构造单直线段、dist=0、speed=HOOK_SPEED、
- * zipline=true，物理引擎走滑索分支。
+ * zipline=true，物理引擎走滑索分支；锁定期间 p.track 保持非空，逐帧重设玩家位置。
  *
  * 联机：本地玩家走本模块（预测），房主在 stepRemoteClients 中为远程玩家
  * 调用 fireHook（方向来自客机上报 aimX/aimY 单位向量），轨迹经轨道网络字段同步。
@@ -53,9 +56,10 @@ export function defaultAimDir(p: PlayerState): { x: number; y: number } {
 /** 线段-矩形最近交点参数 t∈[0,1]（slab 法）；无交点/null/起点在矩形内返回 null */
 function segRectT(
   ox: number, oy: number, ux: number, uy: number, r: Rect,
-): number | null {
+): { t: number; face: 'left' | 'right' | 'bottom' | 'top' } | null {
   let tmin = 0;
   let tmax = 1;
+  let hitFace: 'left' | 'right' | 'bottom' | 'top' | null = null;
 
   // X slab [r.x, r.x + r.w]
   if (Math.abs(ux) < 1e-9) {
@@ -76,36 +80,51 @@ function segRectT(
     let t1 = (r.y - oy) / uy;
     let t2 = (r.top - oy) / uy;
     if (t1 > t2) { const tt = t1; t1 = t2; t2 = tt; }
+    // 记录 tmin 前的值，用于判断哪个 slab 产生入口
+    const prevTmin = tmin;
     tmin = Math.max(tmin, t1);
     tmax = Math.min(tmax, t2);
     if (tmin > tmax) return null;
+    // 如果 Y slab 的入口 t1 决定了新的 tmin，则命中面为 bottom 或 top
+    if (tmin === t1 && t1 > prevTmin) {
+      // uy > 0 → 射线向上 → 入口在 bottom 面 (y = r.y)
+      // uy < 0 → 射线向下 → 入口在 top 面 (y = r.top)
+      hitFace = (uy > 0) ? 'bottom' : 'top';
+    }
+  }
+
+  // 如果尚未确定面，则入口来自 X slab（或垂直射线）
+  if (hitFace === null) {
+    if (ux > 0) hitFace = 'left';
+    else if (ux < 0) hitFace = 'right';
+    else hitFace = 'bottom'; // 纯垂直射线，无法确定 X 方向，默认 bottom（安全兜底）
   }
 
   // 起点已在矩形内部（tmin=0）→ 本段命中无意义
   if (tmin <= 0) return null;
-  return tmin;
+  return { t: tmin, face: hitFace };
 }
 
 /**
  * 钩锁方向射线：从 (ox,oy) 沿方向 (dirX,dirY) 发射，长度 maxLen 格，
- * 命中最近的固体（平台/墙壁）返回锚点世界坐标；否则 null。
+ * 命中最近的固体（平台/墙壁）返回锚点世界坐标及命中面；否则 null。
  */
 export function raycastHook(
   ox: number, oy: number, dirX: number, dirY: number, maxLen: number,
-): { x: number; y: number } | null {
+): { x: number; y: number; face: 'left' | 'right' | 'bottom' | 'top' } | null {
   const dLen = Math.hypot(dirX, dirY);
   if (dLen < 1e-4) return null;
   const ux = (dirX / dLen) * maxLen;
   const uy = (dirY / dLen) * maxLen;
 
-  let bestT: number | null = null;
+  let best: { t: number; face: 'left' | 'right' | 'bottom' | 'top' } | null = null;
   for (const r of getSolids()) {
-    const t = segRectT(ox, oy, ux, uy, r);
-    if (t === null) continue;
-    if (bestT === null || t < bestT) bestT = t;
+    const result = segRectT(ox, oy, ux, uy, r);
+    if (result === null) continue;
+    if (best === null || result.t < best.t) best = result;
   }
-  if (bestT === null) return null;
-  const hit = { x: ox + ux * bestT, y: oy + uy * bestT };
+  if (best === null) return null;
+  const hit = { x: ox + ux * best.t, y: oy + uy * best.t, face: best.face };
   const hitDist = Math.hypot(hit.x - ox, hit.y - oy);
   if (hitDist < HOOK_MIN_DIST) return null;
   return hit;
@@ -113,9 +132,31 @@ export function raycastHook(
 
 /* ==================== 发射 ==================== */
 
+/** 释放用安全距离：锚点自命中面外推（玩家半径 + 余量），使玩家不嵌入碰撞体 */
+const HOOK_SAFE_OFFSET = 0.5; // p.half(0.42) + 0.08 余量
+
+/**
+ * 钩锁命中面 → 安全锚点（自命中面沿法线外推，保证玩家 AABB 不重叠固体、
+ * 脱钩/锁定时不被碰撞推挤到左右边缘）。
+ * @param hit 射线命中点（世界坐标，位于固体表面）
+ * @returns 安全锚点世界坐标
+ */
+export function hookSafeAnchor(
+  hit: { x: number; y: number; face: 'left' | 'right' | 'bottom' | 'top' },
+): { x: number; y: number } {
+  switch (hit.face) {
+    case 'left':   return { x: hit.x - HOOK_SAFE_OFFSET, y: hit.y };
+    case 'right':  return { x: hit.x + HOOK_SAFE_OFFSET, y: hit.y };
+    case 'bottom': return { x: hit.x, y: hit.y - HOOK_SAFE_OFFSET }; // 面朝下 → 外推下方
+    case 'top':    return { x: hit.x, y: hit.y + HOOK_SAFE_OFFSET }; // 面朝上 → 外推上方
+  }
+}
+
 /**
  * 发射钩锁（方向版）：
  *  - 命中：构造滑索 TrackState 写入 p.track（物理引擎接管），启动常规冷却。
+ *    锚点取安全位置（见 hookSafeAnchor），玩家沿直线滑向锚点；
+ *    到达后长按左键则锁定（拉住不动），松开左键脱钩下坠。
  *  - 未命中：钩锁收回（HOOK_RETRACT_TIME 内不可再射，显示收回动画），无轨道。
  * 远程玩家（房主模拟）复用此函数（playSfx=false，避免房主端替远程玩家出声）。
  * @returns true = 成功命中并发射
@@ -133,14 +174,17 @@ export function fireHook(
     return false;
   }
 
+  // 锚点外推：底面/顶面/侧面一律取碰撞面外安全位置，杜绝"嵌进墙里被推挤到边缘"
+  const anchor = hookSafeAnchor(hit);
+
   const seg: PathSegment = {
     type: 'line',
     x1: p.x,
     y1: p.y,
-    x2: hit.x,
-    y2: hit.y,
+    x2: anchor.x,
+    y2: anchor.y,
   };
-  const len = Math.hypot(hit.x - p.x, hit.y - p.y);
+  const len = Math.hypot(anchor.x - p.x, anchor.y - p.y);
   if (len < HOOK_MIN_DIST) {
     p.hookMissT = HOOK_RETRACT_TIME;
     p.hookCd = HOOK_RETRACT_TIME;
@@ -176,6 +220,8 @@ export function stepHookPlayer(dt: number, p: PlayerState, hookEdge: boolean): v
   p.hookCd = Math.max(0, p.hookCd - dt);
   p.hookMissT = Math.max(0, p.hookMissT - dt);
   if (p.dead || p.track || !hasItem(p.backpack, 'hook')) return;
+  // 冷却中不可发射
+  if (p.hookCd > 0) return;
   // 主动装备：必须选中钩锁所在槽位才能使用
   if (p.backpack[p.selectedSlot] !== 'hook') return;
   if (!hookEdge) return;

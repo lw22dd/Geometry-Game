@@ -19,6 +19,12 @@ check_agent_structure.py
     python check_agent_structure.py --doc <path>          # 指定 AGENT.md 路径
     python check_agent_structure.py --root <dir>          # 指定树根（如 src/）所在的父目录
     python check_agent_structure.py --verbose             # 匹配时也输出统计信息
+    python check_agent_structure.py --git                 # 仅分析 git 变更涉及的目录树
+
+--git 模式：
+    结合 git status 分析，输出新增文件路径及其归属的 AGENT.md 文档，报告哪些
+    AGENT.md 目录树需要更新（新增目录未声明 / 已删除条目残留）。方便 AI 直接
+    获知需要同步的文档范围，无需逐个目录遍历比对。
 
 校验规则（双向匹配）:
     1. 文档目录树中声明的每个目录 / 文件必须真实存在；
@@ -39,6 +45,7 @@ import argparse
 import io
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -47,6 +54,7 @@ if hasattr(sys.stdout, "buffer"):
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 MISMATCH_MSG = "请更新当前根目录下的AGENT.md目录结构"
+SCRIPT_DIR = Path(__file__).resolve().parent
 
 DEFAULT_DOC_REL = Path("src") / "AGENT.md"  # 相对项目根（dash/）
 
@@ -347,6 +355,162 @@ def replace_tree_block(text, new_lines, tree_start, tree_end, all_lines):
     return "".join(before + block + after)
 
 
+# ── git 变更分析（--git 模式）────────────────────────────────────
+
+
+def _load_git_utils():
+    """加载同目录的 git_utils 共享模块。"""
+    sys.path.insert(0, str(SCRIPT_DIR))
+    import git_utils
+    return git_utils
+
+
+def _scan_doc_mismatch(doc_path: Path, anchor: Path):
+    """对单个 AGENT.md 执行标准双向校验，返回 (real_root, problems, empty_dirs) 或 None。
+
+    None = 文档不存在 / 无目录树代码块 / 声明的树根不存在。
+    problems 为字符串列表（空 = 匹配）。
+    """
+    if not doc_path.is_file():
+        return None
+    text = doc_path.read_text(encoding="utf-8")
+    tree_info = find_tree_lines(text)
+    if tree_info is None:
+        return None
+    lines, tree_start, tree_end, all_lines = tree_info
+    tree_root, declared_dirs, declared_files, root_files = parse_tree(lines)
+    real_root = (anchor / tree_root).resolve()
+    if not real_root.is_dir():
+        return None
+    real_dirs, real_root_files, empty_dirs = walk_reality(real_root)
+
+    problems = []
+    for d in sorted(declared_dirs):
+        if not (real_root / Path(*d.split("/"))).is_dir():
+            problems.append(f"文档中声明但在实际目录中缺失（目录）：{d}/")
+    for f in sorted(declared_files):
+        if not (real_root / Path(*f.split("/"))).is_file():
+            problems.append(f"文档中声明但在实际目录中缺失（文件）：{f}")
+    for d in sorted(real_dirs - declared_dirs):
+        problems.append(f"实际存在但目录树中未声明（目录）：{d}/")
+    for f in sorted(real_root_files - root_files):
+        problems.append(f"实际存在但目录树中未声明（文件）：{f}")
+    return real_root, problems, empty_dirs
+
+
+def run_git_mode(anchor: Path, args) -> int:
+    """--git 模式主流程：列出 git 变更 + 找出受影响的 AGENT.md 及其缺失条目。"""
+    git_utils = _load_git_utils()
+    changes = git_utils.get_changes()
+    if not changes.root:
+        print("[FAIL] 当前目录不在 git 仓库中（或 git 不可用），无法进行变更分析。")
+        return 2
+
+    repo_root = Path(changes.root)
+    # 变更范围：默认锚定 src/（与默认 AGENT.md 一致的树根），可用 --root 调整
+    scope = (anchor / DEFAULT_DOC_REL.parent).resolve()  # dash/src/
+    if args.root:
+        scope = Path(args.root).resolve()
+    try:
+        scope_rel = os.path.relpath(scope, repo_root).replace("\\", "/")
+    except ValueError:
+        scope_rel = "src"
+    filtered = git_utils.filter_by_root(changes, scope_rel)
+
+    print(f"[Git 变更分析] 仓库: {changes.root}")
+    print(f"[范围] {scope_rel}/")
+    print(f"[对比] HEAD → 工作区")
+    print("-" * 60)
+
+    if filtered.new_files:
+        print(f"[新增文件] {len(filtered.new_files)} 个")
+        for f in filtered.new_files:
+            print(f"  + {f}")
+    if filtered.modified_files:
+        print(f"[修改文件] {len(filtered.modified_files)} 个")
+        for f in filtered.modified_files:
+            print(f"  ~ {f}")
+    if filtered.deleted_files:
+        print(f"[删除文件] {len(filtered.deleted_files)} 个")
+        for f in filtered.deleted_files:
+            print(f"  - {f}")
+    if filtered.renamed_pairs:
+        print(f"[重命名] {len(filtered.renamed_pairs)} 个")
+        for o, n in filtered.renamed_pairs:
+            print(f"  {o} → {n}")
+
+    if not (filtered.new_files or filtered.modified_files or filtered.deleted_files):
+        print("\n[结果] 范围内无变更，无需同步任何 AGENT.md。")
+        return 0
+    print("-" * 60)
+
+    # 收集变更文件就近的 AGENT.md 文档
+    affected_agent_docs = set()   # doc 绝对路径集合
+
+    changed_files = filtered.new_files + filtered.modified_files + filtered.deleted_files
+    for rel in changed_files:
+        # 找到该文件所在目录向上最近的一个 AGENT.md 文档（该文档树根为它所在目录）
+        d = os.path.dirname(rel) or "."
+        while True:
+            cand = (repo_root / d / "AGENT.md").resolve()
+            if cand.is_file():
+                affected_agent_docs.add(cand)
+                break
+            parent = os.path.dirname(d)
+            if parent == d:
+                break
+            d = parent
+
+    # 对每个受影响的 AGENT.md，解析其真实树根，检查遗漏条目
+    all_problems = {}   # doc -> [problems]
+    for doc_abs in sorted(affected_agent_docs):
+        project_anchor = project_root_of(doc_abs)
+        result = _scan_doc_mismatch(doc_abs, project_anchor)
+        if result is None:
+            continue
+        real_root, problems, empty_dirs = result
+        all_problems[str(doc_abs)] = problems
+
+    # 输出受影响文档
+    if not all_problems:
+        print("[受影响 AGENT.md] 无 —— 变更文件的目录没有就近的 AGENT.md 文档。")
+        return 0
+    for doc_abs in sorted(all_problems):
+        doc_rel = os.path.relpath(doc_abs, repo_root).replace("\\", "/")
+        problems = all_problems[doc_abs]
+        print(f"\n[文档] {doc_rel}")
+        if not problems:
+            print(f"  ✓ 目录树与实际结构匹配")
+        else:
+            print(f"  ✗ 目录树与实际结构不匹配（{len(problems)} 处）：")
+            for i, p in enumerate(problems, 1):
+                tag = "新增" if p.startswith("实际存在") else "失效"
+                print(f"    {i}. [{tag}] {p}")
+            # 生成正确的修复命令（推导正确的 --root 参数，用相对路径）
+            doc_abs_path = Path(doc_abs)
+            # anchor = 文档所在目录的父目录（project_root_of）
+            root_dir = str(doc_abs_path.parent.parent)
+            root_rel = os.path.relpath(root_dir, repo_root).replace("\\", "/")
+            print(f"    建议：python {SCRIPT_DIR.name}/check_agent_structure.py --doc {doc_rel} --root {root_rel} --fix")
+
+    n_stale = sum(1 for p in all_problems.values() if p)
+    print("-" * 60)
+    if n_stale:
+        print(f"\n[结果] {n_stale} 个 AGENT.md 目录树需要更新，请按上方建议执行 --fix。")
+        return 1
+    print("\n[结果] 所有受影响 AGENT.md 目录树均已与实际结构一致。")
+    return 0
+
+
+def project_root_of(doc_abs: Path) -> Path:
+    """由 AGENT.md 绝对路径推导其目录树根 anchor。
+
+    约定：AGENT.md 位于其描述的目录内（如 src/components/AGENT.md 描述 components/），
+    因此 anchor = doc 所在目录的父目录。
+    """
+    return doc_abs.parent.parent
+
+
 # ── 主流程 ──────────────────────────────────────────────────────────
 
 
@@ -357,6 +521,7 @@ def main(argv=None):
     parser.add_argument("--doc", help="AGENT.md 路径（默认：项目根/src/AGENT.md）")
     parser.add_argument("--root", help="树根（如 src/）所在的父目录（默认：本脚本上一级目录）")
     parser.add_argument("--verbose", action="store_true", help="匹配时也输出统计信息")
+    parser.add_argument("--git", action="store_true", help="结合 git 变更分析，仅报告受影响的文档")
     parser.add_argument(
         "--fix",
         action="store_true",
@@ -368,6 +533,10 @@ def main(argv=None):
     project_root = Path(__file__).resolve().parent.parent.parent   # dash/
     anchor = Path(args.root).resolve() if args.root else project_root
     doc_path = Path(args.doc).resolve() if args.doc else (anchor / DEFAULT_DOC_REL)
+
+    # ── --git 模式：结合 git 变更，报告受影响的 AGENT.md ──
+    if args.git:
+        return run_git_mode(anchor, args)
 
     if not doc_path.is_file():
         print(f"[FAIL] 未找到 AGENT.md：{doc_path}", file=sys.stderr)
@@ -445,4 +614,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -17,7 +17,7 @@ Prefabs/Player/
 │   ├── render.ts          #   纯绘制（只读 AnimOutput + CharacterStyle）
 │   └── states.ts          #   动画状态枚举 + 转换表（纯数据）
 ├── index.ts           # 统一出口：每玩家动画状态 WeakMap + step/draw/getOutput API + characterStyleForId
-├── playerEntity.ts    # 玩家 ECS 实体注册（Position/Velocity/Collider/PlayerTag 引用玩家状态）
+├── playerEntity.ts    # 玩家 ECS 实体注册（Position/Velocity/Collider/Tags 引用玩家状态）
 ├── registry.ts        # 预制体注册表（registerPrefab / getPrefab / getAllPrefabs）
 └── types.ts           # PlayerPrefab 接口（createState/step/getOutput/draw）
 ```
@@ -28,7 +28,7 @@ Prefabs/Player/
 
 - `core/canvas`（ctx）、`core/camera`（sx/sy/view）、`core/math`（clamp）、`systems/game/gameState`（gs.time）、`systems/player`（playerController / P 本地玩家）、`systems/player/remote`（RemotePlayer）。需要这些将玩家物理状态转换为动画输出与像素绘制。
 - 物理状态由 `systems/player` 产生（grounded/vy/sprint/dead/face/inv），动画 FSM 只读这些事实 + 自身记忆（previous* 边沿检测），不碰输入与碰撞。
-- `playerEntity.ts` 依赖 `core/ecs`（world）、`components/`（Position / Velocity / Collider / PlayerTag）、`systems/player`（playerController.getState()）。
+- `playerEntity.ts` 依赖 `core/ecs`（world）、`components/`（Position / Velocity / Collider / Tags）、`systems/player`（playerController.getState()）。
 
 2. 本模块：经过 Prefabs/Player 做了什么
 
@@ -36,7 +36,7 @@ Prefabs/Player/
 - **信号**：物理步内 `systems/player` 检测到的碰撞/交互事件（`collected` / `checkpointHit` / `goalReached` / `wallBump`）通过 `FrameSignals` 传入动画步进，驱动 FSM 进入 `collectPulse` / `celebrate` / `bump` 等状态。信号只在当前物理子步内有效，不持久化。
 - **绘制**：`drawPlayer()` 绘制本地玩家；`drawPlayerFor(player, style)` 绘制远程玩家（按 ID 取 `characterStyleForId` 颜色变体）。
 - **FSM**：默认预制体内部状态机（idle/run/jumpRise/jumpFall/land/dash/collectPulse/bump/celebrate/dead/respawn），边沿信号（起跳/落地/死亡/复活/冲刺）由动画模块从上帧记忆推导，碰撞信号由 system 显式发射，输出 `AnimOutput`（scale/rotation/offset/alpha）参数包给绘制层。
-- **实体注册**：`initPlayerEntity()` — 将 `playerController.getState()` 的 PlayerState 对象直接作为 Position / Velocity 组件数据（既有代码读写 P 无需修改），外加 Collider 与 PlayerTag。
+- **实体注册**：`initPlayerEntity()` — 将 `playerController.getState()` 的 PlayerState 对象直接作为 Position / Velocity 组件数据（既有代码读写 P 无需修改），外加 Collider 与 Tags（`'player'` 标签）。
 - `characters/` 注册表管理多角色样式数据；`registry.ts` 管理多预制体组合，新增角色 = 新建目录 + 注册一行。
 
 3. 输出：流出的方向和目的

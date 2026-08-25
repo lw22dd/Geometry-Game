@@ -16,7 +16,7 @@
  *   Collectible  可收集（光球 / 二段跳票 / 钩锁，以 kind 区分）
  *   RespawnPoint 检查点
  *   Goal         终点（NOVA）
- *   PlayerTag    玩家标识（实体归属哪个玩家）
+ *   Tags         多字符串标签（分类/分组；玩家 = 'player' 标签，见 tagHelpers）
  *
  * ── 表现 / 渲染（实体如何被绘制）──
  *   Renderable   渲染描述（绘制层）
@@ -33,6 +33,9 @@ export { Hazard } from './gameplay/Hazard';
 export { Collectible } from './gameplay/Collectible';
 export { RespawnPoint } from './gameplay/RespawnPoint';
 export { Goal } from './gameplay/Goal';
-export { PlayerTag } from './gameplay/PlayerTag';
+export { Tags } from './gameplay/Tags';
 
 export { Renderable } from './render/Renderable';
+
+// 标签工具函数（TAG_PLAYER / addTag / hasTag / removeTag / getTags / queryByTag / queryOneByTag）
+export * from './gameplay/tagHelpers';

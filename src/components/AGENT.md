@@ -21,7 +21,8 @@ components/
 │   ├── Collectible.ts  # 可收集（kind: orb 光球 / jumpBoost 二段跳票 / hook 钩锁）
 │   ├── Goal.ts  # 终点（NOVA 星）
 │   ├── Hazard.ts  # 危险物（尖刺/激光）
-│   ├── PlayerTag.ts  # 玩家标识（空标记）
+│   ├── Tags.ts  # 多字符串标签（分类/分组；玩家 = 'player' 标签）
+│   ├── tagHelpers.ts  # 标签工具函数（TAG_PLAYER / addTag / hasTag / queryByTag 等）
 │   ├── RespawnPoint.ts  # 复活点（检查点）
 │   └── Timer.ts  # 计时（激光周期开关）
 └── render/  # 表现/渲染：实体如何被绘制（Renderable.ts：半径/渐变/发光色/动画相位）
@@ -35,7 +36,7 @@ components/
 
 2. 本模块：经过 components 做了什么
 
-定义实体的数据属性集合——位置、速度矢量、碰撞箱、路径运动、计时、危险、渲染、收集、复活点、终点、玩家标记。为 ECS 实体组装提供标准能力组件。所有物理量（速度、力）统一使用 `Vector2 {x, y}` 接口，不拆字段。
+定义实体的数据属性集合——位置、速度矢量、碰撞箱、路径运动、计时、危险、渲染、收集、复活点、终点、标签。为 ECS 实体组装提供标准能力组件。所有物理量（速度、力）统一使用 `Vector2 {x, y}` 接口，不拆字段。
 
 3. 输出：流出的方向和目的
 

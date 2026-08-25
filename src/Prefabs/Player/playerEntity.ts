@@ -11,7 +11,7 @@ import type { EntityId } from '../../core/ecs/Entity';
 import { Position } from '../../components/physics/Position';
 import { Velocity } from '../../components/physics/Velocity';
 import { Collider } from '../../components/physics/Collider';
-import { PlayerTag } from '../../components/gameplay/PlayerTag';
+import { addTag, hasTag, TAG_PLAYER } from '../../components/gameplay/tagHelpers';
 import { playerController } from '../../systems/player';
 
 /** 玩家实体 ID（全局唯一；未注册时为 null） */
@@ -19,11 +19,11 @@ let playerEntity: EntityId | null = null;
 
 /** 注册玩家实体（幂等：重复调用不会重复创建；实体被清空后可重建） */
 export function initPlayerEntity(): void {
-  if (playerEntity !== null && world.has(playerEntity, PlayerTag)) {
+  if (playerEntity !== null && hasTag(playerEntity, TAG_PLAYER)) {
     return;
   }
   playerEntity = world.createEntity();
-  world.add(playerEntity, PlayerTag, {});
+  addTag(playerEntity, TAG_PLAYER);
   // P 对象本身作为组件数据 —— 物理系统继续直接读写 P
   const pState = playerController.getState();
   world.add(playerEntity, Position, pState);

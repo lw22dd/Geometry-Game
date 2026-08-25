@@ -18,7 +18,7 @@ src/
 │   ├── enemy/  # 空目录
 │   ├── system/  # 空目录
 │   └── weapons/  # 空目录
-├── components/  # ECS 组件（Position / Velocity / Collider / Timer / Hazard / Collectible / RespawnPoint / Goal / PlayerTag 等）
+├── components/  # ECS 组件（Position / Velocity / Collider / Timer / Hazard / Collectible / RespawnPoint / Goal / Tags 等）
 │   ├── gameplay/  # 游戏玩法组件（Collectible, Goal, Hazard, Timer, RespawnPoint 等）
 │   ├── physics/  # 物理组件（Collider, Position, Velocity, PathMotion, SpringPad, Track）
 │   └── render/  # 渲染组件（Renderable）

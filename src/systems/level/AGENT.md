@@ -20,7 +20,7 @@ systems/level/
 1. 依赖：流入的方向和原因
 
 
-`core/ecs`（world 实体查询）、`components`（Position/Collider/Hazard/Collectible/RespawnPoint/Goal/PlayerTag）、`core/collisionBus`（事件总线）。需要这些来查询实体、计算碰撞箱、分发碰撞事件。
+`core/ecs`（world 实体查询）、`components`（Position/Collider/Hazard/Collectible/RespawnPoint/Goal/Tags）、`core/collisionBus`（事件总线）。需要这些来查询实体、计算碰撞箱、分发碰撞事件。
 
 2. 本模块：经过 systems/level 做了什么
 

@@ -7,7 +7,7 @@ import { world } from '../../core/ecs';
 import { Position } from '../../components/physics/Position';
 import { Collider } from '../../components/physics/Collider';
 import { Collectible } from '../../components/gameplay/Collectible';
-import { PlayerTag } from '../../components/gameplay/PlayerTag';
+import { queryOneByTag, TAG_PLAYER } from '../../components/gameplay/tagHelpers';
 import { gs } from '../game/gameState';
 import { FX } from '../../Prefabs/Fx';
 import { spawnParticles } from '../particles';
@@ -27,7 +27,7 @@ export function updateCollectSystem(tx?: number, ty?: number): boolean {
   if (tx !== undefined && ty !== undefined) {
     px = tx; py = ty;
   } else {
-    const player = world.queryOne(PlayerTag, Position);
+    const player = queryOneByTag(TAG_PLAYER, Position);
     if (!player) return false;
     const pp = world.get<Position>(player, Position);
     px = pp.x; py = pp.y;

@@ -136,7 +136,9 @@ export function stepPlayerGeneric(
   if (p.track) {
     // 保持 jumpWasDown 同步（轨道退出后 jumpFresh 不乱）
     p.jumpWasDown = input !== null ? input.jump : (keys.Space || keys.KeyW || keys.ArrowUp);
-    stepTrackMotion(p, dt, getMode(), outSignals);
+    // 钩锁"长按锁定"输入：发射后持续按下左键 → 到站锁定（拉住不动）
+    const hookHeld = input !== null ? input.hook : false;
+    stepTrackMotion(p, dt, getMode(), outSignals, hookHeld);
     return;
   }
 
@@ -368,12 +370,14 @@ export function stepPlayerGeneric(
  * 不处理 AABB 碰撞（玩家在轨时不受普通碰撞影响）。
  *
  * 路径几何由 TrackState.segments 定义，通过 core/path 纯函数计算位置/切线。
+ * @param hookHeld 钩锁发射后左键是否仍按住（钩锁滑索到站时锁定，拉住不动）
  */
 function stepTrackMotion(
   p: PlayerState,
   dt: number,
   mode: PhysicsKey,
   signals?: FrameSignals,
+  hookHeld = false,
 ): void {
   const t = p.track!;
   const cl = t.cumulative;
@@ -388,6 +392,18 @@ function stepTrackMotion(
     t.dist += t.speed * dt;
     if (t.dist >= t.exitDist) {
       t.dist = t.exitDist;
+      const pos = pathPosition(t.segments, cl, t.dist);
+      p.x = pos.x;
+      p.y = pos.y;
+      const tan = pathTangent(t.segments, cl, t.dist);
+      if (Math.abs(tan.x) > 0.05) p.face = Math.sign(tan.x);
+      // 长按锁定：保持在锚点（拉住不动），绳索持续可见；松开左键才脱钩
+      if (hookHeld) {
+        t.speed = 0;
+        p.velocity.x = 0;
+        p.velocity.y = 0;
+        return; // 保持 p.track，下帧继续走锁定分支
+      }
       releaseFromTrack(p, t);
       if (signals) signals.trackExited = true;
       return;

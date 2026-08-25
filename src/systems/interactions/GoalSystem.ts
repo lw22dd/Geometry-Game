@@ -6,7 +6,7 @@ import { Position } from '../../components/physics/Position';
 import { Collider } from '../../components/physics/Collider';
 import { Goal } from '../../components/gameplay/Goal';
 import { Collectible } from '../../components/gameplay/Collectible';
-import { PlayerTag } from '../../components/gameplay/PlayerTag';
+import { queryOneByTag, TAG_PLAYER } from '../../components/gameplay/tagHelpers';
 import { gs } from '../game/gameState';
 import { FX } from '../../Prefabs/Fx';
 import { spawnParticles } from '../particles';
@@ -17,7 +17,7 @@ import { pointInCollider } from '../level';
 import { orbCount } from './ItemPickupSystem';
 
 export function updateGoalSystem(): boolean {
-  const player = world.queryOne(PlayerTag, Position);
+  const player = queryOneByTag(TAG_PLAYER, Position);
   if (!player) return false;
   const pp = world.get<Position>(player, Position);
 

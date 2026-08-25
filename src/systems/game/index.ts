@@ -175,7 +175,7 @@ function step(dt: number): void {
   }
 
   // 注入输入（单机/房主/客机统一从本地 keys 表提取）
-  const inputKeys = getLocalInputKeys(hookEdge);
+  const inputKeys = getLocalInputKeys();
   playerController.setInput(inputKeys);
 
   if (inSession() && !isHost()) {
@@ -274,7 +274,7 @@ function stepRemoteClients(dt: number): void {
       signals.hookPicked = true;
     }
 
-    // 远程玩家钩锁发射（客机上报鼠标瞄准 + 左键按下沿）
+    // 远程玩家钩锁（客机上报鼠标瞄准 + 左键按住状态；沿 = hold && !prev）
     rp.hookCd = Math.max(0, rp.hookCd - dt);
     rp.hookMissT = Math.max(0, rp.hookMissT - dt);
     const hookNow = input?.hook ?? false;
@@ -347,11 +347,12 @@ function collectItemStates(): NetItemState[] {
 }
 
 /** 提取本地按键为输入快照 */
-function getLocalInputKeys(hookEdge: boolean): InputKeys {
+function getLocalInputKeys(): InputKeys {
   const pState = playerController.getState();
   // 钩锁方向 = 鼠标引导单位向量（非世界坐标），未移动过鼠标时回退面朝方向
   const dir = mouse.used ? mouseAimDir(pState) : defaultAimDir(pState);
-  // 主动装备：仅选中钩锁槽位且装备了钩锁时，按下沿才上报（房主据此同步模拟）
+  // 主动装备：仅选中钩锁槽位且装备了钩锁时，上报**左键按住状态**（房主据此刻
+  // 滑索到站锁定/脱钩；房主端用 hold && !prev 还原发射沿）
   const canHook = pState.backpack[pState.selectedSlot] === 'hook';
   return {
     left: keys.ArrowLeft || keys.KeyA,
@@ -359,7 +360,7 @@ function getLocalInputKeys(hookEdge: boolean): InputKeys {
     jump: keys.Space || keys.KeyW || keys.ArrowUp,
     sprint: keys.ShiftLeft || keys.ShiftRight,
     interact: keys.KeyE,
-    hook: hookEdge && canHook,
+    hook: mouse.down && canHook,
     aimX: dir.x,
     aimY: dir.y,
   };

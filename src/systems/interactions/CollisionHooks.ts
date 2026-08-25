@@ -16,7 +16,7 @@ import { Timer } from '../../components/gameplay/Timer';
 import { Hazard } from '../../components/gameplay/Hazard';
 import { Collectible } from '../../components/gameplay/Collectible';
 import { RespawnPoint } from '../../components/gameplay/RespawnPoint';
-import { PlayerTag } from '../../components/gameplay/PlayerTag';
+import { queryOneByTag, TAG_PLAYER } from '../../components/gameplay/tagHelpers';
 import { Goal } from '../../components/gameplay/Goal';
 import { collisionBus } from '../../core/collisionBus';
 import { gs } from '../game/gameState';
@@ -122,7 +122,7 @@ export function initCollisionHooks(): void {
         netBus.emit({ type: 'game:hookpickup' });
         if (signals) signals.hookPicked = true;
 
-        gs.toast = '钩锁已装备！鼠标瞄准 + 左键发射';
+        gs.toast = '钩锁已装备！左键发射，长按锁定';
         gs.toastT = 2.5;
         break;
       }
@@ -164,7 +164,7 @@ export function initCollisionHooks(): void {
  * 可在 keydown 回调中安全调用。
  */
 export function tryInteractCheckpoint(): void {
-  const player = world.queryOne(PlayerTag, Position, Collider);
+  const player = queryOneByTag(TAG_PLAYER, Position, Collider);
   if (!player) return;
   const pp = world.get<Position>(player, Position);
 

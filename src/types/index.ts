@@ -362,7 +362,7 @@ export interface InputKeys {
   sprint: boolean;
   /** 交互键（E）：按下时 true，用于检查点等可交互物 */
   interact: boolean;
-  /** 钩锁发射（左键按下帧 true） */
+  /** 钩锁左键按住状态（true = 按住中；房主端用 hold && !prev 还原发射沿） */
   hook: boolean;
   /** 鼠标瞄准世界坐标 X（格） */
   aimX: number;
