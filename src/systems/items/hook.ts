@@ -24,7 +24,7 @@ import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
 import { HOOK_MAX_RANGE, HOOK_SPEED, HOOK_COOLDOWN, HOOK_RETRACT_TIME } from '../../config';
 import { hasItem } from './backpack';
-import { getSolids } from '../player';
+import { getHookTargets } from '../player';
 import { sfx } from '../../core/audio';
 
 /** 钩锁最小作用距离（格）：点射脚下的地板不产生退化滑索 */
@@ -118,7 +118,7 @@ export function raycastHook(
   const uy = (dirY / dLen) * maxLen;
 
   let best: { t: number; face: 'left' | 'right' | 'bottom' | 'top' } | null = null;
-  for (const r of getSolids()) {
+  for (const r of getHookTargets()) {
     const result = segRectT(ox, oy, ux, uy, r);
     if (result === null) continue;
     if (best === null || result.t < best.t) best = result;

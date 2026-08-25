@@ -21,6 +21,8 @@ export interface Rect {
   plat?: PlatRef;
   /** 若属于弹簧平台，指向其 ECS 实体 ID（用于弹射检测） */
   springPad?: number;
+  /** 钩锁是否可命中（仅静态几何 Rect 使用；undefined 视为可命中） */
+  hookable?: boolean;
 }
 
 /** 平台携带引用 —— 每帧位移增量 dx（水平）/ dy（垂直） */

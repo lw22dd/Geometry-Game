@@ -15,9 +15,12 @@ import type {
   MoverSpawnData,
   LaserSpawnData,
   SpringPadSpawnData,
+  TrackSpawnData,
   Spike,
   Rect,
+  PathSegment,
 } from '@game/types';
+import { buildCumulativeLengths, pathPosition } from '@game/core/path';
 
 /* ==================== decompile：游戏 → 编辑器 v2 ==================== */
 
@@ -73,6 +76,26 @@ export function decompileMapDefinition(def: MapDefinition): MapData {
   for (const c of def.entitySpawners.checkpoints) {
     data.layers.objects.push({ type: 'checkpoint', x: c[0], y: c[1] });
   }
+  for (const h of def.entitySpawners.hooks ?? []) {
+    data.layers.objects.push({ type: 'hookPickup', x: h[0], y: h[1] });
+  }
+  // 冲刺轨道：入口点 = 路径上 entryDist 处的世界坐标（编辑器锚点）
+  for (const t of def.entitySpawners.tracks ?? []) {
+    const cl = buildCumulativeLengths(t.segments);
+    const entry = pathPosition(t.segments, cl, t.entryDist);
+    const inst: ObjectInstance = {
+      type: 'track',
+      x: entry.x,
+      y: entry.y,
+      segments: t.segments as PathSegment[],
+      entryDist: t.entryDist,
+      exitDist: t.exitDist,
+    };
+    if (t.speedThreshold !== undefined && t.speedThreshold !== 7) {
+      (inst as any).speedThreshold = t.speedThreshold;
+    }
+    data.layers.objects.push(inst);
+  }
   const n = def.entitySpawners.nova;
   data.layers.objects.push({ type: 'nova', x: n.x, y: n.y });
 
@@ -115,6 +138,8 @@ export function compileMapData(data: MapData): {
   const orbs: [number, number][] = [];
   const jumpBoosts: [number, number][] = [];
   const checkpoints: [number, number][] = [];
+  const hooks: [number, number][] = [];
+  const tracks: TrackSpawnData[] = [];
   let nova: { x: number; y: number } = { x: 0, y: 0 };
 
   for (const inst of objects) {
@@ -142,6 +167,17 @@ export function compileMapData(data: MapData): {
       case 'orb': orbs.push([inst.x, inst.y]); break;
       case 'jumpBoost': jumpBoosts.push([inst.x, inst.y]); break;
       case 'checkpoint': checkpoints.push([inst.x, inst.y]); break;
+      case 'hookPickup': hooks.push([inst.x, inst.y]); break;
+      case 'track': {
+        const tr: TrackSpawnData = {
+          segments: inst.segments,
+          entryDist: inst.entryDist,
+          exitDist: inst.exitDist,
+        };
+        if (inst.speedThreshold !== undefined) tr.speedThreshold = inst.speedThreshold;
+        tracks.push(tr);
+        break;
+      }
       case 'nova': nova = { x: inst.x, y: inst.y }; break;
     }
   }
@@ -163,6 +199,8 @@ export function compileMapData(data: MapData): {
       orbs,
       jumpBoosts,
       checkpoints,
+      hooks: hooks.length > 0 ? hooks : undefined,
+      tracks: tracks.length > 0 ? tracks : undefined,
       nova,
     },
   };
@@ -209,6 +247,8 @@ export function verifyRoundTrip(def: MapDefinition): RoundTripReport {
   PUSH(diffs, 'orbs', def.entitySpawners.orbs, compiled.entitySpawners.orbs);
   PUSH(diffs, 'jumpBoosts', def.entitySpawners.jumpBoosts, compiled.entitySpawners.jumpBoosts);
   PUSH(diffs, 'checkpoints', def.entitySpawners.checkpoints, compiled.entitySpawners.checkpoints);
+  PUSH(diffs, 'hooks', def.entitySpawners.hooks ?? [], compiled.entitySpawners.hooks ?? []);
+  PUSH(diffs, 'tracks', def.entitySpawners.tracks ?? [], compiled.entitySpawners.tracks ?? []);
   PUSH(diffs, 'nova', def.entitySpawners.nova, compiled.entitySpawners.nova);
 
   return {

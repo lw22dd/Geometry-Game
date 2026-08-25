@@ -32,6 +32,7 @@ import { PathMotion } from '../../components/physics/PathMotion';
 import { SpringPad } from '../../components/physics/SpringPad';
 import { Timer } from '../../components/gameplay/Timer';
 import { Hazard } from '../../components/gameplay/Hazard';
+import { Hookable } from '../../components/gameplay/Hookable';
 import { Track } from '../../components/physics/Track';
 import { colliderWorldRect, aabbOverlap } from '../level';
 import {
@@ -57,7 +58,7 @@ export const P: PlayerState = playerController.getState();
 
 const solidsNow: Rect[] = [];
 
-/** 只读访问本帧碰撞体（钩锁射线检测等复用） */
+/** 只读访问本帧碰撞体（玩家物理推挤用） */
 export function getSolids(): readonly Rect[] {
   return solidsNow;
 }
@@ -80,6 +81,35 @@ export function buildSolids(): void {
     const r = colliderWorldRect(pos, col);
     r.springPad = e as number;
     solidsNow.push(r);
+  }
+  // 钩锁目标随本帧碰撞体一并刷新（射线检测用同一份"本帧世界几何"）
+  buildHookTargets();
+}
+
+/* ==================== 当前帧钩锁目标 ==================== */
+
+/** 钩锁射线目标：静态几何（hookable !== false）+ 带 Hookable 组件的实体 */
+const hookTargetsNow: Rect[] = [];
+
+/** 只读访问本帧钩锁目标列表（钩锁射线检测用） */
+export function getHookTargets(): readonly Rect[] {
+  return hookTargetsNow;
+}
+
+/**
+ * 构建本帧钩锁目标。
+ * 能力语义由 Hookable 组件显式声明：可为棋子加 Hookable 使其可勾
+ * （激光/尖刺等危险物不加，即天然不可勾）；静态几何用 Rect.hookable 标记。
+ */
+export function buildHookTargets(): void {
+  hookTargetsNow.length = 0;
+  for (const s of currentMap.solids) {
+    if (s.hookable !== false) hookTargetsNow.push(s);
+  }
+  for (const e of world.query(Position, Collider, Hookable)) {
+    const pos = world.get<Position>(e, Position);
+    const col = world.get<Collider>(e, Collider);
+    hookTargetsNow.push(colliderWorldRect(pos, col));
   }
 }
 

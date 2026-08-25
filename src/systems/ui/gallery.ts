@@ -75,6 +75,43 @@ const CATEGORIES: GalleryCategory[] = [
           ctx.restore();
         },
       },
+      {
+        id: 'crimson-runner',
+        name: '绯红冲刺者',
+        draw: (cx, cy, t, r) => {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 2.5);
+          g.addColorStop(0, 'rgba(255,130,80,.38)');
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(cx, cy, r * 2.5, 0, 6.283);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.shadowColor = 'rgba(255,100,60,.95)';
+          ctx.shadowBlur = 14;
+          const bg = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 0, cx, cy, r);
+          bg.addColorStop(0, '#fff2ea');
+          bg.addColorStop(0.55, '#ffb8a8');
+          bg.addColorStop(1, '#ff4a3c');
+          ctx.fillStyle = bg;
+          ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.283);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = 'rgba(255,170,140,.6)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.283);
+          ctx.stroke();
+          const eyeR = r * 0.18;
+          ctx.fillStyle = '#2b0d12';
+          for (const dx of [0.15, 0.55]) {
+            ctx.beginPath();
+            ctx.arc(cx + (dx - 0.35) * r * 1.5, cy - r * 0.15, eyeR, 0, 6.283);
+            ctx.fill();
+          }
+          ctx.restore();
+        },
+      },
     ],
   },
   {
@@ -151,6 +188,88 @@ const CATEGORIES: GalleryCategory[] = [
           ctx.beginPath(); ctx.arc(cx, cy, r * 0.16, 0, 6.283);
           ctx.fill();
           ctx.shadowBlur = 0;
+          ctx.restore();
+        },
+      },
+      {
+        id: 'jumpBoost',
+        name: '双跳光球',
+        draw: (cx, cy, t, r) => {
+          ctx.save();
+          const bob = Math.sin(t * 1.5) * 0.06 * r;
+          const cy2 = cy + bob;
+          ctx.globalCompositeOperation = 'lighter';
+          const g = ctx.createRadialGradient(cx, cy2, r * 0.2, cx, cy2, r * 2.4);
+          g.addColorStop(0, 'rgba(120,255,170,.28)');
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(cx, cy2, r * 2.4, 0, 6.283);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.save();
+          ctx.translate(cx, cy2 + r * 0.1);
+          ctx.rotate(Math.sin(t * 2) * 0.18);
+          ctx.shadowColor = 'rgba(120,255,170,.9)';
+          ctx.shadowBlur = 10;
+          ctx.fillStyle = '#59ff8f';
+          ctx.beginPath();
+          ctx.moveTo(0, -r * 1.15);
+          ctx.lineTo(r * 0.62, -r * 0.15);
+          ctx.lineTo(r * 0.24, -r * 0.15);
+          ctx.lineTo(r * 0.24, r);
+          ctx.lineTo(-r * 0.24, r);
+          ctx.lineTo(-r * 0.24, -r * 0.15);
+          ctx.lineTo(-r * 0.62, -r * 0.15);
+          ctx.closePath();
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = 'rgba(230,255,240,.9)';
+          ctx.fillRect(-r * 0.08, -r * 1.02, r * 0.16, r * 0.88);
+          ctx.restore();
+          ctx.restore();
+        },
+      },
+      {
+        id: 'hookPickup',
+        name: '钩锁道具',
+        draw: (cx, cy, t, r) => {
+          ctx.save();
+          const bob = Math.sin(t * 1.5 + 0.7) * 0.06 * r;
+          const cy2 = cy + bob;
+          ctx.globalCompositeOperation = 'lighter';
+          const g = ctx.createRadialGradient(cx, cy2, r * 0.2, cx, cy2, r * 2.4);
+          g.addColorStop(0, 'rgba(255,190,90,.30)');
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(cx, cy2, r * 2.4, 0, 6.283);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.save();
+          ctx.translate(cx, cy2 + r * 0.2);
+          ctx.rotate(Math.sin(t * 2 + 0.4) * 0.18);
+          ctx.shadowColor = 'rgba(255,180,70,.9)';
+          ctx.shadowBlur = 10;
+          ctx.strokeStyle = '#ffc04d';
+          ctx.lineWidth = r * 0.36;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(0, -r * 1.15);
+          ctx.lineTo(0, r * 0.35);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(0, r * 0.35, r * 0.6, -Math.PI * 0.82, Math.PI * 1.02);
+          ctx.stroke();
+          ctx.fillStyle = '#ffd27a';
+          ctx.beginPath();
+          ctx.moveTo(0, r * 0.28);
+          ctx.lineTo(-r * 0.5, r * 0.1);
+          ctx.lineTo(0, -r * 0.05);
+          ctx.closePath();
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = '#ffe3ad';
+          ctx.beginPath(); ctx.arc(0, -r * 1.15, r * 0.2, 0, 6.283); ctx.fill();
+          ctx.restore();
           ctx.restore();
         },
       },
@@ -238,6 +357,67 @@ const CATEGORIES: GalleryCategory[] = [
           ctx.restore();
         },
       },
+    {
+        id: 'springPadV',
+        name: '垂直弹簧',
+        draw: (cx, cy, t, r) => {
+          ctx.save();
+          const w = r * 1.5, h = r * 0.8;
+          const breath = 0.07 + 0.05 * Math.sin(t * 3.2) + 0.1;
+          ctx.fillStyle = 'rgba(255,255,255,' + breath.toFixed(3) + ')';
+          ctx.fillRect(cx - w / 2 - 2, cy - h / 2 - 2, w + 4, h + 4);
+          ctx.fillStyle = '#142210';
+          ctx.fillRect(cx - w / 2, cy - h / 2, w, h);
+          ctx.strokeStyle = '#4aff8a';
+          ctx.lineWidth = 1.5;
+          ctx.shadowColor = 'rgba(74,255,138,.8)';
+          ctx.shadowBlur = 8;
+          ctx.strokeRect(cx - w / 2, cy - h / 2, w, h);
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = 'hsla(145,100%,62%,.85)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          for (let i = 0; i <= 8; i++) {
+            const tt = i / 8;
+            const y = cy - h / 2 + h * tt;
+            const x = cx + (i % 2 === 0 ? -w * 0.22 : w * 0.22);
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+          ctx.fillStyle = 'hsla(145,100%,78%,.95)';
+          ctx.fillRect(cx - w / 2, cy - h / 2, w, 2.5);
+          ctx.restore();
+        },
+      },
+      {
+        id: 'springPadH',
+        name: '水平弹簧',
+        draw: (cx, cy, t, r) => {
+          ctx.save();
+          const h = r * 1.5, w = r * 0.8;
+          ctx.fillStyle = '#142210';
+          ctx.fillRect(cx - w / 2, cy - h / 2, w, h);
+          ctx.strokeStyle = '#4aff8a';
+          ctx.lineWidth = 1.5;
+          ctx.shadowColor = 'rgba(74,255,138,.8)';
+          ctx.shadowBlur = 8;
+          ctx.strokeRect(cx - w / 2, cy - h / 2, w, h);
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = 'hsla(145,100%,62%,.85)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          for (let i = 0; i <= 8; i++) {
+            const tt = i / 8;
+            const x = cx - w / 2 + w * tt;
+            const y = cy + (i % 2 === 0 ? -h * 0.22 : h * 0.22);
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+          ctx.fillStyle = 'hsla(145,100%,78%,.95)';
+          ctx.fillRect(cx + w / 2 - 2.5, cy - h / 2, 2.5, h);
+          ctx.restore();
+        },
+      },
     ],
   },
   {
@@ -288,6 +468,111 @@ const CATEGORIES: GalleryCategory[] = [
           ctx.shadowBlur = 0;
           ctx.fillStyle = 'hsla(220,100%,80%,.95)';
           ctx.fillRect(px - r, cy - r * 0.6, r * 2, 2);
+          ctx.restore();
+        },
+      },
+      {
+        id: 'track',
+        name: '玻璃管道',
+        draw: (cx, cy, t, r) => {
+          ctx.save();
+          const hue = 190;
+          const tubeW = r * 1.2;
+          const r2 = tubeW / 2;
+          const pts = [
+            { x: cx - r * 2.2, y: cy },
+            { x: cx - r * 0.8, y: cy },
+            { x: cx, y: cy - r * 0.8 },
+            { x: cx + r * 0.8, y: cy },
+            { x: cx + r * 2.2, y: cy },
+          ];
+          ctx.shadowColor = `hsla(${hue},100%,60%,.85)`;
+          ctx.shadowBlur = 10;
+          ctx.strokeStyle = `hsla(${hue},100%,90%,.18)`;
+          ctx.lineWidth = tubeW + 5;
+          ctx.beginPath();
+          for (let i = 0; i < pts.length; i++) {
+            if (i === 0) ctx.moveTo(pts[i].x, pts[i].y);
+            else ctx.lineTo(pts[i].x, pts[i].y);
+          }
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = `hsla(${hue},85%,60%,.16)`;
+          ctx.lineWidth = tubeW;
+          ctx.beginPath();
+          for (let i = 0; i < pts.length; i++) {
+            if (i === 0) ctx.moveTo(pts[i].x, pts[i].y);
+            else ctx.lineTo(pts[i].x, pts[i].y);
+          }
+          ctx.stroke();
+          ctx.strokeStyle = `hsla(${hue},100%,92%,.6)`;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          for (let i = 0; i < pts.length; i++) {
+            const ny = pts[i].y - (r2 - 1);
+            if (i === 0) ctx.moveTo(pts[i].x, ny);
+            else ctx.lineTo(pts[i].x, ny);
+          }
+          ctx.stroke();
+          ctx.setLineDash([4, 6]);
+          ctx.strokeStyle = `hsla(${hue},100%,80%,.3)`;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          for (let i = 0; i < pts.length; i++) {
+            if (i === 0) ctx.moveTo(pts[i].x, pts[i].y);
+            else ctx.lineTo(pts[i].x, pts[i].y);
+          }
+          ctx.stroke();
+          ctx.setLineDash([]);
+          const breath = 0.1 + 0.08 * Math.sin(t * 2.5);
+          ctx.fillStyle = `hsla(${hue},100%,70%,${breath.toFixed(3)})`;
+          ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, 4, 0, 6.283); ctx.fill();
+          ctx.restore();
+        },
+      },
+    ],
+  },
+  {
+    id: 'decorations',
+    icon: '',
+    title: '装饰与提示',
+    items: [
+      {
+        id: 'deco',
+        name: '装饰方块',
+        draw: (cx, cy, t, r) => {
+          ctx.save();
+          const s = r * 0.7;
+          ctx.translate(cx, cy);
+          ctx.rotate(t * 1.2);
+          ctx.strokeStyle = 'rgba(170,140,255,.5)';
+          ctx.lineWidth = 1.5;
+          ctx.shadowColor = 'rgba(170,140,255,.3)';
+          ctx.shadowBlur = 6;
+          ctx.strokeRect(-s, -s, s * 2, s * 2);
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = 'rgba(170,140,255,.12)';
+          ctx.fillRect(-s, -s, s * 2, s * 2);
+          ctx.restore();
+        },
+      },
+      {
+        id: 'hint',
+        name: '提示文字',
+        draw: (cx, cy, t, r) => {
+          ctx.save();
+          const bob = Math.sin(t * 1.8) * 3;
+          ctx.fillStyle = 'rgba(255,215,0,.85)';
+          ctx.shadowColor = 'rgba(255,215,0,.5)';
+          ctx.shadowBlur = 6;
+          ctx.font = `${Math.round(r * 0.45)}px "Segoe UI","Microsoft YaHei",Arial`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('提示', cx, cy + bob);
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = 'rgba(255,215,0,.2)';
+          ctx.font = `${Math.round(r * 0.18)}px "Segoe UI","Microsoft YaHei",Arial`;
+          ctx.fillText('点击交互', cx, cy + bob + r * 0.5);
           ctx.restore();
         },
       },
@@ -393,6 +678,56 @@ const CATEGORIES: GalleryCategory[] = [
             ctx.rotate(t * 3 + i);
             ctx.fillRect(-r * 0.06, -r * 0.06, r * 0.12, r * 0.12);
             ctx.restore();
+          }
+          ctx.restore();
+        },
+      },
+    {
+        id: 'arrowBoost',
+        name: '双跳增益环绕',
+        draw: (cx, cy, t, r) => {
+          ctx.save();
+          const n = 6;
+          ctx.globalCompositeOperation = 'lighter';
+          for (let i = 0; i < n; i++) {
+            const a = (i / n) * 6.283 + t * 0.8;
+            const dist = r * 0.9;
+            const px = cx + Math.cos(a) * dist;
+            const py = cy + Math.sin(a) * dist;
+            const alpha = 0.5 + 0.5 * Math.sin(t * 3 + i * 1.1);
+            ctx.fillStyle = 'rgba(102,255,153,' + alpha.toFixed(3) + ')';
+            ctx.save();
+            ctx.translate(px, py);
+            ctx.rotate(a + Math.PI / 2);
+            const sz = r * 0.1;
+            ctx.beginPath();
+            ctx.moveTo(0, -sz * 2);
+            ctx.lineTo(sz, sz);
+            ctx.lineTo(0, sz * 0.3);
+            ctx.lineTo(-sz, sz);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+          }
+          ctx.restore();
+        },
+      },
+      {
+        id: 'doubleJump',
+        name: '二段跳触发',
+        draw: (cx, cy, t, r) => {
+          ctx.save();
+          const n = 8;
+          ctx.globalCompositeOperation = 'lighter';
+          for (let i = 0; i < n; i++) {
+            const a = (i / n) * 6.283 + t * 0.4;
+            const dist = (0.3 + 0.3 * Math.sin(t * 2 + i * 1.2)) * r * 0.9;
+            const px = cx + Math.cos(a) * dist;
+            const py = cy + Math.sin(a) * dist - t * 0.6 * r * 0.3;
+            const alpha = 0.6 * (1 - ((t * 0.5 + i * 0.08) % 1));
+            ctx.fillStyle = 'rgba(102,255,153,' + alpha.toFixed(3) + ')';
+            ctx.beginPath(); ctx.arc(px, py, r * 0.08, 0, 6.283);
+            ctx.fill();
           }
           ctx.restore();
         },

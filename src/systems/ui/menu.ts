@@ -355,7 +355,6 @@ function _menuHint(t: number): void {
   ctx.textBaseline = 'alphabetic';
   ctx.font = '500 14px "Segoe UI","Microsoft YaHei",Arial';
   ctx.fillStyle = 'rgba(140,246,255,' + (.5 + .35 * Math.sin(t * 3.2)) + ')';
-  ctx.fillText('— 按任意键开始 · 点击进入 —', VW / 2, by + 64 + 74);
   ctx.restore();
 }
 

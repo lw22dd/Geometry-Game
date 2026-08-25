@@ -97,6 +97,31 @@ export function mapDefinitionTSCode(store: EditorStore): string {
   out += `${indent}${indent}orbs: [\n${map.entitySpawners.orbs.map(o => `${indent}${indent}${indent}[${fmt(o[0])}, ${fmt(o[1])}],`).join('\n')}\n${indent}${indent}],\n`;
   out += `${indent}${indent}jumpBoosts: [\n${map.entitySpawners.jumpBoosts.map(j => `${indent}${indent}${indent}[${fmt(j[0])}, ${fmt(j[1])}],`).join('\n')}\n${indent}${indent}],\n`;
   out += `${indent}${indent}checkpoints: [\n${map.entitySpawners.checkpoints.map(c => `${indent}${indent}${indent}[${fmt(c[0])}, ${fmt(c[1])}],`).join('\n')}\n${indent}${indent}],\n`;
+  if (map.entitySpawners.hooks && map.entitySpawners.hooks.length > 0) {
+    out += `${indent}${indent}hooks: [\n${map.entitySpawners.hooks.map(h => `${indent}${indent}${indent}[${fmt(h[0])}, ${fmt(h[1])}],`).join('\n')}\n${indent}${indent}],\n`;
+  }
+  if (map.entitySpawners.tracks && map.entitySpawners.tracks.length > 0) {
+    out += `${indent}${indent}tracks: [\n`;
+    for (const tr of map.entitySpawners.tracks) {
+      out += `${indent}${indent}${indent}{\n`;
+      out += `${indent}${indent}${indent}${indent}segments: [\n`;
+      for (const seg of tr.segments) {
+        if (seg.type === 'line') {
+          out += `${indent}${indent}${indent}${indent}${indent}{ type: 'line', x1: ${fmt(seg.x1)}, y1: ${fmt(seg.y1)}, x2: ${fmt(seg.x2)}, y2: ${fmt(seg.y2)} },\n`;
+        } else {
+          out += `${indent}${indent}${indent}${indent}${indent}{ type: 'arc', cx: ${fmt(seg.cx)}, cy: ${fmt(seg.cy)}, radius: ${fmt(seg.radius)}, startAngle: ${seg.startAngle === Math.PI / 2 ? 'Math.PI / 2' : seg.startAngle === -Math.PI / 2 ? '-Math.PI / 2' : fmt(seg.startAngle)}, endAngle: ${seg.endAngle === Math.PI / 2 ? 'Math.PI / 2' : seg.endAngle === -Math.PI / 2 ? '-Math.PI / 2' : fmt(seg.endAngle)}, dir: ${seg.dir} },\n`;
+        }
+      }
+      out += `${indent}${indent}${indent}${indent}],\n`;
+      out += `${indent}${indent}${indent}${indent}entryDist: ${fmt(tr.entryDist)},\n`;
+      out += `${indent}${indent}${indent}${indent}exitDist: ${fmt(tr.exitDist)},\n`;
+      if (tr.speedThreshold !== undefined && tr.speedThreshold !== 7) {
+        out += `${indent}${indent}${indent}${indent}speedThreshold: ${fmt(tr.speedThreshold)},\n`;
+      }
+      out += `${indent}${indent}${indent}},\n`;
+    }
+    out += `${indent}${indent}],\n`;
+  }
   out += `${indent}${indent}nova: { x: ${fmt(map.entitySpawners.nova.x)}, y: ${fmt(map.entitySpawners.nova.y)} },\n`;
   out += `${indent}},\n}`;
   return out;

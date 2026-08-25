@@ -18,7 +18,7 @@ import { createLoopTrack } from '../Prefabs/Scenes/loopTrackEntity';
 import { createHookPickup } from '../Prefabs/Scenes/hookPickupEntity';
 import { world } from '../core/ecs';
 
-const R = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h, top: y + h });
+const R = (x: number, y: number, w: number, h: number, hookable = true): Rect => ({ x, y, w, h, top: y + h, hookable });
 
 /** 地图注册表 */
 export const maps: MapDefinition[] = [

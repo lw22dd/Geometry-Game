@@ -16,8 +16,8 @@ import {
 import { buildPalette } from './palette';
 import { buildInspector } from './inspector';
 import { saveToFile, loadFromFile, showExport, autoSave, loadAutoSave, buildImportDialog, setExportTab, runSelfCheck, buildTemplateDialog } from './io';
-import { createEmptyMapData, hitTest, hitTestRect, rectCenter, rectRad, rectWorldCorners, rectTopCenter } from './mapTypes';
-import { getPrefabEntry } from './registry';
+import { createEmptyMapData, hitTest, hitTestRect, rectCenter, rectRad, rectWorldCorners, rectTopCenter, placeInstanceAt } from './mapTypes';
+import { getPrefabEntry, getEntryByType } from './registry';
 import { buildOutliner } from './outliner';
 import { bindMinimapStore, bindMinimapClick, drawMinimap } from './minimap';
 import { showToast } from './toast';
@@ -193,9 +193,7 @@ function handleObjMouseDown(wx: number, wy: number): void {
       const sx2 = snapToGrid(wx, store.snap);
       const sy2 = snapToGrid(wy, store.snap);
       const inst = entry.defaults();
-      if (inst.type === 'mover') inst.x0 = sx2;
-      else if (inst.type === 'laser') { inst.x = sx2; inst.y0 = sy2; }
-      else { inst.x = sx2; inst.y = sy2; }
+      placeInstanceAt(inst, sx2, sy2);
       store.addInstance(inst);
       if (!store.lockPlace) {
         store.setObjTool(null);

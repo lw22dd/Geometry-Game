@@ -1,7 +1,8 @@
 /**
  * 弹簧平台预制体工厂 —— 创建 ECS 实体。
- * 组装 Position(底左) + Collider(solid) + SpringPad。
+ * 组装 Position(底左) + Collider(solid) + SpringPad + Hookable。
  * 玩家踩踏后获得指定方向加速度，同时弹簧播放压缩/弹起动画。
+ * Hookable：弹簧台是可碰到的平台，钩锁可勾住。
  *
  * 用法：
  *   createSpringPad({ x, y, ...VERTICAL_SPRING })   // 带预设展开
@@ -16,6 +17,7 @@ import { DEFAULT_SPRING, VERTICAL_SPRING, HORIZONTAL_SPRING } from '../../config
 import { Position } from '../../components/physics/Position';
 import { Collider } from '../../components/physics/Collider';
 import { SpringPad } from '../../components/physics/SpringPad';
+import { Hookable } from '../../components/gameplay/Hookable';
 
 /** 生成数据：位置必填，其余字段可省略（回退到垂直弹簧默认值） */
 export type SpringPadInput = Partial<Omit<SpringPadSpawnData, 'x' | 'y'>> & Pick<SpringPadSpawnData, 'x' | 'y'>;
@@ -39,6 +41,8 @@ export function createSpringPad(d: SpringPadInput): EntityId {
     animTimer: 0,
     firing: false,
   });
+  // 可被钩锁命中
+  world.add(e, Hookable, {});
   return e;
 }
 

@@ -9,7 +9,7 @@ import type { MapInstance, RectItem } from './mapTypes';
 import {
   instancePosition, instanceHitBounds, hitTest,
   rectCenter, rectRad, rotatedRectBounds, hitTestRect,
-  rectWorldCorners, rectTopCenter,
+  rectWorldCorners, rectTopCenter, placeInstanceAt,
 } from './mapTypes';
 
 /* ==================== 网格 ==================== */
@@ -243,6 +243,57 @@ function renderOne(inst: MapInstance, time: number): void {
       ctx.stroke();
       break;
     }
+    case 'hookPickup': {
+      const hx = sx(inst.x), hy = sy(inst.y);
+      ctx.fillStyle = col;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(hx, hy, 0.4 * sz, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffd27a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(hx, hy + 0.4 * sz);
+      ctx.lineTo(hx, hy - 0.3 * sz);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(hx, hy - 0.3 * sz, 0.25 * sz, -Math.PI * 0.82, Math.PI * 1.02);
+      ctx.stroke();
+      break;
+    }
+    case 'track': {
+      // 绘制轨道路径折线（预览简单线框 + 入口亮点）
+      const pts: { x: number; y: number }[] = [];
+      for (const seg of inst.segments) {
+        if (seg.type === 'line') {
+          pts.push({ x: sx(seg.x1), y: sy(seg.y1) });
+          pts.push({ x: sx(seg.x2), y: sy(seg.y2) });
+        } else {
+          const steps = 20;
+          for (let i = 0; i <= steps; i++) {
+            const t = seg.startAngle + (seg.endAngle - seg.startAngle) * (i / steps);
+            pts.push({ x: sx(seg.cx + Math.cos(t) * seg.radius), y: sy(seg.cy + Math.sin(t) * seg.radius) });
+          }
+        }
+      }
+      ctx.strokeStyle = col + '77';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 6]);
+      ctx.beginPath();
+      for (let i = 0; i < pts.length; i++) {
+        if (i === 0) ctx.moveTo(pts[i].x, pts[i].y);
+        else ctx.lineTo(pts[i].x, pts[i].y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // 入口亮点
+      ctx.fillStyle = col;
+      ctx.shadowColor = col;
+      ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.arc(sx(inst.x), sy(inst.y), 5, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
   }
 
   ctx.restore();
@@ -427,9 +478,7 @@ export function renderGhost(store: EditorStore, mx: number, my: number): void {
   const inst = entry.defaults();
   const wx = snapToGrid(mx, store.snap);
   const wy = snapToGrid(my, store.snap);
-  if (inst.type === 'mover') inst.x0 = wx;
-  else if (inst.type === 'laser') { inst.x = wx; inst.y0 = wy; }
-  else { inst.x = wx; inst.y = wy; }
+  placeInstanceAt(inst, wx, wy);
 
   ctx.save();
   ctx.globalAlpha = 0.5;

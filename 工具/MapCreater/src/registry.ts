@@ -16,6 +16,8 @@ import { createOrb } from '@game/Prefabs/Scenes/orbEntity';
 import { createJumpBoost } from '@game/Prefabs/Scenes/jumpBoostEntity';
 import { createCheckpoint } from '@game/Prefabs/Scenes/checkpointEntity';
 import { createNova } from '@game/Prefabs/Scenes/novaEntity';
+import { createHookPickup } from '@game/Prefabs/Scenes/hookPickupEntity';
+import { createLoopTrack } from '@game/Prefabs/Scenes/loopTrackEntity';
 import { createMovingPlatform } from '@game/Prefabs/Scenes/movingPlatformEntity';
 import { createLaser } from '@game/Prefabs/Scenes/laserEntity';
 import { createSpringPad } from '@game/Prefabs/Scenes/springPadEntity';
@@ -80,6 +82,16 @@ export const PREFAB_ENTRIES: PrefabEntry[] = [
       { key: 'rotation', label: '旋转°', type: 'number', step: 5 },
     ],
     defaults: () => ({ type: 'checkpoint', x: 0, y: 0 }),
+  },
+  {
+    toolId: 'hookPickup', type: 'hookPickup', name: '钩锁道具', category: '可收集物',
+    swatch: '#ffc04d', icon: 'Attachment', factory: createHookPickup,
+    fields: [
+      { key: 'x', label: 'X', type: 'number', step: 0.5 },
+      { key: 'y', label: 'Y', type: 'number', step: 0.5 },
+      { key: 'rotation', label: '旋转°', type: 'number', step: 5 },
+    ],
+    defaults: () => ({ type: 'hookPickup', x: 0, y: 0 }),
   },
 
   // ── 机关 ──
@@ -184,6 +196,24 @@ export const PREFAB_ENTRIES: PrefabEntry[] = [
       { key: 'rotation', label: '旋转°', type: 'number', step: 5 },
     ],
     defaults: () => ({ type: 'nova', x: 0, y: 0 }),
+  },
+  {
+    toolId: 'track', type: 'track', name: '冲刺轨道', category: '特殊',
+    swatch: '#66d4ff', icon: 'Rollback', factory: createLoopTrack,
+    fields: [
+      { key: 'x1', label: '起点 X', type: 'number', step: 0.5 },
+      { key: 'y1', label: '起点 Y', type: 'number', step: 0.5 },
+      { key: 'x2', label: '终点 X', type: 'number', step: 0.5 },
+      { key: 'y2', label: '终点 Y', type: 'number', step: 0.5 },
+      { key: 'entryDist', label: '入口距离', type: 'number', step: 0.5, min: 0 },
+      { key: 'exitDist', label: '出口距离', type: 'number', step: 0.5, min: 0 },
+      { key: 'speedThreshold', label: '捕获速度', type: 'number', step: 0.5, min: 0 },
+    ],
+    defaults: () => ({
+      type: 'track', x: 0, y: 0,
+      segments: [{ type: 'line', x1: 0, y1: 0, x2: 8, y2: 0 }],
+      entryDist: 0, exitDist: 8, speedThreshold: 7,
+    }),
   },
 ];
 

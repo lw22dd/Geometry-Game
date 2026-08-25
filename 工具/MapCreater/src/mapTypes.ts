@@ -7,7 +7,8 @@
  *
  * 部分对象类型从游戏侧 `@game/types` 复用 spawn 数据形状，确保同步。
  */
-import type { MoverSpawnData, LaserSpawnData, SpringPadSpawnData } from '@game/types';
+import type { MoverSpawnData, LaserSpawnData, SpringPadSpawnData, PathSegment } from '@game/types';
+import { buildCumulativeLengths, pathPosition } from '@game/core/path';
 
 /* ==================== 几何图元（基础地图层） ==================== */
 
@@ -76,6 +77,24 @@ export interface NovaInstance {
   rotation?: number;
 }
 
+export interface HookPickupInstance {
+  type: 'hookPickup';
+  x: number; y: number;
+  rotation?: number;
+}
+
+/** 冲刺轨道（玻璃管道）：路径段数组 + 入口/出口弧长 + 捕获速度 */
+export interface TrackInstance {
+  type: 'track';
+  segments: PathSegment[];
+  entryDist: number;
+  exitDist: number;
+  speedThreshold?: number;
+  /** 入口世界坐标（轨道移动/选中锚点；编辑器计算的派生值） */
+  x: number; y: number;
+  rotation?: number;
+}
+
 export interface SpringPadInstance extends SpringPadSpawnData {
   type: 'springPad';
   rotation?: number;
@@ -91,6 +110,8 @@ export type MapInstance =
   | JumpBoostInstance
   | CheckpointInstance
   | NovaInstance
+  | HookPickupInstance
+  | TrackInstance
   | SpringPadInstance;
 
 export type ObjectInstance = MapInstance;
@@ -283,6 +304,8 @@ export function instancePosition(inst: MapInstance): { x: number; y: number } {
     case 'jumpBoost': return { x: inst.x, y: inst.y };
     case 'checkpoint': return { x: inst.x, y: inst.y };
     case 'nova':    return { x: inst.x, y: inst.y };
+    case 'hookPickup': return { x: inst.x, y: inst.y };
+    case 'track':   return { x: inst.x, y: inst.y };
     case 'springPad': return { x: inst.x, y: inst.y };
   }
 }
@@ -299,6 +322,15 @@ export function moveInstance(inst: MapInstance, dx: number, dy: number): void {
     case 'jumpBoost': inst.x += dx; inst.y += dy; break;
     case 'checkpoint': inst.x += dx; inst.y += dy; break;
     case 'nova':    inst.x += dx; inst.y += dy; break;
+    case 'hookPickup': inst.x += dx; inst.y += dy; break;
+    case 'track': {
+      inst.x += dx; inst.y += dy;
+      for (const seg of inst.segments) {
+        if (seg.type === 'line') { seg.x1 += dx; seg.y1 += dy; seg.x2 += dx; seg.y2 += dy; }
+        else if (seg.type === 'arc') { seg.cx += dx; seg.cy += dy; }
+      }
+      break;
+    }
     case 'springPad': inst.x += dx; inst.y += dy; break;
   }
 }
@@ -315,6 +347,8 @@ export function instanceLabel(inst: MapInstance): string {
     case 'jumpBoost': return `双跳 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
     case 'checkpoint': return `检查点 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
     case 'nova':    return `NOVA (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
+    case 'hookPickup': return `钩锁 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
+    case 'track':   return `轨道 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
     case 'springPad': return `弹簧 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
   }
 }
@@ -352,6 +386,26 @@ export function instanceHitBounds(inst: MapInstance, minSize = 0.6): { x: number
       const r = Math.max(0.72, minSize / 2);
       return { x: inst.x - r, y: inst.y - r, w: r * 2, h: r * 2 };
     }
+    case 'hookPickup': {
+      const r = Math.max(0.6, minSize / 2);
+      return { x: inst.x - r, y: inst.y - r, w: r * 2, h: r * 2 };
+    }
+    case 'track': {
+      // 轨道命中范围 = 路径段包围盒（退化段补最小尺寸）
+      let minX = inst.x, maxX = inst.x, minY = inst.y, maxY = inst.y;
+      for (const seg of inst.segments) {
+        if (seg.type === 'line') {
+          minX = Math.min(minX, seg.x1, seg.x2); maxX = Math.max(maxX, seg.x1, seg.x2);
+          minY = Math.min(minY, seg.y1, seg.y2); maxY = Math.max(maxY, seg.y1, seg.y2);
+        } else {
+          minX = Math.min(minX, seg.cx - seg.radius); maxX = Math.max(maxX, seg.cx + seg.radius);
+          minY = Math.min(minY, seg.cy - seg.radius); maxY = Math.max(maxY, seg.cy + seg.radius);
+        }
+      }
+      const w = Math.max(maxX - minX, minSize);
+      const h = Math.max(maxY - minY, minSize);
+      return { x: minX, y: minY, w, h };
+    }
     case 'springPad':
       return { x: inst.x, y: inst.y, w: inst.w, h: inst.h };
   }
@@ -376,4 +430,26 @@ export function hitTest(inst: MapInstance, mx: number, my: number, minSize = 0.6
   // 未旋转：直接检测
   const b = instanceHitBounds(inst, minSize);
   return mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h;
+}
+
+/**
+ * 将实例锚点设置到 (x, y)；轨道会整体平移路径段使入口点落到锚点。
+ * 编辑器放置/幽灵预览用（与 moveInstance 增量移动区分）。
+ */
+export function placeInstanceAt(inst: MapInstance, x: number, y: number): void {
+  if (inst.type === 'track') {
+    // 入口点 = 路径上 entryDist 处；平移全部路径段使入口落在 (x, y)
+    const cl = buildCumulativeLengths(inst.segments);
+    const entry = pathPosition(inst.segments, cl, inst.entryDist);
+    const dx = x - entry.x, dy = y - entry.y;
+    for (const seg of inst.segments) {
+      if (seg.type === 'line') { seg.x1 += dx; seg.y1 += dy; seg.x2 += dx; seg.y2 += dy; }
+      else { seg.cx += dx; seg.cy += dy; }
+    }
+    inst.x = x; inst.y = y;
+    return;
+  }
+  if (inst.type === 'mover') inst.x0 = x;
+  else if (inst.type === 'laser') { inst.x = x; inst.y0 = y; }
+  else { inst.x = x; inst.y = y; }
 }

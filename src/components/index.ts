@@ -14,6 +14,7 @@
  *   Timer        计时（激光/限时机关）
  *   Hazard       危险物（尖刺/激光）
  *   Collectible  可收集（光球 / 二段跳票 / 钩锁，以 kind 区分）
+ *   Hookable     可被钩锁命中（能力标记；需同时有 Position + Collider）
  *   RespawnPoint 检查点
  *   Goal         终点（NOVA）
  *   Tags         多字符串标签（分类/分组；玩家 = 'player' 标签，见 tagHelpers）
@@ -31,6 +32,7 @@ export { SpringPad } from './physics/SpringPad';
 export { Timer } from './gameplay/Timer';
 export { Hazard } from './gameplay/Hazard';
 export { Collectible } from './gameplay/Collectible';
+export { Hookable } from './gameplay/Hookable';
 export { RespawnPoint } from './gameplay/RespawnPoint';
 export { Goal } from './gameplay/Goal';
 export { Tags } from './gameplay/Tags';
