@@ -347,7 +347,7 @@ export function instanceHitBounds(inst: MapInstance, minSize = 0.6): { x: number
       return { x: inst.x - r, y: inst.y - r, w: r * 2, h: r * 2 };
     }
     case 'checkpoint':
-      return { x: inst.x - 0.9, y: inst.y - 0.1, w: 1.8, h: 6.6 };
+      return { x: inst.x - 1.1, y: inst.y, w: 2.2, h: 3.4 };
     case 'nova': {
       const r = Math.max(0.72, minSize / 2);
       return { x: inst.x - r, y: inst.y - r, w: r * 2, h: r * 2 };

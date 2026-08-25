@@ -4,7 +4,7 @@
  */
 export { drawSolids, drawMovers, drawSpringPads, drawBorder, drawDecos, drawGrid } from './platforms';
 export { drawSpikes, drawLasers } from './hazards';
-export { drawOrbs, drawJumpBoosts, drawCheckpoints, drawNOVA } from './items';
+export { drawOrbs, drawJumpBoosts, drawHookPickups, drawCheckpoints, drawNOVA } from './items';
 export { drawParallax, drawTrail, drawParticles, drawHints } from './atmosphere';
 export { drawTracks, neonGlassTube } from './tracks';
 
@@ -18,3 +18,4 @@ export { createNova } from './novaEntity';
 export { createOrb } from './orbEntity';
 export { createSpike } from './spikeEntity';
 export { createSpringPad } from './springPadEntity';
+export { createHookPickup } from './hookPickupEntity';

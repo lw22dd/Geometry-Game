@@ -17,7 +17,6 @@ import { Position } from '../../components/physics/Position';
 import { Collider } from '../../components/physics/Collider';
 import { Hazard } from '../../components/gameplay/Hazard';
 import { Collectible } from '../../components/gameplay/Collectible';
-import { JumpBoost } from '../../components/gameplay/JumpBoost';
 import { RespawnPoint } from '../../components/gameplay/RespawnPoint';
 import { Goal } from '../../components/gameplay/Goal';
 import { PlayerTag } from '../../components/gameplay/PlayerTag';
@@ -85,8 +84,7 @@ function emitTransitions(
 /** 根据实体组件决定 enter 事件类型 */
 function getEnterEventType(e: EntityId): string | null {
   if (world.has(e, Hazard)) return 'enter:player:hazard';
-  if (world.has(e, Collectible)) return 'enter:player:collectible';
-  if (world.has(e, JumpBoost)) return 'enter:player:jumpboost';
+  if (world.has(e, Collectible)) return 'enter:player:pickup';
   if (world.has(e, RespawnPoint)) return 'enter:player:respawn';
   if (world.has(e, Goal)) return 'enter:player:goal';
   return null;

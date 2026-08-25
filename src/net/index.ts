@@ -8,7 +8,7 @@
  */
 import { room } from './room';
 import type {
-  InputKeys, NetOrbState, NetPlayerState, RemotePlayerInfo,
+  InputKeys, NetOrbState, NetItemState, NetPlayerState, RemotePlayerInfo,
 } from '../types';
 
 type SessionState = 'idle' | 'connecting' | 'ready' | 'closed';
@@ -42,7 +42,7 @@ interface NetEvents {
   /** 玩家离开 */
   playerLeft: (playerId: number) => void;
   /** 收到房主权威状态（仅非房主） */
-  state: (seq: number, players: NetPlayerState[], orbs: NetOrbState[], gt: number, gotN: number, deaths: number, win: boolean) => void;
+  state: (seq: number, players: NetPlayerState[], orbs: NetOrbState[], items: NetItemState[], gt: number, gotN: number, deaths: number, win: boolean) => void;
   /** 收到房主事件 */
   event: (kind: string, data: unknown) => void;
   /** 收到客机输入（仅房主；含玩家来源 ID） */
@@ -188,12 +188,12 @@ class NetClient {
 
   /** 房主发送权威状态广播 */
   sendHostState(
-    seq: number, players: NetPlayerState[], orbs: NetOrbState[],
+    seq: number, players: NetPlayerState[], orbs: NetOrbState[], items: NetItemState[],
     gt: number, gotN: number, deaths: number, win: boolean,
   ): void {
     if (room.role !== 'host') return;
     this.sendJSON({
-      type: 'host_state', seq, players, orbs, gt, gotN, deaths, win,
+      type: 'host_state', seq, players, orbs, items, gt, gotN, deaths, win,
     });
   }
 
@@ -252,7 +252,7 @@ class NetClient {
         break;
 
       case 'state':
-        emit('state', msg.seq, msg.players, msg.orbs, msg.gt, msg.gotN, msg.deaths, msg.win);
+        emit('state', msg.seq, msg.players, msg.orbs, msg.items || [], msg.gt, msg.gotN, msg.deaths, msg.win);
         break;
 
       case 'event':

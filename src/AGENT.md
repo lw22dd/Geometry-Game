@@ -19,6 +19,9 @@ src/
 │   ├── system/  # 空目录
 │   └── weapons/  # 空目录
 ├── components/  # ECS 组件（Position / Velocity / Collider / Timer / Hazard / Collectible / RespawnPoint / Goal / PlayerTag 等）
+│   ├── gameplay/  # 游戏玩法组件（Collectible, Goal, Hazard, Timer, RespawnPoint 等）
+│   ├── physics/  # 物理组件（Collider, Position, Velocity, PathMotion, SpringPad, Track）
+│   └── render/  # 渲染组件（Renderable）
 ├── config/  # 纯数据 + 注册表：物理参数、关卡布局、背景装饰、cpPoint 复活点
 ├── core/  # 无业务逻辑的底座：画布、输入、音效、相机、数学工具、netBus、ECS、UI
 │   ├── ecs/  # ECS 底座：Entity / World / EntityPool
@@ -26,14 +29,11 @@ src/
 ├── net/  # 网络层：NetClient（WebSocket）+ session 状态机 + room 房间状态
 ├── Prefabs/  # 预制体：实体工厂 / 角色 / 场景道具 / 特效的绘制建模
 │   ├── Enemy/  # 空目录（预留）
-│   ├── Entities/  # ECS 实体工厂：orb / checkpoint / nova / movingPlatform / laser / spike / playerEntity
 │   ├── Fx/  # 特效发射预制体：FX 预设表 + 通用发射器 spawnFx
 │   ├── NPC/  # 空目录（预留）
 │   ├── Player/  # 玩家角色预制体体系：注册表 + 默认预制体
 │   │   ├── characters/  # 角色样式注册表（纯数据）
-│   │   ├── default/  # 默认角色「霓虹跑者」：FSM（states/animation）+ 纯绘制（render）+ 组合（defaultPrefab）
-│   │   ├── registry.ts  # 预制体注册表
-│   │   └── index.ts  # 统一出口：stepPlayerAnimation / drawPlayer / drawPlayerFor
+│   │   └── default/  # 默认角色「霓虹跑者」：FSM（states/animation）+ 纯绘制（render）+ 组合（defaultPrefab）
 │   ├── Scenes/  # 场景道具建模：platforms / hazards / items / atmosphere
 │   └── WeaponVis/  # 空目录（预留）
 ├── systems/  # 玩法逻辑：game / player / level / ui / interactions / combat / enemy / quest + 粒子运行时
@@ -44,8 +44,9 @@ src/
 │   ├── level/  # 关卡级系统：MotionSystem（移动平台）/ LaserTimerSystem（激光）/ CollisionSystem（碰撞检测）/ OverlapUtils
 │   ├── player/  # 玩家控制：PlayerController 生命周期 + 物理引擎（stepPlayerGeneric）+ remote 联机
 │   ├── quest/  # 空目录（预留）
-│   └── ui/  # 界面：菜单 / 大厅 / 暂停 / 开发者 / 图鉴 / 操作说明 + HUD + 小地图
-│       └── styles/  # 空目录（预留）
+│   ├── ui/  # 界面：菜单 / 大厅 / 暂停 / 开发者 / 图鉴 / 操作说明 + HUD + 小地图
+│   │   └── styles/  # 空目录
+│   └── items/  # 物品系统（背包、钩爪）
 └── types/  # 共享类型定义（PlayerState / InputKeys / FrameSignals / NetPlayerState / ...）
 ```
 

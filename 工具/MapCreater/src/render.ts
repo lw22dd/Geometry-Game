@@ -207,7 +207,7 @@ function renderOne(inst: MapInstance, time: number): void {
       ctx.fillStyle = col;
       ctx.fillRect(cx - 0.9 * sz, cy, 1.8 * sz, 0.3 * sz);
       ctx.fillStyle = col + '44';
-      ctx.fillRect(cx - 0.28 * sz, cy - 6.5 * sz, 0.56 * sz, 6.5 * sz);
+      ctx.fillRect(cx - 0.28 * sz, cy - 3.4 * sz, 0.56 * sz, 3.4 * sz);
       break;
     }
     case 'nova': {

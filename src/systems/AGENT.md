@@ -20,7 +20,8 @@ systems/
 ├── enemy/  # 敌人 AI / 生成（预留）
 ├── quest/  # 任务系统（预留）
 ├── AGENT.md
-└── level/
+├── items/  # 物品系统：backpack（背包运行时 + 道具注册表）+ hook（钩锁发射/滑索/瞄准）
+└── uiAtmosphere.ts  # 氛围 UI 运行时：AtmoTheme 构建 + 发光粒子 + 主循环渲染
 ```
 
 # 数据流

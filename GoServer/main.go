@@ -108,16 +108,7 @@ func main() {
 				Type:   "player_joined",
 				Player: PlayerInfo{Id: p.Id, Name: p.Name, Char: p.Char, Ready: p.Ready},
 			})
-			// 通知房主
-			if room.Host != nil {
-				room.Host.Conn.Send(joinData)
-			}
-			// 通知其他客机
-			for _, c := range room.ClientList() {
-				if c.Id != p.Id {
-					c.Conn.Send(joinData)
-				}
-			}
+			room.Broadcast(joinData)
 		}
 
 		// 读循环

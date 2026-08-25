@@ -8,25 +8,23 @@
 
 ```
 components/
-├── index.ts              # barrel 导出（按分类分组）
+├── index.ts  # barrel 导出（按分类分组）
 ├── AGENT.md
-├── physics/              # 物理/运动：实体在世界中的空间与运动状态
-│   ├── Position.ts       # 位置（世界坐标，格）
-│   ├── Velocity.ts       # 速度矢量（格/秒，value.x/y）
-│   ├── Collider.ts       # 碰撞盒（w/h/solid，触发/实体标记）
-│   ├── PathMotion.ts     # 路径运动（移动平台正弦摆动）
-│   ├── Track.ts          # 轨道运动（冲刺环路径定义）
-│   └── SpringPad.ts      # 弹簧平台（弹射力矢量 + 动画状态）
-├── gameplay/             # 玩法/交互：决定实体的游戏语义
-│   ├── Timer.ts          # 计时（激光周期开关）
-│   ├── Hazard.ts         # 危险物（尖刺/激光）
-│   ├── Collectible.ts    # 可收集（光球）
-│   ├── JumpBoost.ts      # 双跳增益（光球）
-│   ├── RespawnPoint.ts   # 复活点（检查点）
-│   ├── Goal.ts           # 终点（NOVA 星）
-│   └── PlayerTag.ts      # 玩家标识（空标记）
-└── render/               # 表现/渲染：实体如何被绘制
-    └── Renderable.ts     # 视觉数据（半径/渐变/发光色/动画相位）
+├── physics/  # 物理/运动：实体在世界中的空间与运动状态
+│   ├── Position.ts  # 位置（世界坐标，格）
+│   ├── Velocity.ts  # 速度矢量（格/秒，velocity.x/y）
+│   ├── Collider.ts  # 碰撞盒（w/h/solid，触发/实体标记）
+│   ├── PathMotion.ts  # 路径运动（移动平台正弦摆动）
+│   ├── Track.ts  # 轨道运动（冲刺环路径定义）
+│   └── SpringPad.ts  # 弹簧平台（弹射力矢量 + 动画状态）
+├── gameplay/  # 玩法/交互：决定实体的游戏语义
+│   ├── Collectible.ts  # 可收集（kind: orb 光球 / jumpBoost 二段跳票 / hook 钩锁）
+│   ├── Goal.ts  # 终点（NOVA 星）
+│   ├── Hazard.ts  # 危险物（尖刺/激光）
+│   ├── PlayerTag.ts  # 玩家标识（空标记）
+│   ├── RespawnPoint.ts  # 复活点（检查点）
+│   └── Timer.ts  # 计时（激光周期开关）
+└── render/  # 表现/渲染：实体如何被绘制（Renderable.ts：半径/渐变/发光色/动画相位）
 ```
 
 # 数据流

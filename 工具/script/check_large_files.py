@@ -16,7 +16,9 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SRC_DIR = os.path.join(SCRIPT_DIR, "..", "src")
+# 脚本位于 工具/script/，回退两级到项目根再到 src
+DEFAULT_SRC = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "..", "src"))
+SRC_DIR = os.path.abspath(DEFAULT_SRC)
 
 
 def count_lines(filepath: str) -> int:

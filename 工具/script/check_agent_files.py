@@ -34,7 +34,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "src"))  # dash/src/
+DEFAULT_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "..", "src"))  # dash/src/
 
 SKIP_DIRS = {".git", "__pycache__", ".venv"}
 

@@ -22,6 +22,9 @@ netBus.on(e => {
     case 'game:jumpboost':
       net.sendHostEvent('jumpboost', {});
       break;
+    case 'game:hookpickup':
+      net.sendHostEvent('hookpickup', {});
+      break;
     case 'game:death':
       net.sendHostEvent('death', { deaths: e.deaths });
       break;

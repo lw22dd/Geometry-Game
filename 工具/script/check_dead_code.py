@@ -180,7 +180,9 @@ def main() -> int:
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    root = os.path.abspath(args.root or os.path.join(script_dir, "..", "src"))
+    # 脚本位于 工具/script/，回退两级到项目根再到 src
+    default_root = os.path.normpath(os.path.join(script_dir, "..", "..", "src"))
+    root = os.path.abspath(args.root or default_root)
     if not os.path.isdir(root):
         print(json.dumps({"error": f"目录不存在: {root}"}) if args.json else f"错误：目录不存在 — {root}")
         return 2

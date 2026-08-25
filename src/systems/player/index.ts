@@ -57,6 +57,11 @@ export const P: PlayerState = playerController.getState();
 
 const solidsNow: Rect[] = [];
 
+/** 只读访问本帧碰撞体（钩锁射线检测等复用） */
+export function getSolids(): readonly Rect[] {
+  return solidsNow;
+}
+
 /** 构建本帧碰撞体（静态平台 + ECS 移动平台当前位置 + 弹簧平台） */
 export function buildSolids(): void {
   solidsNow.length = 0;
@@ -377,6 +382,23 @@ function stepTrackMotion(
   p.coyote -= dt;
   p.springT = Math.max(0, p.springT - dt);
   p.inv = Math.max(0, p.inv - dt);
+
+  // ── 滑索（钩锁）分支：匀速前进，不受切向重力/摩擦/滚回 ──
+  if (t.zipline) {
+    t.dist += t.speed * dt;
+    if (t.dist >= t.exitDist) {
+      t.dist = t.exitDist;
+      releaseFromTrack(p, t);
+      if (signals) signals.trackExited = true;
+      return;
+    }
+    const pos = pathPosition(t.segments, cl, t.dist);
+    p.x = pos.x;
+    p.y = pos.y;
+    const tan = pathTangent(t.segments, cl, t.dist);
+    if (Math.abs(tan.x) > 0.05) p.face = Math.sign(tan.x);
+    return;
+  }
 
   // 切向重力分量（通用路径版本）
   const gTan = pathGravityTangent(t.segments, cl, t.dist, PHYS[mode].G);

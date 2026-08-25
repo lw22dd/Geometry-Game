@@ -5,6 +5,7 @@
 import './style.css';
 import { cv, VW, VH } from './core/canvas';
 import { initInput, setInputHandler } from './core/input';
+import { initMouseListeners } from './core/mouse';
 import { handleKeyDown, startLoop } from './systems/game';
 import { registerUIScenes } from './systems/ui/scenes';
 import { ui } from './core/uiComponent';
@@ -23,6 +24,9 @@ setInputHandler((e: KeyboardEvent) => {
   handleKeyDown(e);
 });
 initInput();
+
+// 鼠标（游戏玩法：钩锁瞄准/发射）
+initMouseListeners(cv);
 
 // 将鼠标屏幕坐标换算为逻辑坐标（1280×720）
 function lxly(e: MouseEvent): [number, number] {

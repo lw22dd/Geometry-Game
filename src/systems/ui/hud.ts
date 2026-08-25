@@ -19,85 +19,164 @@ import { gs } from '../game/gameState';
 import { getMode } from '../game/gameMode';
 import { playerController } from '../player';
 import { colliderWorldRect } from '../level';
+import { MAX_BACKPACK, type ItemId } from '../../types';
+import { HOOK_COOLDOWN } from '../../config';
+import { orbCount } from '../interactions';
 
-/** 光球总数（ECS 实体数量） */
-const orbTotal = (): number => world.query(Collectible).length;
+/** 光球总数（仅 kind === 'orb' 的可拾取物） */
+const orbTotal = (): number => orbCount();
 
 /* ==================== HUD ==================== */
 
-/** HUD 面板 */
+/** 背包栏槽位尺寸（px） */
+const SLOT = 46;
+const SLOT_GAP = 8;
+const BAR_W = 5 * SLOT + 4 * SLOT_GAP;
+const BAR_X = (VW - BAR_W) / 2;
+const BAR_Y = VH - 46;
+
+/** 背包栏（玩家自带 5 格装备栏，屏幕最下方居中）；
+ *  占用格显示道具图标：二段跳票 = 绿色上箭头（被动），钩锁 = 金色钩形（主动）。
+ *  主动道具需选中对应槽位（数字键 1-5）才能使用，选中格高亮 + 键位数字提示。
+ *  钩锁格在冷却中显示弧形遮罩。 */
 export function drawHUD(): void {
-  const pPl = playerController.getState();
-  ctx.font = '600 15px "Segoe UI","Microsoft YaHei",Arial';
-  rr(ctx, 16, 16, 232, 178, 10);
-  ctx.fillStyle = 'rgba(10,8,30,.55)';
+  if (gs.screen !== 'playing') return;
+  const p = playerController.getState();
+
+  for (let i = 0; i < MAX_BACKPACK; i++) {
+    const x = BAR_X + i * (SLOT + SLOT_GAP);
+    const y = BAR_Y;
+    const id: ItemId | null = p.backpack[i] ?? null;
+    const selected = i === p.selectedSlot;
+    const active = id === 'hook';
+    const hue = id === null ? 'rgba(150,170,255,.25)'
+      : active ? 'rgba(255,190,90,.9)'
+      : 'rgba(120,255,170,.9)';
+
+    // 选中态发光底板
+    if (selected) {
+      rr(ctx, x - 3, y - 3, SLOT + 6, SLOT + 6, 10);
+      ctx.fillStyle = 'rgba(255,220,150,.07)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,220,150,.55)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // 槽底
+    rr(ctx, x, y, SLOT, SLOT, 8);
+    ctx.fillStyle = selected ? 'rgba(22,14,36,.72)' : 'rgba(8,6,26,.62)';
+    ctx.fill();
+    ctx.strokeStyle = selected ? 'rgba(255,220,150,1)' : hue;
+    ctx.lineWidth = selected ? 2.4 : (id === null ? 1 : 1.6);
+    ctx.stroke();
+
+    if (id === null) {
+      // 空格：浅色虚线内框
+      ctx.save();
+      ctx.strokeStyle = 'rgba(150,170,255,.18)';
+      ctx.setLineDash([3, 4]);
+      ctx.lineWidth = 1;
+      rr(ctx, x + 8, y + 8, SLOT - 16, SLOT - 16, 4);
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      // 道具图标（居中 28×28 区域）
+      const cx = x + SLOT / 2;
+      const cy = y + SLOT / 2;
+      if (id === 'doubleJump') {
+        drawJumpTicketIcon(cx, cy);
+      } else {
+        drawHookIcon(cx, cy);
+      }
+
+      // 钩锁冷却：弧形遮罩 + 进度指示
+      if (id === 'hook' && p.hookCd > 0) {
+        const prog = 1 - p.hookCd / HOOK_COOLDOWN;
+        ctx.save();
+        ctx.fillStyle = 'rgba(8,6,26,.55)';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, SLOT / 2 - 2, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // 主动/被动角标（active ▶ / passive ◆）
+      ctx.save();
+      ctx.font = '700 10px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = active ? 'rgba(255,190,90,.85)' : 'rgba(120,255,170,.8)';
+      ctx.fillText(active ? '▶' : '◆', cx, y + SLOT - 9);
+      ctx.restore();
+    }
+
+    // 槽位数字键提示（1-5）
+    ctx.save();
+    ctx.font = '600 9px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = selected ? 'rgba(255,230,170,.95)' : 'rgba(170,190,255,.45)';
+    ctx.fillText(String(i + 1), x + 8, y + 8);
+    ctx.restore();
+  }
+}
+
+/** 二段跳票图标：绿色上箭头（与拾取物同形，缩小版） */
+function drawJumpTicketIcon(cx: number, cy: number): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.shadowColor = 'rgba(120,255,170,.8)';
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = '#59ff8f';
+  ctx.beginPath();
+  ctx.moveTo(0, -11);
+  ctx.lineTo(5.5, -1.5);
+  ctx.lineTo(2.2, -1.5);
+  ctx.lineTo(2.2, 11);
+  ctx.lineTo(-2.2, 11);
+  ctx.lineTo(-2.2, -1.5);
+  ctx.lineTo(-5.5, -1.5);
+  ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = 'rgba(130,170,255,.35)';
-  ctx.lineWidth = 1;
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(230,255,240,.9)';
+  ctx.fillRect(-0.7, -9.5, 1.4, 7);
+  ctx.restore();
+}
+
+/** 钩锁图标：金色钩形（钩杆 + 弯钩 + 倒刺，缩小版） */
+function drawHookIcon(cx: number, cy: number): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.shadowColor = 'rgba(255,180,70,.85)';
+  ctx.shadowBlur = 6;
+  ctx.strokeStyle = '#ffc04d';
+  ctx.lineWidth = 3.6;
+  ctx.lineCap = 'round';
+  // 钩杆
+  ctx.beginPath();
+  ctx.moveTo(0, -10);
+  ctx.lineTo(0, 3);
   ctx.stroke();
-
-  ctx.fillStyle = '#8ff6ff';
-  ctx.fillText('光球 ORBS  ' + gs.gotN + ' / ' + orbTotal(), 30, 42);
-  ctx.fillStyle = '#cfe6ff';
-  ctx.fillText('速度 SPEED  ' + Math.abs(pPl.velocity.x).toFixed(1) + ' m/s', 30, 63);
-  ctx.fillStyle = '#cfe6ff';
-  ctx.fillText('跳高 JUMP   3.2 格', 30, 84);
-  ctx.fillStyle = '#c77dff';
-  ctx.fillText('物理 PHYS   ' + PHYS[getMode()].name, 30, 105);
-  ctx.fillStyle = pPl.sprint ? '#ffd27d' : '#7f89b8';
-  ctx.fillText('加速 BOOST  ' + (pPl.sprint ? '曳光中' : '--'), 30, 126);
-  ctx.fillStyle = '#cfe6ff';
-  ctx.fillText('用时 TIME   ' + fmt(gs.win ? gs.winTime : gs.gt), 30, 147);
-  ctx.fillStyle = '#ffb0d9';
-  ctx.fillText('坠落 DEATH  ' + gs.deaths, 30, 168);
-
-  ctx.font = '12px "Segoe UI","Microsoft YaHei",Arial';
-  ctx.fillStyle = 'rgba(180,200,255,.55)';
-  ctx.fillText(
-    'A/D 移动 · SPACE 跳跃(长按更高) · SHIFT 加速曳光 · P 切换物理 · R 出生点 · M 音效',
-    16, VH - 18,
-  );
-
-  if (gs.toastT > 0) {
-    ctx.globalAlpha = Math.min(1, gs.toastT);
-    ctx.textAlign = 'center';
-    ctx.font = '600 18px "Segoe UI","Microsoft YaHei"';
-    ctx.fillStyle = '#bfe9ff';
-    ctx.fillText(gs.toast, VW / 2, VH - 64);
-    ctx.textAlign = 'left';
-    ctx.globalAlpha = 1;
-  }
-
-  if (gs.win) {
-    const a = 0.8 + 0.2 * Math.sin(gs.time * 4);
-    const bg = ctx.createLinearGradient(0, 84, 0, 190);
-    bg.addColorStop(0, 'rgba(10,6,30,0)');
-    bg.addColorStop(0.5, 'rgba(30,14,60,.75)');
-    bg.addColorStop(1, 'rgba(10,6,30,0)');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 84, VW, 106);
-    ctx.textAlign = 'center';
-    ctx.font = '800 32px Arial';
-    ctx.fillStyle = 'rgba(255,233,168,' + a + ')';
-    ctx.shadowColor = '#ffd76b';
-    ctx.shadowBlur = 18;
-    ctx.fillText('★ NOVA 星觉醒 · 登顶成功 ★', VW / 2, 128);
-    ctx.shadowBlur = 0;
-    ctx.font = '600 17px "Segoe UI","Microsoft YaHei"';
-    ctx.fillStyle = 'rgba(230,240,255,.9)';
-    ctx.fillText(
-      '用时 ' + fmt(gs.winTime) + ' · 光球 ' + gs.gotN + ' / ' + orbTotal() +
-      (gs.gotN === orbTotal() ? ' · PERFECT ✦' : ''),
-      VW / 2, 158,
-    );
-    ctx.font = '500 14px "Segoe UI","Microsoft YaHei"';
-    ctx.fillStyle = 'rgba(190,205,255,.7)';
-    ctx.fillText(
-      gs.gotN < orbTotal() ? '继续收集剩余光球 · 按 R 可返回检查点' : '完美收集！霓虹全记录 ✦',
-      VW / 2, 182,
-    );
-    ctx.textAlign = 'left';
-  }
+  // 弯钩
+  ctx.beginPath();
+  ctx.arc(0, 3, 5.4, -Math.PI * 0.82, Math.PI * 1.02);
+  ctx.stroke();
+  // 倒刺
+  ctx.fillStyle = '#ffd27a';
+  ctx.beginPath();
+  ctx.moveTo(0, 2);
+  ctx.lineTo(-4.6, 0.6);
+  ctx.lineTo(0, -1.4);
+  ctx.closePath();
+  ctx.fill();
+  // 顶部圆头
+  ctx.fillStyle = '#ffe3ad';
+  ctx.beginPath(); ctx.arc(0, -10, 2, 0, 6.283); ctx.fill();
+  ctx.restore();
 }
 
 /* ==================== 小地图 ==================== */
@@ -144,7 +223,7 @@ export function drawMinimap(vw: number, vh: number): void {
   for (const e of world.query(Position, Collectible)) {
     const pos = world.get<Position>(e, Position);
     const col = world.get<Collectible>(e, Collectible);
-    if (col.collected) continue;
+    if (col.kind !== 'orb' || col.collected) continue;
     ctx.fillStyle = '#8ff6ff';
     ctx.beginPath(); ctx.arc(X(pos.x), Y(pos.y), 1.8, 0, 6.283); ctx.fill();
   }

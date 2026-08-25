@@ -9,7 +9,6 @@ import { world } from '../../core/ecs';
 import { Position } from '../../components/physics/Position';
 import { Collider } from '../../components/physics/Collider';
 import { Collectible } from '../../components/gameplay/Collectible';
-import { JumpBoost } from '../../components/gameplay/JumpBoost';
 import { RespawnPoint } from '../../components/gameplay/RespawnPoint';
 import { Goal } from '../../components/gameplay/Goal';
 import { Renderable } from '../../components/render/Renderable';
@@ -23,7 +22,7 @@ export function drawOrbs(): void {
     const pos = world.get<Position>(e, Position);
     const col = world.get<Collectible>(e, Collectible);
     const ren = world.get<Renderable>(e, Renderable);
-    if (col.collected) continue;
+    if (col.kind !== 'orb' || col.collected) continue;
     const px = sx(pos.x);
     if (px < -60 || px > VW + 60) continue;
     const bob = Math.sin(gs.time * ren.bobSpeed + ren.phase) * 0.18;
@@ -147,11 +146,12 @@ export function drawNOVA(p: number): void {
 
 /** 双跳增益箭（绿色箭头 + 淡绿泛光圈，拾取后获得一次二段跳） */
 export function drawJumpBoosts(): void {
-  for (const e of world.query(Position, Collider, JumpBoost, Renderable)) {
+  for (const e of world.query(Position, Collider, Collectible, Renderable)) {
     const pos = world.get<Position>(e, Position);
     const col = world.get<Collider>(e, Collider);
     const ren = world.get<Renderable>(e, Renderable);
-    if (world.get<JumpBoost>(e, JumpBoost).collected) continue;
+    const c = world.get<Collectible>(e, Collectible);
+    if (c.kind !== 'jumpBoost' || c.collected) continue;
     const r = colliderWorldRect(pos, col);
     const bob = Math.sin(gs.time * ren.bobSpeed + ren.phase) * 0.16;
     const cx = sx(r.x + r.w / 2);
@@ -189,6 +189,63 @@ export function drawJumpBoosts(): void {
     // 箭头高光竖线（对应"顶光"语法）
     ctx.fillStyle = 'rgba(230,255,240,.9)';
     ctx.fillRect(-R * 0.08, -R * 1.1, R * 0.16, R * 0.9);
+    ctx.restore();
+  }
+}
+
+/** 钩锁道具（金色钩形 + 淡金泛光圈，拾取后进入背包主动栏） */
+export function drawHookPickups(): void {
+  for (const e of world.query(Position, Collider, Collectible, Renderable)) {
+    const pos = world.get<Position>(e, Position);
+    const col = world.get<Collider>(e, Collider);
+    const ren = world.get<Renderable>(e, Renderable);
+    const c = world.get<Collectible>(e, Collectible);
+    if (c.kind !== 'hook' || c.collected) continue;
+    const r = colliderWorldRect(pos, col);
+    const bob = Math.sin(gs.time * ren.bobSpeed + ren.phase) * 0.16;
+    const cx = sx(r.x + r.w / 2);
+    const cy = sy(r.top + r.h / 2 + bob);
+    const R = ren.radius * view.SZ;
+
+    // ① 淡金泛光圈（外发光层）
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.4);
+    g.addColorStop(0, 'rgba(255,190,90,.30)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+
+    // ② 金色钩形（钩杆 + 弯钩 + 倒刺）
+    ctx.save();
+    ctx.translate(cx, cy + R * 0.2);
+    ctx.rotate(Math.sin(gs.time * ren.rotSpeed + ren.phase) * 0.18);
+    ctx.shadowColor = 'rgba(255,180,70,.9)';
+    ctx.shadowBlur = T.glowMovable;
+    ctx.strokeStyle = '#ffc04d';
+    ctx.lineWidth = R * 0.42;
+    ctx.lineCap = 'round';
+    // 钩杆：竖直
+    ctx.beginPath();
+    ctx.moveTo(0, -R * 1.25);
+    ctx.lineTo(0, R * 0.35);
+    ctx.stroke();
+    // 弯钩：从杆尾向左弯回（钩口朝左）
+    ctx.beginPath();
+    ctx.arc(0, R * 0.35, R * 0.65, -Math.PI * 0.82, Math.PI * 1.02);
+    ctx.stroke();
+    // 倒刺（小三角箭头，指向钩住方向）
+    ctx.fillStyle = '#ffd27a';
+    ctx.beginPath();
+    ctx.moveTo(0, R * 0.28);
+    ctx.lineTo(-R * 0.55, R * 0.10);
+    ctx.lineTo(0, -R * 0.05);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // 顶部圆头（发射端）
+    ctx.fillStyle = '#ffe3ad';
+    ctx.beginPath(); ctx.arc(0, -R * 1.25, R * 0.22, 0, 6.283); ctx.fill();
     ctx.restore();
   }
 }

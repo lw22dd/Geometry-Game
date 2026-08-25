@@ -1,6 +1,7 @@
 /**
- * 光球收集系统 —— 通过 Collider 触发区检测玩家与光球重叠，触发收集逻辑。
- * 支持传入目标坐标（远程玩家复用本系统）。
+ * 光球收集系统 —— 通过坐标检测玩家与光球重叠（远程玩家 host 模拟复用；
+ * 本地玩家走 CollisionSystem + CollisionHooks 的 enter:player:pickup）。
+ * 光球为通用 Collectible(kind='orb')；计数用共享 orbCount()。
  */
 import { world } from '../../core/ecs';
 import { Position } from '../../components/physics/Position';
@@ -13,6 +14,7 @@ import { spawnParticles } from '../particles';
 import { sfx } from '../../core/audio';
 import { netBus } from '../../core/netBus';
 import { pointInCollider } from '../level';
+import { orbCount } from './ItemPickupSystem';
 
 /**
  * 光球收集检测。
@@ -31,28 +33,27 @@ export function updateCollectSystem(tx?: number, ty?: number): boolean {
     px = pp.x; py = pp.y;
   }
 
-  const totalOrbs = world.query(Collectible).length;
-  let collected = false;
+  const totalOrbs = orbCount();
 
   for (const e of world.query(Position, Collider, Collectible)) {
     const col = world.get<Collectible>(e, Collectible);
-    if (col.collected) continue;
+    if (col.kind !== 'orb' || col.collected) continue;
     if (!pointInCollider(e, px, py)) continue;
 
     col.collected = true;
     gs.gotN++;
-    collected = true;
     const pos = world.get<Position>(e, Position);
     spawnParticles(FX.sparkle, pos.x, pos.y);
     sfx.orb();
     netBus.emit({ type: 'game:orb', count: gs.gotN, total: totalOrbs });
     if (gs.gotN === totalOrbs) {
-      gs.toast = '✦ 全部 42 枚光球收集完成！';
+      gs.toast = '✦ 全部 ' + totalOrbs + ' 枚光球收集完成！';
       gs.toastT = 3;
-      spawnParticles(FX.confetti, px, py);
+      spawnParticles(FX.confetti, pos.x, pos.y);
       sfx.cp();
     }
+    return true;
   }
 
-  return collected;
+  return false;
 }

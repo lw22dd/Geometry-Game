@@ -85,6 +85,10 @@ export const sfx = {
   orb(): void { tone('triangle', 880, 880, now(), 0.08, 0.16); tone('triangle', 1318.5, 1318.5, now() + 0.07, 0.14, 0.14); },
   /** 双跳光球拾取：上扬双音 */
   jumpBoost(): void { tone('triangle', 660, 990, now(), 0.1, 0.16); tone('triangle', 880, 1320, now() + 0.08, 0.16, 0.14); },
+  /** 钩锁拾取：金属双音 */
+  hookPickup(): void { tone('triangle', 660, 660, now(), 0.08, 0.15); tone('square', 880, 660, now() + 0.06, 0.12, 0.08, 2500); },
+  /** 钩锁发射：快速上滑 + 短噪声（滑索收绳） */
+  hook(): void { tone('sawtooth', 160, 480, now(), 0.12, 0.12, 1600); nz(now(), 0.08, 0.05, 1800); },
   /** 弹簧弹射：快速上滑 + 噪声 */
   spring(): void { tone('sine', 120, 720, now(), 0.22, 0.22); nz(now(), 0.12, 0.06, 1200); },
   cp(): void { [523.25, 659.25, 783.99].forEach((f, i) => tone('sine', f, f, now() + i * 0.05, 0.22, 0.11)); },

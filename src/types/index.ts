@@ -130,7 +130,20 @@ export interface TrackState {
   entryDist: number;
   /** 出口距离（格，到达后释放） */
   exitDist: number;
+  /** 滑索（钩锁）模式：匀速沿线滑行，不受切向重力/摩擦/滚回影响 */
+  zipline?: boolean;
 }
+
+/* ==================== 背包/道具 ==================== */
+
+/** 道具 id */
+export type ItemId = 'doubleJump' | 'hook';
+
+/** 道具类别：主动（玩家触发）/ 被动（拾取即生效常驻） */
+export type ItemCategory = 'active' | 'passive';
+
+/** 背包空格数量上限 */
+export const MAX_BACKPACK = 5;
 
 /** 双物理模式参数 */
 export interface PhysicsMode {
@@ -175,6 +188,14 @@ export interface PlayerState {
   springAcceleration: Vector2;
   /** 轨道运动状态（null = 自由运动） */
   track: TrackState | null;
+  /** 背包槽位（道具 id 列表，最多 5 格） */
+  backpack: ItemId[];
+  /** 钩锁冷却剩余时间（秒） */
+  hookCd: number;
+  /** 钩锁收回动画剩余时间（秒，>0 时绘制收回线） */
+  hookMissT: number;
+  /** 当前选中的背包槽位（0-4，用于主动道具） */
+  selectedSlot: number;
 }
 
 /** 曳光轨迹点 */
@@ -235,6 +256,8 @@ export interface FrameSignals {
   wallBump?: boolean;
   /** 本帧拾取了双跳光球 */
   jumpBoostPicked?: boolean;
+  /** 本帧拾取了钩锁道具 */
+  hookPicked?: boolean;
   /** 本帧触发了弹簧平台 */
   spring?: boolean;
   /** 本帧使用了空中二段跳 */
@@ -289,6 +312,8 @@ export interface MapDefinition {
     orbs: [number, number][];
     /** 双跳光球坐标 */
     jumpBoosts: [number, number][];
+    /** 钩锁道具坐标（可选；无钩锁的地图省略） */
+    hooks?: [number, number][];
     checkpoints: [number, number][];
     nova: { x: number; y: number };
     /** 冲刺轨道（可选；无轨道的地图省略） */
@@ -302,6 +327,7 @@ export type NetBusEvent =
   | { type: 'game:checkpoint'; x: number; y: number }
   | { type: 'game:orb'; count: number; total: number }
   | { type: 'game:jumpboost' }
+  | { type: 'game:hookpickup' }
   | { type: 'game:death'; deaths: number }
   | { type: 'game:win'; time: number; orbs: number; total: number; x: number; y: number; playerId: number }
   // ── 特效同步：死亡特效由房主广播（房主是死亡判定权威）──
@@ -336,6 +362,12 @@ export interface InputKeys {
   sprint: boolean;
   /** 交互键（E）：按下时 true，用于检查点等可交互物 */
   interact: boolean;
+  /** 钩锁发射（左键按下帧 true） */
+  hook: boolean;
+  /** 鼠标瞄准世界坐标 X（格） */
+  aimX: number;
+  /** 鼠标瞄准世界坐标 Y（格） */
+  aimY: number;
 }
 
 /** 玩家权威状态（房主 → 客机） */
@@ -354,6 +386,8 @@ export interface NetPlayerState {
   platDx: number;
   /** 轨道运动状态 */
   trackOn: boolean;
+  /** 滑索（钩锁）轨道标记 */
+  trackZipline: boolean;
   /** 沿路径行驶距离（格） */
   trackDist: number;
   trackSpeed: number;
@@ -363,10 +397,18 @@ export interface NetPlayerState {
   trackExit: number;
   /** 路径段定义（客户端由此重建 TrackState） */
   trackSegments: PathSegment[];
+  /** 背包道具（数字编码：0=doubleJump, 1=hook） */
+  backpack: number[];
 }
 
 /** 光球权威状态 */
 export interface NetOrbState {
+  entityId: number;
+  collected: boolean;
+}
+
+/** 道具权威状态（jumpboost / hook 实体 collected 同步） */
+export interface NetItemState {
   entityId: number;
   collected: boolean;
 }

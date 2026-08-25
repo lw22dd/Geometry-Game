@@ -364,7 +364,8 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
 
-    project_root = Path(__file__).resolve().parent.parent   # dash/
+    # 脚本位于 工具/script/，回退三级到项目根
+    project_root = Path(__file__).resolve().parent.parent.parent   # dash/
     anchor = Path(args.root).resolve() if args.root else project_root
     doc_path = Path(args.doc).resolve() if args.doc else (anchor / DEFAULT_DOC_REL)
 

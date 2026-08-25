@@ -30,7 +30,8 @@ export type PlayerEvent =
   | { type: 'dashed' }
   | { type: 'jumped' }
   | { type: 'landed'; impact: number }
-  | { type: 'springed' };
+  | { type: 'springed' }
+  | { type: 'doubleJumped' };
 
 /* ==================== Controller ==================== */
 
@@ -52,8 +53,12 @@ export class PlayerController {
       jumpWasDown: false, jumpFresh: false,
       springT: 0, springAcceleration: { x: 0, y: 0 },
       track: null,
+      backpack: [],
+      hookCd: 0,
+      hookMissT: 0,
+      selectedSlot: 0,
     };
-    this.input = { left: false, right: false, jump: false, sprint: false, interact: false };
+    this.input = { left: false, right: false, jump: false, sprint: false, interact: false, hook: false, aimX: 0, aimY: 0 };
     this.deathCount = 0;
   }
 
@@ -103,6 +108,11 @@ export class PlayerController {
 
     const signals: FrameSignals = {};
     stepPlayerGeneric(this.state, this.input, dt, isLocal, signals, false);
+
+    // 二段跳触发 → 发射事件
+    if (signals.doubleJump) {
+      this.onEvent?.({ type: 'doubleJumped' });
+    }
 
     // 物理步内坠落死亡（stepPlayerGeneric 只设 dead=true，缺 deadT/事件）
     if (this.state.dead && !wasDead) {
@@ -202,6 +212,11 @@ export class PlayerController {
     this.state.sprint = false;
     this.state.extraJumps = 0;
     this.state.extraJumpsMax = 0;
+    // 换图重置背包（死亡保留；背包为"本图收集"语义）
+    this.state.backpack = [];
+    this.state.hookCd = 0;
+    this.state.hookMissT = 0;
+    this.state.selectedSlot = 0;
     trail.length = 0;
   }
 

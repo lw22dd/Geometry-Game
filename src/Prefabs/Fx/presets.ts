@@ -96,4 +96,16 @@ export const FX: Record<string, FxPreset> = {
     size: [0.08, 0.12],
     colors: ['#66ff99', '#33cc66', '#99ffbb'],
   },
+
+  /** 二段跳触发：玩家下方绿色粒子上扬（参考落地尘土，绿色版） */
+  doubleJump: {
+    count: 8,
+    kind: 'dot',
+    vel: { mode: 'axis', vx: [-1.6, 1.6], vy: [0.5, 2.2] },
+    spreadX: 0.3,
+    gravity: 5,
+    life: [0.35, 0.5],
+    size: [0.08, 0.12],
+    colors: ['#66ff99', '#33cc66', '#99ffbb'],
+  },
 };

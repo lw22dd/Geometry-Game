@@ -131,6 +131,7 @@ func handleHostState(room *Room, p *Player, raw []byte) {
 		Seq:     msg.Seq,
 		Players: msg.Players,
 		Orbs:    msg.Orbs,
+		Items:   msg.Items,
 		Gt:      msg.Gt,
 		GotN:    msg.GotN,
 		Deaths:  msg.Deaths,

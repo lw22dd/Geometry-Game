@@ -41,6 +41,10 @@ export function registerRemote(id: number, name: string): RemotePlayer {
       jumpWasDown: false, jumpFresh: false,
       springT: 0, springAcceleration: { x: 0, y: 0 },
       track: null,
+      backpack: [],
+      hookCd: 0,
+      hookMissT: 0,
+      selectedSlot: 0,
       // 检查点（默认出生点）
       cpX: 6, cpY: 4,
     };
@@ -81,6 +85,7 @@ export interface NetPlayerTrackFields {
   trackOn: boolean; trackDist: number; trackSpeed: number;
   trackEntry: number; trackExit: number;
   trackSegments: PathSegment[];
+  trackZipline?: boolean;
 }
 
 export function applyNetPlayers(players: NetPlayerTrackFields[]): void {
@@ -109,6 +114,7 @@ export function applyNetPlayers(players: NetPlayerTrackFields[]): void {
         totalLength: cl[cl.length - 1],
         entryDist: ps.trackEntry,
         exitDist: ps.trackExit,
+        zipline: ps.trackZipline,
       };
     } else {
       rp.track = null;

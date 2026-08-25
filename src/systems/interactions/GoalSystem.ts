@@ -14,6 +14,7 @@ import { sfx } from '../../core/audio';
 import { netBus } from '../../core/netBus';
 import { room } from '../../net/room';
 import { pointInCollider } from '../level';
+import { orbCount } from './ItemPickupSystem';
 
 export function updateGoalSystem(): boolean {
   const player = world.queryOne(PlayerTag, Position);
@@ -31,7 +32,7 @@ export function updateGoalSystem(): boolean {
     sfx.win();
     spawnParticles(FX.confetti, pp.x, pp.y);
     gs.shake = 0.5;
-    netBus.emit({ type: 'game:win', time: gs.winTime, orbs: gs.gotN, total: world.query(Collectible).length, x: pp.x, y: pp.y, playerId: room.playerId });
+    netBus.emit({ type: 'game:win', time: gs.winTime, orbs: gs.gotN, total: orbCount(), x: pp.x, y: pp.y, playerId: room.playerId });
     return true;
   }
 

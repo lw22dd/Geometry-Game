@@ -25,6 +25,16 @@ export const TRACK_ROLLBACK_SPEED = 4;
 /** 滚回回到入口时的温和释放速度（m/s） */
 export const TRACK_ROLLBACK_RELEASE = 1.5;
 
+// ── 钩锁（滑索）参数 ──
+/** 钩锁最大射程（格，方向射线长度） */
+export const HOOK_MAX_RANGE = 10;
+/** 钩锁滑索时速（m/s） */
+export const HOOK_SPEED = 20;
+/** 钩锁发射冷却（秒） */
+export const HOOK_COOLDOWN = 0.6;
+/** 钩锁未命中收回时长（秒） */
+export const HOOK_RETRACT_TIME = 0.3;
+
 /** 两套物理模式：手感优化 tuned / 经典 classic */
 export const PHYS: Record<'tuned' | 'classic', PhysicsMode> = {
   tuned: {

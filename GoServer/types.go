@@ -18,11 +18,14 @@ type InputMsg struct {
 }
 
 type InputKeys struct {
-	Left   bool `json:"left"`
-	Right  bool `json:"right"`
-	Jump   bool `json:"jump"`
-	Sprint bool `json:"sprint"`
-	Interact   bool `json:"interact"`
+	Left     bool    `json:"left"`
+	Right    bool    `json:"right"`
+	Jump     bool    `json:"jump"`
+	Sprint   bool    `json:"sprint"`
+	Interact bool    `json:"interact"`
+	Hook     bool    `json:"hook"`
+	AimX     float64 `json:"aimX"`
+	AimY     float64 `json:"aimY"`
 }
 
 type HostStateMsg struct {
@@ -30,6 +33,7 @@ type HostStateMsg struct {
 	Seq     int           `json:"seq"`
 	Players []PlayerState `json:"players"`
 	Orbs    []OrbState    `json:"orbs"`
+	Items   []ItemState   `json:"items,omitempty"`
 	Gt      float64       `json:"gt"`
 	GotN    int           `json:"gotN"`
 	Deaths  int           `json:"deaths"`
@@ -104,6 +108,7 @@ type StateBroadcastMsg struct {
 	Seq     int           `json:"seq"`
 	Players []PlayerState `json:"players"`
 	Orbs    []OrbState    `json:"orbs"`
+	Items   []ItemState   `json:"items,omitempty"`
 	Gt      float64       `json:"gt"`
 	GotN    int           `json:"gotN"`
 	Deaths  int           `json:"deaths"`
@@ -136,9 +141,24 @@ type PlayerState struct {
 	Inv       float64 `json:"inv"`
 	HasPlat   bool    `json:"hasPlat"`
 	PlatDx    float64 `json:"platDx,omitempty"`
+	// Track 状态（含钩锁滑索）
+	TrackOn       bool    `json:"trackOn"`
+	TrackZipline  bool    `json:"trackZipline"`
+	TrackDist     float64 `json:"trackDist"`
+	TrackSpeed    float64 `json:"trackSpeed"`
+	TrackEntry    float64 `json:"trackEntry"`
+	TrackExit     float64 `json:"trackExit"`
+	TrackSegments []any   `json:"trackSegments,omitempty"`
+	// 背包道具编码（0=doubleJump, 1=hook）
+	Backpack     []int   `json:"backpack,omitempty"`
 }
 
 type OrbState struct {
+	EntityId  int  `json:"entityId"`
+	Collected bool `json:"collected"`
+}
+
+type ItemState struct {
 	EntityId  int  `json:"entityId"`
 	Collected bool `json:"collected"`
 }

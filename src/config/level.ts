@@ -15,6 +15,7 @@ import { createLaser } from '../Prefabs/Scenes/laserEntity';
 import { createSpike } from '../Prefabs/Scenes/spikeEntity';
 import { initPlayerEntity } from '../Prefabs/Player/playerEntity';
 import { createLoopTrack } from '../Prefabs/Scenes/loopTrackEntity';
+import { createHookPickup } from '../Prefabs/Scenes/hookPickupEntity';
 import { world } from '../core/ecs';
 
 const R = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h, top: y + h });
@@ -125,6 +126,12 @@ export const maps: MapDefinition[] = [
         [96, 16.8],
         [215, 35.6],
       ],
+      // 钩锁道具（拾取后进入背包，鼠标瞄准+左键发射滑索）
+      hooks: [
+        [5.5, 6.8],
+        [67, 7.6],
+        [96, 15.2],
+      ],
       // 检查点坐标（复活点激活位置）
       checkpoints: [
         [33, 4], [90, 12], [121, 13], [140, 30.4], [173, 29.8], [203, 29.8], [234, 37.3],
@@ -226,26 +233,26 @@ export const maps: MapDefinition[] = [
         { x0: 120, y: 66, w: 3, h: 0.8, range: 15, spd: 1, ph: 1.5 },
       ],
       springPads: [
-        { x: 5, y: 48, w: 2.5, h: 2, force: { x: 0, y: 96 }, duration: 0.3 },
-        { x: 163, y: 48, w: 2.5, h: 2, force: { x: 0, y: 96 }, duration: 0.3 },
-        { x: 85, y: 60, w: 2.5, h: 2, force: { x: 0, y: 110 }, duration: 0.3 },
+        { x: 5, y: 49, w: 2.5, h: 2, force: { x: 0, y: 96 }, duration: 0.3 },
+        { x: 163, y: 49, w: 2.5, h: 2, force: { x: 0, y: 96 }, duration: 0.3 },
+        { x: 85, y: 62, w: 2.5, h: 2, force: { x: 0, y: 110 }, duration: 0.3 },
         { x: 65, y: 4, w: 2.5, h: 2, force: { x: 0, y: 128 }, duration: 0.3 },
-        { x: 113, y: 4, w: 2.5, h: 2, force: { x: 0, y: 128 }, duration: 0.3 },
+        { x: 112, y: 4, w: 2.5, h: 2, force: { x: 0, y: 128 }, duration: 0.3 },
       ],
       lasers: [
         { x: 25, y0: 30, len: 5, ph: 0 },
         { x: 150, y0: 30, len: 5, ph: 1.5 },
-        { x: 60, y0: 42, len: 4, ph: 0.8 },
-        { x: 120, y0: 42, len: 4, ph: 2.1 },
-        { x: 40, y0: 54, len: 4, ph: 1.2 },
-        { x: 135, y0: 54, len: 4, ph: 0.5 },
+        { x: 60, y0: 43, len: 4, ph: 0.8 },
+        { x: 120, y0: 43, len: 4, ph: 2.1 },
+        { x: 40, y0: 56, len: 4, ph: 1.2 },
+        { x: 135, y0: 56, len: 4, ph: 0.5 },
       ],
       // 光球坐标（46 枚，沿塔/桥/花园路径散布，均悬空于台面上方 1 格）
       orbs: [
         // 左塔
-        [7, 10], [22, 14], [7, 18], [22, 22], [7, 26], [22, 30], [7, 34], [22, 38], [7, 42], [22, 46], [7, 50],
+        [7, 10], [22, 14], [7, 18], [22, 22], [7, 26], [22, 30], [7, 34], [22, 38], [7, 42], [22, 46], [9, 50],
         // 右塔
-        [165, 10], [150, 14], [165, 18], [150, 22], [165, 26], [150, 32], [165, 34], [150, 38], [165, 42], [150, 46], [165, 50],
+        [165, 10], [150, 14], [165, 18], [150, 22], [165, 26], [150, 32], [165, 34], [150, 38], [165, 42], [150, 46], [167, 50],
         // 下层/中层桥
         [35, 32], [50, 32], [130, 32], [145, 32],
         [40, 44], [55, 44], [125, 44], [140, 44],
@@ -259,7 +266,13 @@ export const maps: MapDefinition[] = [
         [80, 87], [100, 87],
       ],
       jumpBoosts: [
-        [90, 32], [40, 57], [140, 57], [90, 71],
+        [90, 32], [40, 57], [140, 57], [94, 71],
+      ],
+      // 钩锁道具（拾取后进入背包，滑索跨桥/登塔用）
+      hooks: [
+        [16, 15.4],
+        [164, 15.4],
+        [93, 7.5],
       ],
       checkpoints: [
         [85, 6], [10, 50], [170, 50], [50, 56], [130, 56], [90, 62], [90, 78],
@@ -311,6 +324,10 @@ export function initECSFromLevel(): void {
   }
   for (const [x, y] of s.jumpBoosts) {
     createJumpBoost(x, y, 0);
+  }
+  // 钩锁道具（地图数据驱动；无 hooks 字段的地图自然不带钩锁）
+  for (const [x, y] of s.hooks ?? []) {
+    createHookPickup(x, y, 0);
   }
   for (const [x, y] of s.checkpoints) {
     createCheckpoint(x, y);

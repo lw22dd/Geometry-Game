@@ -13,8 +13,7 @@
  * ── 玩法 / 交互（决定实体的游戏语义）──
  *   Timer        计时（激光/限时机关）
  *   Hazard       危险物（尖刺/激光）
- *   Collectible  可收集（光球）
- *   JumpBoost    双跳光球
+ *   Collectible  可收集（光球 / 二段跳票 / 钩锁，以 kind 区分）
  *   RespawnPoint 检查点
  *   Goal         终点（NOVA）
  *   PlayerTag    玩家标识（实体归属哪个玩家）
@@ -32,7 +31,6 @@ export { SpringPad } from './physics/SpringPad';
 export { Timer } from './gameplay/Timer';
 export { Hazard } from './gameplay/Hazard';
 export { Collectible } from './gameplay/Collectible';
-export { JumpBoost } from './gameplay/JumpBoost';
 export { RespawnPoint } from './gameplay/RespawnPoint';
 export { Goal } from './gameplay/Goal';
 export { PlayerTag } from './gameplay/PlayerTag';

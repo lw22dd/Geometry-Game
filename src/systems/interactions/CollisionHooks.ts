@@ -4,7 +4,7 @@
  *
  * 处理：
  *   enter:player:hazard      → 尖刺/激光致死
- *   enter:player:collectible → 光球收集
+ *   enter:player:pickup      → 可拾取物（按 Collectible.kind 分发：光球/二段跳票/钩锁）
  *   enter:player:respawn     → 检查点进入（可交互标记）
  *   exit:player:respawn      → 检查点离开
  *   enter:player:goal        → 终点登顶
@@ -15,7 +15,6 @@ import { Collider } from '../../components/physics/Collider';
 import { Timer } from '../../components/gameplay/Timer';
 import { Hazard } from '../../components/gameplay/Hazard';
 import { Collectible } from '../../components/gameplay/Collectible';
-import { JumpBoost } from '../../components/gameplay/JumpBoost';
 import { RespawnPoint } from '../../components/gameplay/RespawnPoint';
 import { PlayerTag } from '../../components/gameplay/PlayerTag';
 import { Goal } from '../../components/gameplay/Goal';
@@ -28,7 +27,9 @@ import { sfx } from '../../core/audio';
 import { cpPoint } from '../../config';
 import { netBus } from '../../core/netBus';
 import { room } from '../../net/room';
+import { addItem } from '../items/backpack';
 import { activateCheckpoint } from './RespawnPointSystem';
+import { orbCount } from './ItemPickupSystem';
 
 /** 是否已初始化 */
 let _initialized = false;
@@ -55,46 +56,77 @@ export function initCollisionHooks(): void {
   collisionBus.on('enter:player:hazard', hazardHandler);
   collisionBus.on('stay:player:hazard', hazardHandler);
 
-  // ── 光球收集 ──
-  collisionBus.on('enter:player:collectible', ({ b, signals }) => {
+  // ── 可拾取物：通用 Collectible 组件，按 kind 分发 ──
+  collisionBus.on('enter:player:pickup', ({ b, signals }) => {
     const col = world.get<Collectible>(b, Collectible);
     if (col.collected) return;
 
-    col.collected = true;
-    gs.gotN++;
-    const pos = world.get<Position>(b, Position);
-    spawnParticles(FX.sparkle, pos.x, pos.y);
-    sfx.orb();
-    netBus.emit({ type: 'game:orb', count: gs.gotN, total: world.query(Collectible).length });
-    if (signals) signals.collected = true;
+    switch (col.kind) {
+      case 'orb': {
+        // ── 光球收集（计数）──
+        col.collected = true;
+        gs.gotN++;
+        const pos = world.get<Position>(b, Position);
+        spawnParticles(FX.sparkle, pos.x, pos.y);
+        sfx.orb();
+        netBus.emit({ type: 'game:orb', count: gs.gotN, total: orbCount() });
+        if (signals) signals.collected = true;
+        if (gs.gotN === orbCount()) {
+          gs.toast = '✦ 全部光球收集完成！';
+          gs.toastT = 3;
+          spawnParticles(FX.confetti, pos.x, pos.y);
+          sfx.cp();
+        }
+        break;
+      }
+      case 'jumpBoost': {
+        // ── 二段跳票（背包被动道具）──
+        const s = playerController.getState();
+        // 背包：入被动栏（满/已有则拾取不生效，实体保持未拾取可再次尝试）
+        if (!addItem(s.backpack, 'doubleJump')) {
+          gs.toast = '背包已满！';
+          gs.toastT = 2;
+          return;
+        }
+        col.collected = true;
+        s.extraJumpsMax = 1; // 被动效果：获得一次二段跳能力
+        s.extraJumps = s.extraJumpsMax;
 
-    if (gs.gotN === world.query(Collectible).length) {
-      gs.toast = '✦ 全部光球收集完成！';
-      gs.toastT = 3;
-      spawnParticles(FX.confetti, pos.x, pos.y);
-      sfx.cp();
+        const pos = world.get<Position>(b, Position);
+        spawnParticles(FX.sparkle, pos.x, pos.y);
+        spawnParticles(FX.arrowBoost, pos.x, pos.y, 8);
+        sfx.orb();
+        netBus.emit({ type: 'game:jumpboost' });
+        if (signals) signals.jumpBoostPicked = true;
+
+        gs.toast = '二段跳票已装备！';
+        gs.toastT = 2;
+        break;
+      }
+      case 'hook': {
+        // ── 钩锁（背包主动道具）──
+        const s = playerController.getState();
+        // 背包：入主动栏（满/已有则拾取不生效，实体保持未拾取可再次尝试）
+        if (!addItem(s.backpack, 'hook')) {
+          gs.toast = '背包已满！';
+          gs.toastT = 2;
+          return;
+        }
+        col.collected = true;
+        // 主动装备：拾取后自动选中该槽位，便于立即使用
+        s.selectedSlot = s.backpack.indexOf('hook');
+
+        const pos = world.get<Position>(b, Position);
+        spawnParticles(FX.sparkle, pos.x, pos.y);
+        sfx.hookPickup();
+        netBus.emit({ type: 'game:hookpickup' });
+        if (signals) signals.hookPicked = true;
+
+        gs.toast = '钩锁已装备！鼠标瞄准 + 左键发射';
+        gs.toastT = 2.5;
+        break;
+      }
     }
-  });
-
-  // ── 双跳光球 ──
-  collisionBus.on('enter:player:jumpboost', ({ b, signals }) => {
-    const jb = world.get<JumpBoost>(b, JumpBoost);
-    if (jb.collected) return;
-    jb.collected = true;
-
-    const s = playerController.getState();
-    s.extraJumpsMax = 1; // 获得一次二段跳能力
-    s.extraJumps = s.extraJumpsMax;
-
-    const pos = world.get<Position>(b, Position);
-    spawnParticles(FX.sparkle, pos.x, pos.y);
-    spawnParticles(FX.arrowBoost, pos.x, pos.y, 8);
-    sfx.orb();
-    netBus.emit({ type: 'game:jumpboost' });
-    if (signals) signals.jumpBoostPicked = true;
-
-    gs.toast = '二段跳激活！';
-    gs.toastT = 2;
   });
 
   // ── 检查点：进入触发区 → 可交互（nearby），按 E 激活 ──
@@ -122,7 +154,7 @@ export function initCollisionHooks(): void {
     const py = playerController.getState().y;
     spawnParticles(FX.confetti, px, py);
     gs.shake = 0.5;
-    netBus.emit({ type: 'game:win', time: gs.winTime, orbs: gs.gotN, total: world.query(Collectible).length, x: px, y: py, playerId: room.playerId });
+    netBus.emit({ type: 'game:win', time: gs.winTime, orbs: gs.gotN, total: orbCount(), x: px, y: py, playerId: room.playerId });
     if (signals) signals.goalReached = true;
   });
 }
