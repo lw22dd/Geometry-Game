@@ -2,7 +2,7 @@
  * 玩家系统 —— 物理引擎 + PlayerController 导出。
  *
  * 导出的物理函数（纯函数，无副作用）：
- *  - stepPlayerGeneric(p, input, dt, isLocal, outSignals, checkHazards)
+ *  - stepPlayerGeneric(p, input, dt, isLocal, outSignals)
  *  - buildSolids()
  *  - boxHit(s)
  *  - boxHitFor(p, s)
@@ -16,7 +16,6 @@
  *   客机：playerController.step() 为本地预测 + 后续被权威状态矫正
  */
 import type { FrameSignals, PlayerState, Rect, InputKeys, TrackState } from '../../types';
-import { keys } from '../../core/input';
 import { clamp } from '../../core/math';
 import {
   PHYS, RUN, SPRINT, currentMap,
@@ -25,21 +24,17 @@ import {
 } from '../../config';
 import { getMode, type PhysicsKey } from '../game/gameMode';
 import { trail } from '../particles';
-import { world } from '../../core/ecs';
-import { Position } from '../../components/physics/Position';
-import { Collider } from '../../components/physics/Collider';
-import { PathMotion } from '../../components/physics/PathMotion';
-import { SpringPad } from '../../components/physics/SpringPad';
-import { Timer } from '../../components/gameplay/Timer';
-import { Hazard } from '../../components/gameplay/Hazard';
-import { Hookable } from '../../components/gameplay/Hookable';
-import { Track } from '../../components/physics/Track';
-import { colliderWorldRect, aabbOverlap } from '../level';
+import {
+  PathMotion, SpringPad, Track, TrackGeom,
+  qMovers, qSpringPads, qHookTargets, qTracks,
+} from '../../core/ecs';
+import { colliderWorldRect } from '../level';
 import {
   pathPosition, pathTangent, pathGravityTangent,
   buildCumulativeLengths, pathTotalLength,
 } from '../../core/path';
 import { PlayerController } from './PlayerController';
+import { applyEffect, consumeImpulses, decayImpulses } from '../effects';
 
 /* ==================== Controller 单例 ==================== */
 
@@ -67,19 +62,14 @@ export function getSolids(): readonly Rect[] {
 export function buildSolids(): void {
   solidsNow.length = 0;
   for (const s of currentMap.solids) solidsNow.push(s);
-  for (const e of world.query(Position, Collider, PathMotion)) {
-    const pos = world.get<Position>(e, Position);
-    const col = world.get<Collider>(e, Collider);
-    const pm = world.get<PathMotion>(e, PathMotion);
-    const r = colliderWorldRect(pos, col);
-    r.plat = pm;
+  for (const e of qMovers()) {
+    const r = colliderWorldRect(e);
+    r.plat = { dx: PathMotion.dx[e], dy: PathMotion.dy[e] };
     solidsNow.push(r);
   }
-  for (const e of world.query(Position, Collider, SpringPad)) {
-    const pos = world.get<Position>(e, Position);
-    const col = world.get<Collider>(e, Collider);
-    const r = colliderWorldRect(pos, col);
-    r.springPad = e as number;
+  for (const e of qSpringPads()) {
+    const r = colliderWorldRect(e);
+    r.springPad = e;
     solidsNow.push(r);
   }
   // 钩锁目标随本帧碰撞体一并刷新（射线检测用同一份"本帧世界几何"）
@@ -106,10 +96,8 @@ export function buildHookTargets(): void {
   for (const s of currentMap.solids) {
     if (s.hookable !== false) hookTargetsNow.push(s);
   }
-  for (const e of world.query(Position, Collider, Hookable)) {
-    const pos = world.get<Position>(e, Position);
-    const col = world.get<Collider>(e, Collider);
-    hookTargetsNow.push(colliderWorldRect(pos, col));
+  for (const e of qHookTargets()) {
+    hookTargetsNow.push(colliderWorldRect(e));
   }
 }
 
@@ -138,36 +126,34 @@ export function boxHitFor(p: PlayerState, s: Rect): boolean {
 /**
  * 通用玩家物理步。
  *
- * 纯物理函数：只处理物理分辨率（加速度/跳跃/重力/平台推挤）。
+ * 纯物理函数：只处理物理分辨率（加速度/跳跃/重力/平台推挤/外力消费）。
  * 不含副作用（音效/粒子/gs 写入）—— 这些由调用方（PlayerController 或 Game）处理。
- * 触发事件（致死/收集/检查点/终点）：
- *   - 本地玩家由 CollisionSystem + CollisionHooks 处理
- *   - 远程玩家（host 模拟）通过 checkHazards 参数启用行内检测
+ * 触发事件（致死/收集/检查点/终点）：一律经契约层（effects/applyEffect）投递请求，
+ * 由结算管线裁决 —— 本函数不直接判定致死。
+ * 危险物重叠检测已迁出（systems/interactions/hazard.ts），供本地/远程统一使用。
  *
  * 轨道分派：若 p.track 非空，则进入轨道运动模式（stepTrackMotion），
  * 完全替代自由物理步进；自由步进末尾调用 tryEnterTrack 检测入口捕获。
  *
  * @param p      玩家状态（读写）
- * @param input  外部输入（null 则从本地 keys 表读取）
+ * @param input  外部输入（本帧按键；必须显式传入，不得为 null —— 物理与全局键盘解耦）
  * @param dt     帧时间
  * @param isLocal 是否为本地玩家（控制音效/粒子触发）
- * @param outSignals 可选输出参数，物理步内写入 wallBump 信号
- * @param checkHazards 是否行内检测危险物（host 模拟远程玩家时使用）
+ * @param outSignals 可选输出参数，物理步内写入 wallBump 等信号
  */
 export function stepPlayerGeneric(
   p: PlayerState,
-  input: InputKeys | null,
+  input: InputKeys,
   dt: number,
   isLocal: boolean,
   outSignals?: FrameSignals,
-  checkHazards?: boolean,
 ): void {
   // ── 轨道运动分派：在轨玩家不走自由物理 ──
   if (p.track) {
     // 保持 jumpWasDown 同步（轨道退出后 jumpFresh 不乱）
-    p.jumpWasDown = input !== null ? input.jump : (keys.Space || keys.KeyW || keys.ArrowUp);
+    p.jumpWasDown = input.jump;
     // 钩锁"长按锁定"输入：发射后持续按下左键 → 到站锁定（拉住不动）
-    const hookHeld = input !== null ? input.hook : false;
+    const hookHeld = input.hook;
     stepTrackMotion(p, dt, getMode(), outSignals, hookHeld);
     return;
   }
@@ -184,10 +170,10 @@ export function stepPlayerGeneric(
   const ph = PHYS[mode];
 
   // 从输入源读取按键
-  const Lf = input !== null ? input.left : (keys.ArrowLeft || keys.KeyA);
-  const Rt = input !== null ? input.right : (keys.ArrowRight || keys.KeyD);
-  const jumpPressed = input !== null ? input.jump : (keys.Space || keys.KeyW || keys.ArrowUp);
-  const shiftPressed = input !== null ? input.sprint : (keys.ShiftLeft || keys.ShiftRight);
+  const Lf = input.left;
+  const Rt = input.right;
+  const jumpPressed = input.jump;
+  const shiftPressed = input.sprint;
 
   // 跳跃"新按下沿"检测：上一物理步未按下 && 本步刚按下 → 一次按压只触发一次
   // jumpWasDown 由 PlayerController.setInput 在每帧注入时预先更新（反映上一帧的 input.jump），
@@ -211,13 +197,8 @@ export function stepPlayerGeneric(
   p.velocity.x += Math.abs(dv) <= st ? dv : Math.sign(dv) * st;
 
   // 跳跃缓冲 & 土狼时间
-  if (input !== null) {
-    p.jbuf = jumpPressed ? ph.jb : 0;
-    p.coyote -= dt;
-  } else {
-    p.jbuf -= dt;
-    p.coyote -= dt;
-  }
+  p.jbuf = jumpPressed ? ph.jb : 0;
+  p.coyote -= dt;
 
   // 跳跃（地面 / 土狼时间：保留缓冲手感；一段跳不消耗二段跳）
   if (p.jbuf > 0 && (p.grounded || p.coyote > 0)) {
@@ -243,7 +224,7 @@ export function stepPlayerGeneric(
   }
 
   // 重力
-  const hold = input !== null ? input.jump : (keys.Space || keys.KeyW || keys.ArrowUp);
+  const hold = input.jump;
   const gm = mode === 'tuned'
     ? (p.velocity.y > 0 ? (hold ? 1 : 2.6) : (hold ? 1.4 : 2.2))
     : 1;
@@ -260,17 +241,19 @@ export function stepPlayerGeneric(
       if (p.y - p.half >= s.top - 0.05) continue;
       // ── 墙壁弹簧（细长 w<h，侧面碰撞）：触发弹射，不阻断速度 ──
       if (s.springPad !== undefined && s.w < s.h) {
-        const spring = world.get<SpringPad>(s.springPad, SpringPad);
-        if (spring.cooldown <= 0) {
-          spring.cooldown = spring.duration + 0.3;
-          spring.animTimer = spring.duration;
-          spring.firing = true;
-          p.springT = spring.duration;
-          p.springAcceleration.x = spring.force.x;
-          p.springAcceleration.y = spring.force.y;
-          // 瞬间冲量：水平弹簧需要克服水平阻尼，直接给足速度
-          p.velocity.x += spring.force.x;
-          p.velocity.y += spring.force.y;
+        const sid = s.springPad;
+        if (SpringPad.cooldown[sid] <= 0) {
+          SpringPad.cooldown[sid] = SpringPad.duration[sid] + 0.3;
+          SpringPad.animTimer[sid] = SpringPad.duration[sid];
+          SpringPad.firing[sid] = 1;
+          // 契约：弹射 = ImpulseRequest（瞬间冲量 + 持续加速），不直写玩家弹簧字段
+          applyEffect(p, {
+            kind: 'Impulse',
+            ax: SpringPad.fx[sid],
+            ay: SpringPad.fy[sid],
+            dur: SpringPad.duration[sid],
+            instant: true,
+          });
           // 首次触发时推挤到最近边缘（基于玩家位置，避免瞬移）
           if (p.x < s.x + s.w / 2) {
             p.x = s.x - p.half;      // 在左半边 → 推到左侧
@@ -320,25 +303,24 @@ export function stepPlayerGeneric(
 
   // 弹簧平台：落在弹簧上且冷却结束 → 开始弹射（加速度持续 duration，动画同步）
   if (springEnt !== null) {
-    const spring = world.get<SpringPad>(springEnt, SpringPad);
-    if (spring.cooldown <= 0) {
-      spring.cooldown = spring.duration + 0.3;
-      spring.animTimer = spring.duration;
-      spring.firing = true;
-      p.springT = spring.duration;
-      p.springAcceleration.x = spring.force.x;
-      p.springAcceleration.y = spring.force.y;
+    const sid = springEnt;
+    if (SpringPad.cooldown[sid] <= 0) {
+      SpringPad.cooldown[sid] = SpringPad.duration[sid] + 0.3;
+      SpringPad.animTimer[sid] = SpringPad.duration[sid];
+      SpringPad.firing[sid] = 1;
+      // 契约：顶簧 = ImpulseRequest（仅持续加速），不直写玩家弹簧字段
+      applyEffect(p, {
+        kind: 'Impulse',
+        ax: SpringPad.fx[sid],
+        ay: SpringPad.fy[sid],
+        dur: SpringPad.duration[sid],
+      });
       if (outSignals) outSignals.spring = true;
     }
   }
 
-  // 弹簧持续加速（加速时间 = springT，与弹簧伸缩动画同步）
-  if (p.springT > 0) {
-    p.velocity.x += p.springAcceleration.x * dt;
-    p.velocity.y += p.springAcceleration.y * dt;
-    p.springT -= dt;
-    if (p.springT < 0) p.springT = 0;
-  }
+  // 外力消费（弹簧/击退/气流通用；与弹簧伸缩动画同步）
+  consumeImpulses(p, dt);
 
   if (p.grounded) {
     p.coyote = ph.coy;
@@ -351,41 +333,6 @@ export function stepPlayerGeneric(
   // 坠落死亡（仅设标记，无副作用）
   if (!p.dead && p.y < -8) {
     p.dead = true;
-  }
-
-  // ── 远程玩家行内危险物检测（host 模拟远程玩家时启用）──
-  if (checkHazards && !p.dead && p.inv <= 0) {
-    // 尖刺（ECS 实体：Position + Collider + Hazard，无 Timer）
-    for (const e of world.query(Position, Collider, Hazard)) {
-      if (world.has(e, Timer)) continue; // 激光带 Timer，下方处理
-      const pos = world.get<Position>(e, Position);
-      const col = world.get<Collider>(e, Collider);
-      const r = colliderWorldRect(pos, col);
-      if (aabbOverlap(
-        { x: p.x - p.half, y: p.y - p.half, w: p.half * 2, h: p.half * 2, top: p.y + p.half },
-        r,
-      )) {
-        p.dead = true;
-        break;
-      }
-    }
-    // 激光（ECS 实体：Position + Collider + Timer + Hazard）
-    if (!p.dead) {
-      for (const e of world.query(Position, Collider, Timer, Hazard)) {
-        const t = world.get<Timer>(e, Timer);
-        if (!t.on) continue;
-        const pos = world.get<Position>(e, Position);
-        const col = world.get<Collider>(e, Collider);
-        const r = colliderWorldRect(pos, col);
-        if (aabbOverlap(
-          { x: p.x - p.half, y: p.y - p.half, w: p.half * 2, h: p.half * 2, top: p.y + p.half },
-          r,
-        )) {
-          p.dead = true;
-          break;
-        }
-      }
-    }
   }
 
   // ── 轨道入口捕获（自由步进最后，!p.track 时检测）──
@@ -414,7 +361,7 @@ function stepTrackMotion(
   // 衰减（与自由物理步进保持一致）
   p.jbuf -= dt;
   p.coyote -= dt;
-  p.springT = Math.max(0, p.springT - dt);
+  decayImpulses(p, dt); // 在轨时外力只衰减计时，不施力（与原 springT 语义一致）
   p.inv = Math.max(0, p.inv - dt);
 
   // ── 滑索（钩锁）分支：匀速前进，不受切向重力/摩擦/滚回 ──
@@ -505,32 +452,32 @@ function tryEnterTrack(p: PlayerState, _dt: number, signals?: FrameSignals): voi
   if (p.track || p.dead) return;
   const sp = Math.sqrt(p.velocity.x * p.velocity.x + p.velocity.y * p.velocity.y);
 
-  for (const e of world.query(Position, Track)) {
-    const tr = world.get<Track>(e, Track);
+  for (const e of qTracks()) {
     // 速度阈值检查 + 静止/超低速 NaN 防护（sp≈0 → 0/0 导致传送至出口）
-    if (sp < Math.max(tr.speedThreshold, 1e-3)) continue;
-    const dx = p.x - tr.entryX;
-    const dy = p.y - tr.entryY;
+    if (sp < Math.max(Track.speedThreshold[e], 1e-3)) continue;
+    const dx = p.x - Track.entryX[e];
+    const dy = p.y - Track.entryY[e];
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist > TRACK_CAPTURE_RADIUS) continue;
 
     // 方向检查：速度与入口切线方向点积
-    const entryTan = pathTangent(tr.segments, buildCumulativeLengths(tr.segments), tr.entryDist);
+    const segments = TrackGeom[e].segments;
+    const entryTan = pathTangent(segments, buildCumulativeLengths(segments), Track.entryDist[e]);
     const dot = (p.velocity.x * entryTan.x + p.velocity.y * entryTan.y) / sp;
     if (dot < 0.5) continue;
 
     // 捕获
-    const cl = buildCumulativeLengths(tr.segments);
+    const cl = buildCumulativeLengths(segments);
     const total = cl[cl.length - 1];
-    const entryPos = pathPosition(tr.segments, cl, tr.entryDist);
+    const entryPos = pathPosition(segments, cl, Track.entryDist[e]);
     p.track = {
-      segments: tr.segments,
+      segments,
       cumulative: cl,
-      dist: tr.entryDist,
-      speed: Math.max(sp * dot, tr.speedThreshold),
+      dist: Track.entryDist[e],
+      speed: Math.max(sp * dot, Track.speedThreshold[e]),
       totalLength: total,
-      entryDist: tr.entryDist,
-      exitDist: tr.exitDist,
+      entryDist: Track.entryDist[e],
+      exitDist: Track.exitDist[e],
     };
     p.grounded = false;
     p.plat = null;

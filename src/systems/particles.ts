@@ -6,7 +6,7 @@
  */
 import type { Particle, TrailPoint } from '../types';
 import type { FxPreset } from '../Prefabs/Fx/presets';
-import { EntityPool } from '../core/ecs/entityPool';
+import { EntityPool } from '../core/entityPool';
 import { TLIFE } from '../config';
 
 /** 粒子池（上限 420，超限从头剔除） */

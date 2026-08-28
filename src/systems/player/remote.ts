@@ -6,6 +6,7 @@
 import type { RemotePlayer, InputKeys, PathSegment } from '../../types';
 import { room } from '../../net/room';
 import { buildCumulativeLengths } from '../../core/path';
+import { createPlayerState } from './createPlayerState';
 
 /** 远程玩家表（playerId → RemotePlayer，含完整 PlayerState 模拟状态） */
 export const remotes = new Map<number, RemotePlayer>();
@@ -31,20 +32,9 @@ export function registerRemote(id: number, name: string): RemotePlayer {
   let rp = remotes.get(id);
   if (!rp) {
     rp = {
+      // PlayerState 全字段（工厂统一初始化；远程玩家出生点与本地一致）
+      ...createPlayerState(6, 5),
       id, name,
-      // PlayerState 全字段
-      x: 6, y: 5, velocity: { x: 0, y: 0 }, half: 0.42,
-      grounded: false, coyote: 0, jbuf: 0, face: 1,
-      dead: false, deadT: 0, plat: null,
-      sprint: false, wasSpr: false, inv: 0,
-      extraJumps: 0, extraJumpsMax: 0,
-      jumpWasDown: false, jumpFresh: false,
-      springT: 0, springAcceleration: { x: 0, y: 0 },
-      track: null,
-      backpack: [],
-      hookCd: 0,
-      hookMissT: 0,
-      selectedSlot: 0,
       // 检查点（默认出生点）
       cpX: 6, cpY: 4,
     };

@@ -4,27 +4,18 @@
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { cam } from '../../core/camera';
-import { rr, fmt } from '../../core/math';
-import { currentMap, PHYS } from '../../config';
-import { world } from '../../core/ecs';
-import { Position } from '../../components/physics/Position';
-import { Collider } from '../../components/physics/Collider';
-import { PathMotion } from '../../components/physics/PathMotion';
-import { Timer } from '../../components/gameplay/Timer';
-import { Hazard } from '../../components/gameplay/Hazard';
-import { Collectible } from '../../components/gameplay/Collectible';
-import { RespawnPoint } from '../../components/gameplay/RespawnPoint';
-import { Goal } from '../../components/gameplay/Goal';
+import { rr } from '../../core/math';
+import { currentMap } from '../../config';
+import {
+  world, Position, Collider, PathMotion, Timer, Hazard, Collectible, RespawnPoint, Goal, Orb,
+} from '../../core/ecs';
+import { query, hasComponent } from 'bitecs';
 import { gs } from '../game/gameState';
-import { getMode } from '../game/gameMode';
 import { playerController } from '../player';
 import { colliderWorldRect } from '../level';
 import { MAX_BACKPACK, type ItemId } from '../../types';
 import { HOOK_COOLDOWN } from '../../config';
 import { orbCount } from '../interactions';
-
-/** 光球总数（仅 kind === 'orb' 的可拾取物） */
-const orbTotal = (): number => orbCount();
 
 /* ==================== HUD ==================== */
 
@@ -200,45 +191,35 @@ export function drawMinimap(vw: number, vh: number): void {
 
   ctx.fillStyle = 'rgba(120,140,255,.4)';
   for (const r of currentMap.solids) ctx.fillRect(X(r.x), Y(r.top), Math.max(1, r.w * k), Math.max(1, r.h * k));
-  for (const e of world.query(Position, Collider, PathMotion)) {
-    const pos = world.get<Position>(e, Position);
-    const col = world.get<Collider>(e, Collider);
-    const r = colliderWorldRect(pos, col);
+  for (const e of qMoverEntities()) {
+    const r = colliderWorldRect(e);
     ctx.fillStyle = 'rgba(160,200,255,.75)';
     ctx.fillRect(X(r.x), Y(r.top), Math.max(1.5, r.w * k), Math.max(1, r.h * k));
   }
   ctx.fillStyle = 'rgba(255,138,222,.9)';
-  for (const e of world.query(Position, Collider, Hazard)) {
-    if (world.has(e, Timer)) continue; // 激光由下方绘制
-    const pos = world.get<Position>(e, Position);
-    ctx.fillRect(X(pos.x + 0.5) - 1, Y(5) - 1, 2, 2);
+  for (const e of qHazardEntities()) {
+    if (hasComponent(world, e, Timer)) continue; // 激光由下方绘制
+    ctx.fillRect(X(Position.x[e] + 0.5) - 1, Y(5) - 1, 2, 2);
   }
-  for (const e of world.query(Position, Collider, Timer)) {
-    const pos = world.get<Position>(e, Position);
-    const col = world.get<Collider>(e, Collider);
-    const r = colliderWorldRect(pos, col);
+  for (const e of qLaserEntities()) {
+    const r = colliderWorldRect(e);
     ctx.fillStyle = 'rgba(255,90,160,.8)';
-    ctx.fillRect(X(pos.x) - 0.5, Y(r.top), 1, r.h * k);
+    ctx.fillRect(X(Position.x[e]) - 0.5, Y(r.top), 1, r.h * k);
   }
-  for (const e of world.query(Position, Collectible)) {
-    const pos = world.get<Position>(e, Position);
-    const col = world.get<Collectible>(e, Collectible);
-    if (col.kind !== 'orb' || col.collected) continue;
+  for (const e of qOrbEntities()) {
+    if (Collectible.collected[e]) continue;
     ctx.fillStyle = '#8ff6ff';
-    ctx.beginPath(); ctx.arc(X(pos.x), Y(pos.y), 1.8, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.arc(X(Position.x[e]), Y(Position.y[e]), 1.8, 0, 6.283); ctx.fill();
   }
-  for (const e of world.query(Position, RespawnPoint)) {
-    const pos = world.get<Position>(e, Position);
-    const rp = world.get<RespawnPoint>(e, RespawnPoint);
-    ctx.fillStyle = rp.active ? '#7df9ff' : 'rgba(150,150,255,.7)';
-    ctx.fillRect(X(pos.x) - 1.5, Y(4) - 3, 3, 3);
+  for (const e of qCheckpointEntities()) {
+    ctx.fillStyle = RespawnPoint.active[e] ? '#7df9ff' : 'rgba(150,150,255,.7)';
+    ctx.fillRect(X(Position.x[e]) - 1.5, Y(4) - 3, 3, 3);
   }
   ctx.fillStyle = '#ffd76b';
   ctx.save();
-  const nova = world.queryOne(Position, Goal);
-  if (nova) {
-    const npos = world.get<Position>(nova, Position);
-    ctx.translate(X(npos.x), Y(npos.y));
+  const nova = qNovaEntity();
+  if (nova !== -1) {
+    ctx.translate(X(Position.x[nova]), Y(Position.y[nova]));
   }
   ctx.rotate(0.785);
   ctx.fillRect(-2.4, -2.4, 4.8, 4.8);
@@ -255,4 +236,17 @@ export function drawMinimap(vw: number, vh: number): void {
   ctx.shadowBlur = 7;
   ctx.strokeRect(cx, cy, cw, chh);
   ctx.shadowBlur = 0;
+}
+
+/* ==================== 小地图 ECS 查询（内联，避免依赖 queries 未导出的组合） ==================== */
+
+function qMoverEntities(): number[] { return queryEntities([Position, Collider, PathMotion]); }
+function qHazardEntities(): number[] { return queryEntities([Position, Collider, Hazard]); }
+function qLaserEntities(): number[] { return queryEntities([Position, Collider, Timer]); }
+function qOrbEntities(): number[] { return queryEntities([Position, Collectible, Orb]); }
+function qCheckpointEntities(): number[] { return queryEntities([Position, RespawnPoint]); }
+function qNovaEntity(): number { return queryEntities([Position, Goal])[0] ?? -1; }
+
+function queryEntities(terms: any[]): number[] {
+  return query(world, terms) as number[];
 }

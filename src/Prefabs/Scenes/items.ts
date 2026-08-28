@@ -1,47 +1,52 @@
 /**
  * 场景预制体 —— 收集品 / 终点建模。
- * 光球、检查点、NOVA 星。
- * 数据从 ECS World 查询（Position + Collider/Collectible/RespawnPoint/Goal + Renderable）。
+ * 光球、检查点、NOVA 星、双跳票、钩锁道具。
+ * 数据从新 ECS 查询（Position + Collider + Collectible/RespawnPoint/Goal + Renderable + Animator + 标签组件）。
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
-import { world } from '../../core/ecs';
-import { Position } from '../../components/physics/Position';
-import { Collider } from '../../components/physics/Collider';
-import { Collectible } from '../../components/gameplay/Collectible';
-import { RespawnPoint } from '../../components/gameplay/RespawnPoint';
-import { Goal } from '../../components/gameplay/Goal';
-import { Renderable } from '../../components/render/Renderable';
+import { Position, Collider, Collectible, RespawnPoint, Goal, Renderable, Animator, Orb, JumpBoost, Hook } from '../../core/ecs';
 import { gs } from '../../systems/game/gameState';
 import { colliderWorldRect } from '../../systems/level';
 import { T } from './theme';
+import { getAnimOutput } from '../Animations';
+import { query } from 'bitecs';
+import { world } from '../../core/ecs';
 
 /** 光球 */
 export function drawOrbs(): void {
-  for (const e of world.query(Position, Collectible, Renderable)) {
-    const pos = world.get<Position>(e, Position);
-    const col = world.get<Collectible>(e, Collectible);
-    const ren = world.get<Renderable>(e, Renderable);
-    if (col.kind !== 'orb' || col.collected) continue;
-    const px = sx(pos.x);
+  for (const e of query(world, [Position, Collider, Collectible, Animator, Orb])) {
+    if (Collectible.collected[e] === 1) continue;
+    const ren = { radius: Renderable.radius[e] };
+    const out = getAnimOutput(e);
+    const px = sx(Position.x[e]);
     if (px < -60 || px > VW + 60) continue;
-    const bob = Math.sin(gs.time * ren.bobSpeed + ren.phase) * 0.18;
-    const py = sy(pos.y + bob), r = ren.radius * view.SZ;
+    const py = sy(Position.y[e] + out.offsetY);
+    const r = ren.radius * view.SZ;
+
+    // 外发光（受 alpha 影响）
     ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = out.alpha;
     const g = ctx.createRadialGradient(px, py, 0, px, py, r * 2.6);
     g.addColorStop(0, 'rgba(140,246,255,.5)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(px, py, r * 2.6, 0, 6.283); ctx.fill();
     ctx.globalCompositeOperation = 'source-over';
+
+    // 核心
     ctx.fillStyle = '#eaffff';
     ctx.shadowColor = '#8ff6ff';
     ctx.shadowBlur = 14;
-    ctx.beginPath(); ctx.arc(px, py, r * 0.55, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.arc(px, py, r * 0.55 * out.scaleX, 0, 6.283); ctx.fill();
     ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+
+    // 旋转方框（受 scaleX 鼓胀）
     ctx.save();
     ctx.translate(px, py);
-    ctx.rotate(gs.time * ren.rotSpeed + ren.phase);
+    ctx.rotate(out.rotation);
+    ctx.scale(out.scaleX, 1);
     ctx.strokeStyle = 'rgba(160,250,255,.85)';
     ctx.lineWidth = 1.6;
     ctx.strokeRect(-r * 0.8, -r * 0.8, r * 1.6, r * 1.6);
@@ -51,27 +56,27 @@ export function drawOrbs(): void {
 
 /** 检查点光柱 */
 export function drawCheckpoints(p: number): void {
-  for (const e of world.query(Position, RespawnPoint, Renderable)) {
-    const pos = world.get<Position>(e, Position);
-    const rp = world.get<RespawnPoint>(e, RespawnPoint);
-    const px = sx(pos.x);
+  for (const e of query(world, [Position, RespawnPoint, Renderable])) {
+    const pos = { x: Position.x[e], y: Position.y[e] };
+    const rp_active = RespawnPoint.active[e];
+    const rp_nearby = RespawnPoint.nearby[e];
+    const px = sx(Position.x[e]);
     if (px < -40 || px > VW + 40) continue;
-    const py = sy(pos.y);
+    const py = sy(Position.y[e]);
     const g = ctx.createLinearGradient(0, py, 0, py - 6.5 * view.SZ);
-    g.addColorStop(0, rp.active ? 'rgba(125,249,255,' + (0.28 + 0.2 * p) + ')' : 'rgba(140,130,255,.10)');
+    g.addColorStop(0, rp_active === 1 ? 'rgba(125,249,255,' + (0.28 + 0.2 * p) + ')' : 'rgba(140,130,255,.10)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.fillRect(px - 0.28 * view.SZ, py - 6.5 * view.SZ, 0.56 * view.SZ, 6.5 * view.SZ);
-    ctx.fillStyle = rp.active ? 'rgba(125,249,255,.9)' : 'rgba(140,130,255,.55)';
-    ctx.shadowColor = rp.active ? '#7df9ff' : '#8a82ff';
-    ctx.shadowBlur = rp.active ? 12 : 4;
-    ctx.fillRect(px - 0.9 * view.SZ, sy(pos.y + 0.3), 1.8 * view.SZ, 0.3 * view.SZ);
+    ctx.fillStyle = rp_active === 1 ? 'rgba(125,249,255,.9)' : 'rgba(140,130,255,.55)';
+    ctx.shadowColor = rp_active === 1 ? '#7df9ff' : '#8a82ff';
+    ctx.shadowBlur = rp_active === 1 ? 12 : 4;
+    ctx.fillRect(px - 0.9 * view.SZ, sy(Position.y[e] + 0.3), 1.8 * view.SZ, 0.3 * view.SZ);
     ctx.shadowBlur = 0;
 
     // ── E 交互提示（未激活且玩家在附近时，贴近底座）──
-    if (!rp.active && rp.nearby) {
+    if (rp_active !== 1 && rp_nearby === 1) {
       const beat = 0.55 + 0.45 * Math.sin(gs.time * 5.5);
-      // 底座上方紧贴的位置（底座顶部 ≈ py - 0.3*SZ，提示在其上方）
       const ey = py - 0.7 * view.SZ;
       const er = 0.5 * view.SZ * (1 + beat * 0.06);
       ctx.save();
@@ -95,13 +100,14 @@ export function drawCheckpoints(p: number): void {
 
 /** NOVA 星（终点） */
 export function drawNOVA(p: number): void {
-  const nova = world.queryOne(Position, Goal);
-  if (!nova) return;
-  const pos = world.get<Position>(nova, Position);
-  const ren = world.get<Renderable>(nova, Renderable);
-  const px = sx(pos.x);
+  const e = query(world, [Position, Goal]).find(() => true);
+  if (!e) return;
+  const pos = { x: Position.x[e], y: Position.y[e] };
+  const ren = { radius: Renderable.radius[e] };
+  const out = getAnimOutput(e);
+  const px = sx(Position.x[e]);
   if (px < -160 || px > VW + 160) return;
-  const py = sy(pos.y);
+  const py = sy(Position.y[e]);
   const col = gs.win ? '255,220,140' : '190,140,255';
   ctx.globalCompositeOperation = 'lighter';
   const g = ctx.createLinearGradient(0, py, 0, sy(0));
@@ -118,10 +124,10 @@ export function drawNOVA(p: number): void {
   ctx.globalCompositeOperation = 'source-over';
   ctx.save();
   ctx.translate(px, py);
-  ctx.rotate(gs.time * ren.rotSpeed);
+  ctx.rotate(out.rotation);
   ctx.shadowColor = gs.win ? '#ffd76b' : '#c07dff';
   ctx.shadowBlur = 22;
-  const d = ren.radius * view.SZ;
+  const d = ren.radius * view.SZ * out.scaleX;
   ctx.fillStyle = gs.win ? '#fff3cf' : '#f2e4ff';
   ctx.beginPath();
   ctx.moveTo(0, -d); ctx.lineTo(d, 0); ctx.lineTo(0, d); ctx.lineTo(-d, 0); ctx.closePath();
@@ -146,19 +152,17 @@ export function drawNOVA(p: number): void {
 
 /** 双跳增益箭（绿色箭头 + 淡绿泛光圈，拾取后获得一次二段跳） */
 export function drawJumpBoosts(): void {
-  for (const e of world.query(Position, Collider, Collectible, Renderable)) {
-    const pos = world.get<Position>(e, Position);
-    const col = world.get<Collider>(e, Collider);
-    const ren = world.get<Renderable>(e, Renderable);
-    const c = world.get<Collectible>(e, Collectible);
-    if (c.kind !== 'jumpBoost' || c.collected) continue;
-    const r = colliderWorldRect(pos, col);
-    const bob = Math.sin(gs.time * ren.bobSpeed + ren.phase) * 0.16;
+  for (const e of query(world, [Position, Collider, Collectible, Renderable, Animator, JumpBoost])) {
+    if (Collectible.collected[e] === 1) continue;
+    const ren = { radius: Renderable.radius[e] };
+    const out = getAnimOutput(e);
+    const r = colliderWorldRect(e);
     const cx = sx(r.x + r.w / 2);
-    const cy = sy(r.top + r.h / 2 + bob);
-    const R = ren.radius * view.SZ;
+    const cy = sy(r.top + r.h / 2 + out.offsetY);
+    const R = Renderable.radius[e] * view.SZ;
 
     // ① 淡绿泛光圈（外发光层）
+    ctx.globalAlpha = out.alpha;
     ctx.globalCompositeOperation = 'lighter';
     const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.4);
     g.addColorStop(0, 'rgba(120,255,170,.28)');
@@ -170,8 +174,7 @@ export function drawJumpBoosts(): void {
     // ② 绿色上行箭头
     ctx.save();
     ctx.translate(cx, cy + R * 0.1);
-    // 轻微摆动（不旋转一整圈，只摇摆）
-    ctx.rotate(Math.sin(gs.time * ren.rotSpeed + ren.phase) * 0.18);
+    ctx.rotate(out.rotation);
     ctx.shadowColor = 'rgba(120,255,170,.9)';
     ctx.shadowBlur = T.glowMovable;
     ctx.fillStyle = '#59ff8f';
@@ -190,24 +193,23 @@ export function drawJumpBoosts(): void {
     ctx.fillStyle = 'rgba(230,255,240,.9)';
     ctx.fillRect(-R * 0.08, -R * 1.1, R * 0.16, R * 0.9);
     ctx.restore();
+    ctx.globalAlpha = 1;
   }
 }
 
 /** 钩锁道具（金色钩形 + 淡金泛光圈，拾取后进入背包主动栏） */
 export function drawHookPickups(): void {
-  for (const e of world.query(Position, Collider, Collectible, Renderable)) {
-    const pos = world.get<Position>(e, Position);
-    const col = world.get<Collider>(e, Collider);
-    const ren = world.get<Renderable>(e, Renderable);
-    const c = world.get<Collectible>(e, Collectible);
-    if (c.kind !== 'hook' || c.collected) continue;
-    const r = colliderWorldRect(pos, col);
-    const bob = Math.sin(gs.time * ren.bobSpeed + ren.phase) * 0.16;
+  for (const e of query(world, [Position, Collider, Collectible, Renderable, Animator, Hook])) {
+    if (Collectible.collected[e] === 1) continue;
+    const ren = { radius: Renderable.radius[e] };
+    const out = getAnimOutput(e);
+    const r = colliderWorldRect(e);
     const cx = sx(r.x + r.w / 2);
-    const cy = sy(r.top + r.h / 2 + bob);
-    const R = ren.radius * view.SZ;
+    const cy = sy(r.top + r.h / 2 + out.offsetY);
+    const R = Renderable.radius[e] * view.SZ;
 
     // ① 淡金泛光圈（外发光层）
+    ctx.globalAlpha = out.alpha;
     ctx.globalCompositeOperation = 'lighter';
     const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.4);
     g.addColorStop(0, 'rgba(255,190,90,.30)');
@@ -219,7 +221,7 @@ export function drawHookPickups(): void {
     // ② 金色钩形（钩杆 + 弯钩 + 倒刺）
     ctx.save();
     ctx.translate(cx, cy + R * 0.2);
-    ctx.rotate(Math.sin(gs.time * ren.rotSpeed + ren.phase) * 0.18);
+    ctx.rotate(out.rotation);
     ctx.shadowColor = 'rgba(255,180,70,.9)';
     ctx.shadowBlur = T.glowMovable;
     ctx.strokeStyle = '#ffc04d';
@@ -247,5 +249,6 @@ export function drawHookPickups(): void {
     ctx.fillStyle = '#ffe3ad';
     ctx.beginPath(); ctx.arc(0, -R * 1.25, R * 0.22, 0, 6.283); ctx.fill();
     ctx.restore();
+    ctx.globalAlpha = 1;
   }
 }

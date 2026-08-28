@@ -8,6 +8,7 @@
 
 ```
 systems/
+├── animation/  # 统一实体动画系统：stepAnimation 遍历（Position+Animator）实体，步进各控制器 FSM
 ├── game/  # 调度中枢：gameState（gs）+ gameMode（物理模式）/ 主循环 step/render/frame
 ├── player/  # 玩家控制：PlayerController 生命周期 + 物理引擎（stepPlayerGeneric）+ remote 联机
 ├── level/  # 关卡级系统：路径运动（MotionSystem）、激光计时（LaserTimerSystem）、碰撞箱工具（OverlapUtils）
@@ -34,7 +35,7 @@ systems/
 2. 本模块：经过 systems 做了什么
 
 
-接收输入（core/input）→ 更新玩家物理（player）→ 步进粒子（particles）→ 编排主循环（game/step）→ 渲染画面（game/render 调用各 drawXxx）。game 是唯一调度中枢，按固定时间步长（1/120s）驱动所有子系统。
+接收输入（core/input）→ 更新玩家物理（player）→ 步进关卡系统（level）→ 步进实体动画（animation）→ 步进粒子（particles）→ 编排主循环（game/step）→ 渲染画面（game/render 调用各 drawXxx）。game 是唯一调度中枢，按固定时间步长（1/120s）驱动所有子系统。
 
 3. 输出：流出的方向和目的
 

@@ -23,7 +23,7 @@ import { mouse } from '../../core/mouse';
 import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
 import { HOOK_MAX_RANGE, HOOK_SPEED, HOOK_COOLDOWN, HOOK_RETRACT_TIME } from '../../config';
-import { hasItem } from './backpack';
+import { hasItem, ITEMS, type ActiveItemContext } from './backpack';
 import { getHookTargets } from '../player';
 import { sfx } from '../../core/audio';
 
@@ -211,24 +211,25 @@ export function fireHook(
 }
 
 /**
- * 本地玩家钩锁帧逻辑（game step 在物理步之后调用）：
- * 冷却递减 + 左键按下沿 → 发射（方向 = 鼠标引导方向 / 默认面朝方向）。
- * 仅当钩锁槽位被选中（active 装备语义）时发射。
- * @param hookEdge 本帧捕获的左键按下沿（mouse.down && !mouse.prevDown）
+ * 钩锁主动道具 onActivate（S7 槽位 ActiveItemSystem 调用；本地/远端共用）。
+ * 冷却递减 + 左键按下沿 → 发射。内部自行判断选中槽位/冷却/状态。
+ * @param ctx.hookEdge 本帧左键按下沿（本地=鼠标边沿；远端=input.hook 沿）
+ * @param ctx.aim      发射方向（本地=鼠标引导；远端=客机上报 aim）
  */
-export function stepHookPlayer(dt: number, p: PlayerState, hookEdge: boolean): void {
-  p.hookCd = Math.max(0, p.hookCd - dt);
-  p.hookMissT = Math.max(0, p.hookMissT - dt);
+function hookActivate(p: PlayerState, ctx: ActiveItemContext): void {
+  p.hookCd = Math.max(0, p.hookCd - ctx.dt);
+  p.hookMissT = Math.max(0, p.hookMissT - ctx.dt);
   if (p.dead || p.track || !hasItem(p.backpack, 'hook')) return;
   // 冷却中不可发射
   if (p.hookCd > 0) return;
   // 主动装备：必须选中钩锁所在槽位才能使用
   if (p.backpack[p.selectedSlot] !== 'hook') return;
-  if (!hookEdge) return;
-
-  const dir = mouse.used ? mouseAimDir(p) : defaultAimDir(p);
-  fireHook(p, dir.x, dir.y);
+  if (!ctx.hookEdge) return;
+  fireHook(p, ctx.aim.x, ctx.aim.y, ctx.sfx !== false);
 }
+
+/** 注册钩锁主动道具（模块加载时生效；替代主循环硬编码 stepHookPlayer 调用） */
+ITEMS['hook'].onActivate = hookActivate;
 
 /* ==================== 渲染 ==================== */
 

@@ -9,6 +9,13 @@ export interface Vector2 {
   y: number;
 }
 
+/** 外力条目（弹簧/击退/气流通用）：ax/ay 加速度（格/秒²），t 剩余时长（秒） */
+export interface Impulse {
+  ax: number;
+  ay: number;
+  t: number;
+}
+
 /** 矩形刚体（平台 / 移动平台 / 碰撞盒） */
 export interface Rect {
   x: number;
@@ -29,6 +36,21 @@ export interface Rect {
 export interface PlatRef {
   dx: number;
   dy: number;
+}
+
+/**
+ * MVMap 底盘可行走区（只读，游戏地板渲染用）。
+ *
+ * 语义（模式 A / 恶魔城）：色块 = 区域 = 可行走空间，不是墙。
+ * 游戏据此绘制「格子化可行走带」（区域色）；碰撞体由 solids 承担。
+ */
+export interface FloorCell {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** 区域色（hex，如 "#4c8dd8"） */
+  color: string;
 }
 
 /** 移动平台生成数据（地图描述符使用） */
@@ -184,10 +206,8 @@ export interface PlayerState {
   /** 输入层跳跃按下标记：由 keydown handler 写入，物理步消耗。
    *  不受帧间 timing 影响，确保松开→重按的二段跳永远可靠。 */
   jumpFresh: boolean;
-  /** 弹簧加速剩余时长（秒，>0 时每帧施加 springAcceleration 加速度） */
-  springT: number;
-  /** 弹簧加速度矢量（格/秒²），持续加速方向 */
-  springAcceleration: Vector2;
+  /** 外力队列（弹簧/击退/气流通用）：每帧由运动系统消费并递减 t */
+  impulses: Impulse[];
   /** 轨道运动状态（null = 自由运动） */
   track: TrackState | null;
   /** 背包槽位（道具 id 列表，最多 5 格） */
@@ -305,6 +325,17 @@ export interface MapDefinition {
   spikes: Spike[];
   decos: Deco[];
   hints: Hint[];
+
+  /**
+   * ── MVMap 底盘可行走区视觉层（可选，只读）──
+   * 由 MVMap 结构底盘导入生成：合并矩形 + 区域色，游戏据此绘制「格子化可行走带」。
+   * 语义（模式 A）：色块 = 区域 = 可行走空间，不是墙。仅影响视觉；碰撞仍用 solids。
+   */
+  floor?: {
+    cells: FloorCell[];
+    /** 格边长（米），默认 1 */
+    gridSize?: number;
+  };
 
   /** ── 实体生成描述（ECS 实体工厂使用）── */
   entitySpawners: {

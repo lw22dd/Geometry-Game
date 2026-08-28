@@ -10,3 +10,4 @@ export { updateCollectSystem } from './CollectSystem';
 export { updateItemPickupSystem, orbCount } from './ItemPickupSystem';
 export { updateRespawnPointSystem } from './RespawnPointSystem';
 export { updateGoalSystem } from './GoalSystem';
+export { checkHazardOverlap } from './hazard';

@@ -1,14 +1,11 @@
 /**
  * 光球收集系统 —— 通过坐标检测玩家与光球重叠（远程玩家 host 模拟复用；
  * 本地玩家走 CollisionSystem + CollisionHooks 的 enter:player:pickup）。
- * 光球为通用 Collectible(kind='orb')；计数用共享 orbCount()。
+ * 光球 = Collectible + Orb tag；计数用共享 orbCount()。
  */
-import { world } from '../../core/ecs';
-import { Position } from '../../components/physics/Position';
-import { Collider } from '../../components/physics/Collider';
-import { Collectible } from '../../components/gameplay/Collectible';
-import { queryOneByTag, TAG_PLAYER } from '../../components/gameplay/tagHelpers';
+import { Collectible, Position, qOrbs } from '../../core/ecs';
 import { gs } from '../game/gameState';
+import { playerController } from '../player';
 import { FX } from '../../Prefabs/Fx';
 import { spawnParticles } from '../particles';
 import { sfx } from '../../core/audio';
@@ -27,29 +24,25 @@ export function updateCollectSystem(tx?: number, ty?: number): boolean {
   if (tx !== undefined && ty !== undefined) {
     px = tx; py = ty;
   } else {
-    const player = queryOneByTag(TAG_PLAYER, Position);
-    if (!player) return false;
-    const pp = world.get<Position>(player, Position);
-    px = pp.x; py = pp.y;
+    const p = playerController.getState();
+    px = p.x; py = p.y;
   }
 
   const totalOrbs = orbCount();
 
-  for (const e of world.query(Position, Collider, Collectible)) {
-    const col = world.get<Collectible>(e, Collectible);
-    if (col.kind !== 'orb' || col.collected) continue;
+  for (const e of qOrbs()) {
+    if (Collectible.collected[e]) continue;
     if (!pointInCollider(e, px, py)) continue;
 
-    col.collected = true;
+    Collectible.collected[e] = 1;
     gs.gotN++;
-    const pos = world.get<Position>(e, Position);
-    spawnParticles(FX.sparkle, pos.x, pos.y);
+    spawnParticles(FX.sparkle, Position.x[e], Position.y[e]);
     sfx.orb();
     netBus.emit({ type: 'game:orb', count: gs.gotN, total: totalOrbs });
     if (gs.gotN === totalOrbs) {
       gs.toast = '✦ 全部 ' + totalOrbs + ' 枚光球收集完成！';
       gs.toastT = 3;
-      spawnParticles(FX.confetti, pos.x, pos.y);
+      spawnParticles(FX.confetti, Position.x[e], Position.y[e]);
       sfx.cp();
     }
     return true;

@@ -1,23 +1,28 @@
 /**
  * 场景预制体 —— 平台（长方形）建模。
  * 静态平台 / 移动平台（ECS）/ 地图边框 / 装饰方块 / 网格线。
- * 所有绘制归一到 theme.ts 的 neonBox 原语 + 令牌。
+ * 数据源：新 ECS（静态平台仍读 currentMap，动态实体读 ECS）。
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
 import { clamp } from '../../core/math';
 import { currentMap } from '../../config';
 import { gs } from '../../systems/game/gameState';
-import { world } from '../../core/ecs';
-import { Position } from '../../components/physics/Position';
-import { Collider } from '../../components/physics/Collider';
-import { PathMotion } from '../../components/physics/PathMotion';
-import { SpringPad } from '../../components/physics/SpringPad';
+import { Position, Collider, PathMotion, SpringPad } from '../../core/ecs';
 import { colliderWorldRect } from '../../systems/level';
 import { T, neonBox } from './theme';
+import { query } from 'bitecs';
+import { world } from '../../core/ecs';
 
 /** 功能色：绿 = 弹射/加速 */
 const HUE_SPRING = 145;
+
+/** hex("#rrggbb") → "rgba(r,g,b,a)" */
+function hexA(hex: string, a: number): string {
+  const h = hex.replace('#', '');
+  const n = parseInt(h.length === 3 ? h.replace(/./g, '$&$&') : h, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
 
 /** 颜色渐变（随位置从青 → 紫 → 品红） */
 const hue2 = (x: number, y: number): number =>
@@ -69,8 +74,16 @@ export function drawDecos(): void {
 export function drawSolids(): void {
   const vl = view.SL, vr = view.SL + VW / view.SZ;
   const vb = view.SB, vt = view.SB + VH / view.SZ;
+  // 已被 MVMap 底盘可行走区（floor）完全覆盖的矩形不再重复霓虹绘制——
+  // 语义上 floor 是可走带视觉层；若某矩形恰与可走带重合（旧式 1:1 布局），
+  // 交给 drawFloor 用区域色绘制，避免霓虹盖住可走带色。
+  const floorSet = new Set<string>();
+  for (const c of currentMap.floor?.cells ?? []) {
+    floorSet.add(c.x + ',' + c.y + ',' + c.w + ',' + c.h);
+  }
   for (const r of currentMap.solids) {
     if (r.x + r.w < vl || r.x > vr || r.top < vb || r.y > vt) continue;
+    if (floorSet.has(r.x + ',' + r.y + ',' + r.w + ',' + r.h)) continue;
     neonBox(
       sx(r.x), sy(r.top), r.w * view.SZ, r.h * view.SZ,
       hue2(r.x + r.w / 2, r.top),
@@ -78,28 +91,71 @@ export function drawSolids(): void {
   }
 }
 
+/**
+ * MVMap 底盘可行走区视觉层（只读，格子化可行走带）。
+ * 读取 currentMap.floor：合并矩形按区域色平铺 + 内部 1 米格线（MVMap 风格）。
+ *
+ * 语义（模式 A / 恶魔城）：色块 = 区域 = 可行走空间，不是墙。
+ * 仅视觉；碰撞仍由 solids 承担。
+ */
+export function drawFloor(): void {
+  const floor = currentMap.floor;
+  if (!floor || floor.cells.length === 0) return;
+  const grid = floor.gridSize ?? 1;
+  const vl = view.SL, vr = view.SL + VW / view.SZ;
+  const vb = view.SB, vt = view.SB + VH / view.SZ;
+  const sub = Math.max(0.5, grid); // 每格边长(米) → 格线间隔
+
+  for (const c of floor.cells) {
+    if (c.x + c.w < vl || c.x > vr || c.y + c.h < vb || c.y > vt) continue;
+    const px = sx(c.x), py = sy(c.y + c.h);
+    const pw = c.w * view.SZ, ph = c.h * view.SZ;
+    if (pw <= 0 || ph <= 0) continue;
+
+    // 底色（半透明，柔和）
+    ctx.fillStyle = hexA(c.color, 0.3);
+    ctx.fillRect(px, py, pw, ph);
+
+    // 内部 1 米格线（「格子化」纹理）
+    ctx.strokeStyle = hexA(c.color, 0.5);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let gx = c.x + sub; gx < c.x + c.w; gx += sub) {
+      const gpx = sx(gx);
+      ctx.moveTo(gpx, py); ctx.lineTo(gpx, py + ph);
+    }
+    for (let gy = c.y + sub; gy < c.y + c.h; gy += sub) {
+      const gpy = sy(gy);
+      ctx.moveTo(px, gpy); ctx.lineTo(px + pw, gpy);
+    }
+    ctx.stroke();
+
+    // 外框
+    ctx.strokeStyle = hexA(c.color, 0.95);
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(px, py, pw, ph);
+  }
+}
+
 /** 移动平台（ECS 实体）+ 轨迹线 */
 export function drawMovers(): void {
-  for (const e of world.query(Position, Collider, PathMotion)) {
-    const pos = world.get<Position>(e, Position);
-    const col = world.get<Collider>(e, Collider);
-    const pm = world.get<PathMotion>(e, PathMotion);
-    const r = colliderWorldRect(pos, col);
+  for (const e of query(world, [Position, Collider, PathMotion])) {
+    const r = colliderWorldRect(e);
     const hu = hue2(r.x + r.w / 2, r.top); // 采样点与静态平台统一
 
     // 轨迹虚线：统一令牌 + 沿运动方向流动（强化可动感）
-    const vertical = pm.axis === 'y';
+    const vertical = PathMotion.axis[e] === 1;
     ctx.setLineDash(T.trailDash);
     ctx.strokeStyle = T.trailColor;
     ctx.lineWidth = 1;
-    ctx.lineDashOffset = -(gs.time * T.dashFlow) * (vertical ? Math.sign(pm.dy || 1) : Math.sign(pm.dx || 1));
+    ctx.lineDashOffset = -(gs.time * T.dashFlow) * (vertical ? Math.sign(PathMotion.dy[e] || 1) : Math.sign(PathMotion.dx[e] || 1));
     ctx.beginPath();
     if (vertical) {
-      ctx.moveTo(sx(r.x + r.w / 2), sy(pm.y0));
-      ctx.lineTo(sx(r.x + r.w / 2), sy(pm.y0 + pm.yRange));
+      ctx.moveTo(sx(r.x + r.w / 2), sy(PathMotion.y0[e]));
+      ctx.lineTo(sx(r.x + r.w / 2), sy(PathMotion.y0[e] + PathMotion.yRange[e]));
     } else {
-      ctx.moveTo(sx(pm.x0), sy(r.y + r.h / 2));
-      ctx.lineTo(sx(pm.x0 + pm.range + r.w), sy(r.y + r.h / 2));
+      ctx.moveTo(sx(PathMotion.x0[e]), sy(r.y + r.h / 2));
+      ctx.lineTo(sx(PathMotion.x0[e] + PathMotion.range[e] + r.w), sy(r.y + r.h / 2));
     }
     ctx.stroke();
     ctx.setLineDash([]);
@@ -113,13 +169,10 @@ export function drawMovers(): void {
   }
 }
 
-/** 弹簧平台（ECS 实体：Position + Collider + SpringPad） */
+/** 弹簧平台（ECS 实体） */
 export function drawSpringPads(): void {
-  for (const e of world.query(Position, Collider, SpringPad)) {
-    const pos = world.get<Position>(e, Position);
-    const col = world.get<Collider>(e, Collider);
-    const spring = world.get<SpringPad>(e, SpringPad);
-    const r = colliderWorldRect(pos, col);
+  for (const e of query(world, [Position, Collider, SpringPad])) {
+    const r = colliderWorldRect(e);
 
     const px = sx(r.x);
     if (px < -60 || px > VW + 60) continue;
@@ -129,8 +182,8 @@ export function drawSpringPads(): void {
 
     // 压缩动画（通用）
     let scale = 1;
-    if (spring.animTimer > 0) {
-      const u = Math.min(1, spring.animTimer / spring.duration);
+    if (SpringPad.animTimer[e] > 0) {
+      const u = Math.min(1, SpringPad.animTimer[e] / SpringPad.duration[e]);
       scale = 0.55 + 0.45 * Math.pow(1 - u, 0.7);
     }
     const py = sy(r.top); // 顶/右端屏幕 y
@@ -143,7 +196,7 @@ export function drawSpringPads(): void {
       const backX = px;                           // 左端底座（固定）
 
       // ① 待机呼吸（在顶板位置）
-      if (!spring.firing) {
+      if (!SpringPad.firing[e]) {
         const breath = 0.07 + 0.05 * Math.sin(gs.time * T.breathSpeed + r.x * 0.6);
         ctx.fillStyle = `hsla(${HUE_SPRING},100%,70%,${breath.toFixed(3)})`;
         ctx.fillRect(faceX - 3, py - 3, barW + 6, h + 6);
@@ -177,7 +230,7 @@ export function drawSpringPads(): void {
       ctx.fillStyle = 'rgba(14,32,24,.95)';
       ctx.fillRect(faceX, py, barW, h);
       ctx.shadowColor = `hsla(${HUE_SPRING},100%,60%,.85)`;
-      ctx.shadowBlur = spring.firing ? T.glowFiring : T.glowMovable;
+      ctx.shadowBlur = SpringPad.firing[e] ? T.glowFiring : T.glowMovable;
       ctx.strokeStyle = `hsla(${HUE_SPRING},95%,66%,.9)`;
       ctx.lineWidth = T.strokeW;
       ctx.strokeRect(faceX, py, barW, h);
@@ -187,7 +240,7 @@ export function drawSpringPads(): void {
       ctx.fillRect(faceX + barW - T.topBarH, py, T.topBarH, h);
 
       // ⑤ 弹射脉冲
-      if (spring.firing) {
+      if (SpringPad.firing[e]) {
         const pulse = 0.15 + 0.12 * Math.sin(gs.time * 24);
         ctx.fillStyle = `hsla(${HUE_SPRING},100%,75%,${pulse.toFixed(3)})`;
         ctx.fillRect(faceX - 4, py - 4, barW + 8, h + 8);
@@ -199,7 +252,7 @@ export function drawSpringPads(): void {
       const barH = Math.max(4, restH * 0.15);
 
       // ① 待机呼吸光环
-      if (!spring.firing) {
+      if (!SpringPad.firing[e]) {
         const breath = 0.07 + 0.05 * Math.sin(gs.time * T.breathSpeed + r.x * 0.6);
         ctx.fillStyle = `hsla(${HUE_SPRING},100%,70%,${breath.toFixed(3)})`;
         ctx.fillRect(px - 3, topY - 3, w + 6, barH + 6);
@@ -230,12 +283,12 @@ export function drawSpringPads(): void {
 
       // ④ 顶板：neonBox 语法
       neonBox(px, topY, w, barH, HUE_SPRING, {
-        glow: spring.firing ? T.glowFiring : T.glowMovable,
+        glow: SpringPad.firing[e] ? T.glowFiring : T.glowMovable,
         body: 'rgba(14,32,24,.95)',
       });
 
       // ⑤ 弹射脉冲
-      if (spring.firing) {
+      if (SpringPad.firing[e]) {
         const pulse = 0.15 + 0.12 * Math.sin(gs.time * 24);
         ctx.fillStyle = `hsla(${HUE_SPRING},100%,75%,${pulse.toFixed(3)})`;
         ctx.fillRect(px - 4, topY - 4, w + 8, barH + 8);

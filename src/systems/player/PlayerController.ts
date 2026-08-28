@@ -17,6 +17,7 @@
 import type { FrameSignals, PlayerState, InputKeys, TrackState } from '../../types';
 import type { PhysicsKey } from '../game/gameMode';
 import { stepPlayerGeneric } from './index';
+import { createPlayerState } from './createPlayerState';
 import { stepPlayerAnimation } from '../../Prefabs/Player';
 import { updateCollisionSystem } from '../level';
 import { trail } from '../particles';
@@ -44,20 +45,7 @@ export class PlayerController {
   onEvent?: (event: PlayerEvent) => void;
 
   constructor(spawnX: number, spawnY: number) {
-    this.state = {
-      x: spawnX, y: spawnY, velocity: { x: 0, y: 0 }, half: 0.42,
-      grounded: false, coyote: 0, jbuf: 0, face: 1,
-      dead: false, deadT: 0, plat: null,
-      sprint: false, wasSpr: false, inv: 0,
-      extraJumps: 0, extraJumpsMax: 0,
-      jumpWasDown: false, jumpFresh: false,
-      springT: 0, springAcceleration: { x: 0, y: 0 },
-      track: null,
-      backpack: [],
-      hookCd: 0,
-      hookMissT: 0,
-      selectedSlot: 0,
-    };
+    this.state = createPlayerState(spawnX, spawnY);
     this.input = { left: false, right: false, jump: false, sprint: false, interact: false, hook: false, aimX: 0, aimY: 0 };
     this.deathCount = 0;
   }
@@ -107,7 +95,7 @@ export class PlayerController {
     const wasDead = this.state.dead;
 
     const signals: FrameSignals = {};
-    stepPlayerGeneric(this.state, this.input, dt, isLocal, signals, false);
+    stepPlayerGeneric(this.state, this.input, dt, isLocal, signals);
 
     // 二段跳触发 → 发射事件
     if (signals.doubleJump) {
@@ -140,7 +128,7 @@ export class PlayerController {
     }
 
     // ── 碰撞检测（事件分发 → CollisionHooks） ──
-    updateCollisionSystem(signals as Record<string, boolean>);
+    updateCollisionSystem(this.state, signals as Record<string, boolean>);
 
     // ── 动画步进 ──
     stepPlayerAnimation(this.state, dt, signals);
@@ -179,9 +167,7 @@ export class PlayerController {
     this.state.velocity.y = 0;
     this.state.inv = 1.2;
     this.state.plat = null;
-    this.state.springT = 0;
-    this.state.springAcceleration.x = 0;
-    this.state.springAcceleration.y = 0;
+    this.state.impulses.length = 0;
     this.state.track = null;
     // 双跳为永久升级，复活保留 extraJumpsMax；但本次滞空期清零，着陆后刷新
     this.state.extraJumps = 0;
@@ -205,9 +191,7 @@ export class PlayerController {
     this.state.jbuf = 0;
     this.state.inv = 1.2;
     this.state.plat = null;
-    this.state.springT = 0;
-    this.state.springAcceleration.x = 0;
-    this.state.springAcceleration.y = 0;
+    this.state.impulses.length = 0;
     this.state.track = null;
     this.state.sprint = false;
     this.state.extraJumps = 0;

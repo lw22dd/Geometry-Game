@@ -30,6 +30,8 @@ export interface UIScene {
   widgets: UIWidget[];
   /** 场景背景/装饰绘制（复杂动画走这里，组件之前的底层） */
   draw?: (t: number) => void;
+  /** 滚轮事件（dy>0 向下滚动）；返回 true 表示消费该事件（阻止页面滚动） */
+  onWheel?: (dy: number) => boolean;
   /** 进入场景时回调（如重置动画计时） */
   onEnter?: () => void;
   /** 离开场景时回调（如复位光标） */

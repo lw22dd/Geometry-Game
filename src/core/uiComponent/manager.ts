@@ -129,6 +129,12 @@ export class UIManager {
     return false;
   }
 
+  /** 滚轮：分发给当前场景的 onWheel（返回 true 表示已消费） */
+  handleWheel(dy: number): boolean {
+    if (!this.current) return false;
+    return this.current.onWheel?.(dy) ?? false;
+  }
+
   /** 绘制当前场景（场景背景 + 全部组件） */
   draw(t: number): void {
     if (!this.current) return;

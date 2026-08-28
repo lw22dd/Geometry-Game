@@ -53,6 +53,11 @@ class Card implements UIWidget {
   private isSelected: () => boolean;
   private enterDelay = 0;
 
+  /** 网格滚动偏移（选择页专用：卡片随滚动上下平移，命中测试同步生效） */
+  offsetY = 0;
+  /** 可选裁剪区域（选择页滚动视口）：绘制与命中都限制在该区域内 */
+  clipRect: { x: number; y: number; w: number; h: number } | null = null;
+
   constructor(opts: {
     id: string;
     kind: 'map' | 'char';
@@ -70,7 +75,14 @@ class Card implements UIWidget {
   }
 
   hit(lx: number, ly: number): boolean {
-    return lx >= this.x && lx <= this.x + this.w && ly >= this.y && ly <= this.y + this.h;
+    const ey = this.y + this.offsetY;
+    if (lx < this.x || lx > this.x + this.w) return false;
+    if (ly < ey || ly > ey + this.h) return false;
+    if (this.clipRect) {
+      const c = this.clipRect;
+      if (lx < c.x || lx > c.x + c.w || ly < c.y || ly > c.y + c.h) return false;
+    }
+    return true;
   }
 
   draw(t: number): void {
@@ -78,10 +90,16 @@ class Card implements UIWidget {
     if (en <= 0) return;
     const hover = this.hover;
     const sel = this.isSelected();
-    const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+    const cx = this.x + this.w / 2, cy = this.y + this.offsetY + this.h / 2;
     const scale = (1 + (hover ? 0.02 : 0) + (sel ? 0.01 : 0)) * (0.96 + 0.04 * en);
 
     ctx.save();
+    if (this.clipRect) {
+      const c = this.clipRect;
+      ctx.beginPath();
+      ctx.rect(c.x, c.y, c.w, c.h);
+      ctx.clip();
+    }
     ctx.globalAlpha = en;
     ctx.translate(cx, cy);
     ctx.scale(scale, scale);
@@ -197,6 +215,69 @@ class Card implements UIWidget {
   }
 }
 
+/** 选择页滚动箭头 —— 网格可滚动时显示，点击翻页（上/下） */
+class ScrollArrow implements UIWidget {
+  readonly id: string;
+  visible = true;
+  hover = false;
+  focusable = false;
+  focused = false;
+  onClick?: () => void;
+  x = 0;
+  y = 0;
+  w = 36;
+  h = 36;
+
+  private dir: 1 | -1;
+  private enabled: () => boolean;
+
+  constructor(id: string, dir: 1 | -1, enabled: () => boolean, onScroll: () => void) {
+    this.id = id;
+    this.dir = dir;
+    this.enabled = enabled;
+    this.onClick = onScroll;
+  }
+
+  hit(lx: number, ly: number): boolean {
+    if (!this.enabled()) return false;
+    return lx >= this.x && lx <= this.x + this.w && ly >= this.y && ly <= this.y + this.h;
+  }
+
+  draw(t: number): void {
+    if (!this.enabled()) return;
+    void t;
+    const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+
+    ctx.save();
+    ctx.globalAlpha = this.hover ? 1 : 0.6;
+    ctx.shadowColor = 'rgba(120,200,255,.35)';
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = 'rgba(20,16,52,.92)';
+    rr(ctx, this.x, this.y, this.w, this.h, 10);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = this.hover ? 'rgba(140,230,255,.85)' : 'rgba(130,160,255,.4)';
+    ctx.lineWidth = 1.5;
+    rr(ctx, this.x, this.y, this.w, this.h, 10);
+    ctx.stroke();
+
+    ctx.fillStyle = this.hover ? '#7df9ff' : 'rgba(170,195,255,.85)';
+    ctx.beginPath();
+    if (this.dir > 0) {
+      ctx.moveTo(cx - 7, cy - 1);
+      ctx.lineTo(cx + 7, cy - 1);
+      ctx.lineTo(cx, cy + 6);
+    } else {
+      ctx.moveTo(cx - 7, cy + 1);
+      ctx.lineTo(cx + 7, cy + 1);
+      ctx.lineTo(cx, cy - 6);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 /* ==================== 主准备页 ==================== */
 
 interface PrepareActions {
@@ -293,20 +374,58 @@ export function buildPrepareScene(a: PrepareActions): UIScene {
 /* ==================== 选择子页 ==================== */
 
 function buildSelectScene(kind: 'maps' | 'chars', onBack: () => void): UIScene {
-  const pw = 1000, ph = 640;
-  const px = VW / 2 - pw / 2, py = VH / 2 - ph / 2;
+  const pw = 1000;
   const items = kind === 'maps' ? maps : CHARACTERS;
   const title = kind === 'maps' ? '选择地图' : '选择人物';
   const subtitle = kind === 'maps'
-    ? '当前地图二「水晶洞窟 · 对称迷城」已就绪'
-    : '已预留多种人物 · 当前两支：霓虹跑者 / 绯红冲刺者';
+    ? '点击地图卡片选中并返回'
+    : '点击人物卡片选中并返回';
 
-  const cardW = 430, cardH = 330, gapX = 30, gapY = 30;
+  // ── 网格几何 ──
+  // 列数自适应（最多 3 列）；卡片保持舒适尺寸，内容超出可视区（2 行）时启用滚动，
+  // 任意多的地图/人物都不会缩小卡片或溢出面板。
+  const marginX = 70, gapX = 26, gapY = 26;
+  const cols = Math.min(3, Math.max(1, items.length));
+  const rows = Math.max(1, Math.ceil(items.length / cols));
+  let cardW = Math.floor((pw - marginX * 2 - (cols - 1) * gapX) / cols);
+  cardW = Math.min(cardW, 440); // 单张卡片过宽时收窄并整体居中
+  const topPad = 152, bottomPad = 92;
+  const maxGridH = Math.max(200, VH - topPad - bottomPad - 20); // 720 逻辑高内网格可用高度
+  // 卡片高度：行数 ≤2 时尽量放大填充；更多行固定 2 行可视 + 滚动
+  const visibleRows = Math.min(rows, 2);
+  const cardH = Math.min(360, Math.floor((maxGridH - (visibleRows - 1) * gapY) / visibleRows));
+  const gridW = cols * cardW + (cols - 1) * gapX;
+  const fullGridH = rows * cardH + (rows - 1) * gapY;      // 全部卡片所需高度
+  const viewH = visibleRows * cardH + (visibleRows - 1) * gapY; // 可视视口高度
+  const gridH = Math.min(fullGridH, viewH);
+  const maxScroll = Math.max(0, fullGridH - gridH);         // 0 = 无需滚动
+
+  const ph = topPad + gridH + bottomPad;
+  const px = VW / 2 - pw / 2, py = VH / 2 - ph / 2;
+  const gridX = VW / 2 - gridW / 2;
+  const gridY = py + topPad;
+  const viewRect = { x: gridX, y: gridY, w: gridW, h: gridH }; // 裁剪视口
+
   const cards: Card[] = [];
   const widgets: UIWidget[] = [];
 
+  // 滚动状态：scrollY ∈ [0, maxScroll]，卡片实际位移 = gridY + 行距 - scrollY
+  let scrollY = 0;
+  function applyScroll(): void {
+    for (const c of cards) c.offsetY = -scrollY;
+  }
+  function scrollBy(dy: number): boolean {
+    if (maxScroll <= 0) return false;
+    const before = scrollY;
+    scrollY = Math.max(0, Math.min(maxScroll, scrollY + dy));
+    if (scrollY === before) return false;
+    applyScroll();
+    return true;
+  }
+  const scrollStep = viewH; // 每次滚动一屏
+
   items.forEach((item, i) => {
-    const col = i % 2, row = Math.floor(i / 2);
+    const col = i % cols, row = Math.floor(i / cols);
     const card = new Card({
       id: kind + '_' + (item as any).id,
       kind: kind === 'maps' ? 'map' : 'char',
@@ -323,14 +442,33 @@ function buildSelectScene(kind: 'maps' | 'chars', onBack: () => void): UIScene {
         }
         onBack();
       },
-      enterDelay: 0.3 + i * 0.12, // 错峰入场
+      enterDelay: Math.min(0.3 + i * 0.08, 0.85), // 大量卡片时限制错峰延迟，避免久等
     });
-    card.x = px + 70 + col * (cardW + gapX);
-    card.y = py + 140 + row * (cardH + gapY);
+    card.x = gridX + col * (cardW + gapX);
+    card.y = gridY + row * (cardH + gapY);
     card.w = cardW; card.h = cardH;
+    card.clipRect = viewRect; // 滚动时只显示视口内的卡片
     cards.push(card);
     widgets.push(card);
   });
+  applyScroll();
+
+  // 滚动箭头（内容可滚动时才显示/可点）
+  const arrowUp = new ScrollArrow(
+    kind + '_up', 1,
+    () => maxScroll > 0 && scrollY > 0,
+    () => { scrollBy(-scrollStep); },
+  );
+  const arrowDown = new ScrollArrow(
+    kind + '_down', -1,
+    () => maxScroll > 0 && scrollY < maxScroll,
+    () => { scrollBy(scrollStep); },
+  );
+  arrowUp.x = gridX + gridW + 14;
+  arrowUp.y = gridY + 16;
+  arrowDown.x = gridX + gridW + 14;
+  arrowDown.y = gridY + gridH - 16 - 36;
+  widgets.push(arrowUp, arrowDown);
 
   const btnBack = new Button({
     id: kind + '_back', label: '← 返回', variant: 'plain',
@@ -369,9 +507,22 @@ function buildSelectScene(kind: 'maps' | 'chars', onBack: () => void): UIScene {
     ctx.fillStyle = 'rgba(150,180,255,.55)';
     ctx.fillText(subtitle, VW / 2, py + 112);
 
+    // 底部提示（可滚动时提示操作方式）
     ctx.font = '500 12px "Segoe UI","Microsoft YaHei",Arial';
-    ctx.fillStyle = 'rgba(160,180,255,.45)';
-    ctx.fillText('点击卡片选中并返回 · ESC 返回上级', VW / 2, py + ph - 24);
+    ctx.fillStyle = 'rgba(160,180,255,.5)';
+    ctx.fillText(
+      maxScroll > 0 ? '滚动滚轮或点击箭头查看更多 · ESC 返回上级' : '点击卡片选中并返回 · ESC 返回上级',
+      VW / 2, py + ph - 24,
+    );
+
+    // 可视范围指示（仅可滚动时）
+    if (maxScroll > 0) {
+      const first = Math.floor(scrollY / (cardH + gapY)) + 1;
+      const last = Math.min(items.length, Math.ceil((scrollY + gridH) / (cardH + gapY)));
+      ctx.font = '500 12px "Segoe UI","Microsoft YaHei",Arial';
+      ctx.fillStyle = 'rgba(160,185,255,.65)';
+      ctx.fillText(`第 ${first}–${last} 张 / 共 ${items.length} 张`, VW / 2, gridY + gridH + 26);
+    }
     ctx.restore();
   }
 
@@ -379,10 +530,16 @@ function buildSelectScene(kind: 'maps' | 'chars', onBack: () => void): UIScene {
     name: kind === 'maps' ? UI_SCENE.MAP_SELECT : UI_SCENE.CHAR_SELECT,
     widgets,
     draw,
+    onWheel: (dy: number) => {
+      // 限制单次滚轮幅度，避免触控板大跳
+      const step = Math.max(24, Math.min(120, Math.abs(dy))) * Math.sign(dy);
+      return scrollBy(step);
+    },
     onEnter: () => { _prepT = 0; _prepLast = 0; },
     onExit: () => {
       for (const c of cards) c.hover = false;
       btnBack.hover = false;
+      arrowUp.hover = false; arrowDown.hover = false;
       const cv = ctx.canvas;
       if (cv) cv.style.cursor = 'default';
     },

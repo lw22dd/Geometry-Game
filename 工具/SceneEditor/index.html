@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SceneEditor · 2D 场景编辑器</title>
+<link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+<!-- 顶部菜单栏 -->
+<div id="menu-bar">
+  <span class="brand"><span class="td-icon" data-icon="Map" data-size="15"></span> SceneEditor</span>
+
+  <div class="menu-item" data-menu="file">文件
+    <div class="menu-drop">
+      <button class="menu-opt" data-cmd="new"><span class="td-icon" data-icon="Add" data-size="15"></span> 新建 <span class="kbd">Ctrl+N</span></button>
+      <button class="menu-opt" data-cmd="template"><span class="td-icon" data-icon="Template" data-size="15"></span> 从模板新建</button>
+      <button class="menu-opt" data-cmd="open"><span class="td-icon" data-icon="FolderOpen" data-size="15"></span> 打开…</button>
+      <button class="menu-opt" data-cmd="save"><span class="td-icon" data-icon="Save" data-size="15"></span> 保存 <span class="kbd">Ctrl+S</span></button>
+      <div class="menu-sep"></div>
+      <button class="menu-opt" data-cmd="export"><span class="td-icon" data-icon="Upload" data-size="15"></span> 导出地图数据</button>
+    </div>
+  </div>
+
+  <div class="menu-item" data-menu="edit">编辑
+    <div class="menu-drop">
+      <button class="menu-opt" data-cmd="undo"><span class="td-icon" data-icon="Undo" data-size="15"></span> 撤销 <span class="kbd">Ctrl+Z</span></button>
+      <button class="menu-opt" data-cmd="redo"><span class="td-icon" data-icon="Redo" data-size="15"></span> 重做 <span class="kbd">Ctrl+Shift+Z</span></button>
+      <div class="menu-sep"></div>
+      <button class="menu-opt" data-cmd="copy"><span class="td-icon" data-icon="Copy" data-size="15"></span> 复制 <span class="kbd">Ctrl+C</span></button>
+      <button class="menu-opt" data-cmd="paste"><span class="td-icon" data-icon="FilePaste" data-size="15"></span> 粘贴 <span class="kbd">Ctrl+V</span></button>
+      <button class="menu-opt" data-cmd="duplicate"><span class="td-icon" data-icon="Layers" data-size="15"></span> 克隆 <span class="kbd">Ctrl+D</span></button>
+      <button class="menu-opt" data-cmd="delete"><span class="td-icon" data-icon="Delete" data-size="15"></span> 删除 <span class="kbd">Del</span></button>
+    </div>
+  </div>
+
+  <div class="menu-item" data-menu="view">视图
+    <div class="menu-drop">
+      <button class="menu-opt" data-cmd="toggle-minimap"><span class="td-icon" data-icon="ViewModule" data-size="15"></span> 显示/隐藏小地图</button>
+      <button class="menu-opt" data-cmd="reset-zoom"><span class="td-icon" data-icon="ZoomIn" data-size="15"></span> 重置缩放</button>
+    </div>
+  </div>
+
+  <div class="menu-item" data-menu="tools">工具
+    <div class="menu-drop">
+      <button class="menu-opt" data-cmd="import-game"><span class="td-icon" data-icon="Download" data-size="15"></span> 从游戏导入</button>
+      <button class="menu-opt" data-cmd="import-mvmap"><span class="td-icon" data-icon="Module" data-size="15"></span> 从 MVMap 导入结构底盘</button>
+      <button class="menu-opt" data-cmd="check-overlap"><span class="td-icon" data-icon="Scan" data-size="15"></span> 重叠检查</button>
+    </div>
+  </div>
+
+  <div class="menu-item" data-menu="help">帮助
+    <div class="menu-drop">
+      <button class="menu-opt" data-cmd="help-shortcuts"><span class="td-icon" data-icon="HelpCircle" data-size="15"></span> 快捷键说明</button>
+    </div>
+  </div>
+</div>
+
+<!-- 副工具栏 -->
+<div id="sub-toolbar">
+  <button class="tb-btn" data-cmd="new" title="新建 (Ctrl+N)"><span class="td-icon" data-icon="Add"></span></button>
+  <button class="tb-btn" data-cmd="template" title="从模板新建"><span class="td-icon" data-icon="Template"></span></button>
+  <button class="tb-btn" data-cmd="open" title="打开"><span class="td-icon" data-icon="FolderOpen"></span></button>
+  <button class="tb-btn" data-cmd="save" title="保存 Ctrl+S"><span class="td-icon" data-icon="Save"></span></button>
+  <div class="sep"></div>
+  <button class="tb-btn" data-cmd="undo" title="撤销 Ctrl+Z"><span class="td-icon" data-icon="Undo"></span></button>
+  <button class="tb-btn" data-cmd="redo" title="重做 Ctrl+Shift+Z"><span class="td-icon" data-icon="Redo"></span></button>
+  <div class="sep"></div>
+  <button class="tb-btn" data-cmd="copy" title="复制 Ctrl+C"><span class="td-icon" data-icon="Copy"></span></button>
+  <button class="tb-btn" data-cmd="paste" title="粘贴 Ctrl+V"><span class="td-icon" data-icon="FilePaste"></span></button>
+  <button class="tb-btn" data-cmd="duplicate" title="克隆 Ctrl+D"><span class="td-icon" data-icon="Layers"></span></button>
+  <button class="tb-btn" data-cmd="delete" title="删除 Del"><span class="td-icon" data-icon="Delete"></span></button>
+  <div class="sep"></div>
+  <span class="tb-label">吸附:</span>
+  <select class="tb-select" id="snapSelect">
+    <option value="0.1">0.1</option>
+    <option value="0.5" selected>0.5</option>
+    <option value="1">1</option>
+  </select>
+  <span class="tb-label">旋转步:</span>
+  <select class="tb-select" id="rotSnapSelect">
+    <option value="5" selected>5°</option>
+    <option value="15">15°</option>
+    <option value="45">45°</option>
+  </select>
+  <div class="spacer"></div>
+  <button class="tb-btn" data-cmd="check-overlap" title="检查重叠（道具/机关 vs 地形）"><span class="td-icon" data-icon="Scan"></span></button>
+  <button class="tb-btn" data-cmd="import-game" title="从游戏导入"><span class="td-icon" data-icon="Download"></span></button>
+  <button class="tb-btn" data-cmd="export" title="导出（含校验视图）"><span class="td-icon" data-icon="Upload"></span></button>
+</div>
+
+<!-- 主体三栏 -->
+<div id="main-body">
+  <aside id="left-panel">
+    <div class="panel-section half">
+      <div class="panel-header"><span class="header-title">场景大纲</span><input type="text" class="search-box" id="outlinerSearch" placeholder="搜索对象..."></div>
+      <div class="panel-content" id="outliner"></div>
+    </div>
+    <div class="panel-section half">
+      <div class="panel-header"><span class="header-title">资源库</span><input type="text" class="search-box" id="paletteSearch" placeholder="搜索对象..."></div>
+      <div class="panel-content" id="palette"></div>
+    </div>
+  </aside>
+
+  <main id="viewport">
+    <canvas id="c"></canvas>
+    <div id="minimap-container">
+      <canvas id="minimap"></canvas>
+    </div>
+  </main>
+
+  <aside id="right-panel">
+    <div class="panel-header">属性面板</div>
+    <div class="inspector-content" id="inspectorInner"></div>
+  </aside>
+</div>
+
+<!-- 底部状态栏 -->
+<div id="status-bar">
+  <span class="status-item" id="statusInfo">就绪</span>
+  <span class="status-item" id="statusMouse">X: 0.0, Y: 0.0</span>
+  <span class="status-item" id="statusZoom">缩放: 100%</span>
+  <div class="spacer"></div>
+  <span class="status-item" id="statusSelf"></span>
+  <span class="status-item" id="statusObjCount">几何: 0 | 对象: 0</span>
+</div>
+
+<!-- 导出弹窗 -->
+<div id="exportOverlay" class="overlay hidden" onclick="if(event.target===this)hideExport()">
+  <div id="exportPanel" class="modal">
+    <h2><span class="td-icon" data-icon="Upload" data-size="16"></span> 导出地图数据</h2>
+    <p>编辑器只产出标准地图数据（版本化 JSON）。点击「复制代码」使用；或切换查看 MapDefinition TS 兼容视图。</p>
+    <div class="tabs" id="exportTabs">
+      <button class="tab active" data-tab="standard">标准数据 JSON</button>
+      <button class="tab" data-tab="ts">MapDefinition TS</button>
+    </div>
+    <textarea id="exportCode" readonly></textarea>
+    <div class="actions">
+      <button class="closeBtn" onclick="hideExport()">关闭</button>
+      <button class="copyBtn" onclick="copyExport()"><span class="td-icon" data-icon="Copy" data-size="14"></span> 复制代码</button>
+    </div>
+  </div>
+</div>
+
+<!-- 从游戏导入弹窗 -->
+<div id="importOverlay" class="overlay hidden" onclick="if(event.target===this)hideImport()">
+  <div id="importPanel" class="modal">
+    <h2><span class="td-icon" data-icon="Download" data-size="16"></span> 从游戏源码导入地图</h2>
+    <p>选择一张游戏 <code>config/level.ts</code> 中的现有地图，decompile 为编辑器格式进行逆向编辑。</p>
+    <div id="importList"></div>
+    <div class="actions">
+      <button class="closeBtn" onclick="hideImport()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 模板新建弹窗 -->
+<div id="templateOverlay" class="overlay hidden" onclick="if(event.target===this)hideTemplate()">
+  <div id="templatePanel" class="modal">
+    <h2><span class="td-icon" data-icon="Template" data-size="16"></span> 从模板新建地图</h2>
+    <p>选择一个地图模板作为起点。模板以独立副本载入，不会影响模板本身。</p>
+    <div id="templateList"></div>
+    <div class="actions">
+      <button class="closeBtn" onclick="hideTemplate()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 重叠检查弹窗 -->
+<div id="checkOverlay" class="overlay hidden" onclick="if(event.target===this)hideCheck()">
+  <div id="checkPanel" class="modal">
+    <h2><span class="td-icon" data-icon="Scan" data-size="16"></span> 重叠检查结果</h2>
+    <p id="checkSummary">检查中…</p>
+    <div id="checkList"></div>
+    <div class="actions">
+      <button class="closeBtn" onclick="hideCheck()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 隐藏的文件输入 -->
+<input type="file" id="fileInput" accept=".json" style="display:none">
+<input type="file" id="mvFileInput" accept=".json,application/json" style="display:none">
+
+<div id="toast"></div>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

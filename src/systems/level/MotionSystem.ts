@@ -1,28 +1,26 @@
 /**
  * 路径运动系统 —— 更新所有 Position + PathMotion 实体的位置。
- * 支持正弦路径运动（移动平台）：水平往返（axis='x'）/ 垂直升降（axis='y'，电梯）。
+ * 支持正弦路径运动（移动平台）：水平往返（axis=0 'x'）/ 垂直升降（axis=1 'y'，电梯）。
+ * 数据源：新 ECS。
  */
-import { world } from '../../core/ecs';
-import { Position } from '../../components/physics/Position';
-import { PathMotion } from '../../components/physics/PathMotion';
+import { qMovers } from '../../core/ecs';
+import { Position, PathMotion } from '../../core/ecs';
 import { gs } from '../game/gameState';
 
 export function updateMotion(): void {
-  for (const e of world.query(Position, PathMotion)) {
-    const pos = world.get<Position>(e, Position);
-    const pm = world.get<PathMotion>(e, PathMotion);
-    if (pm.axis === 'y') {
+  for (const e of qMovers()) {
+    if (PathMotion.axis[e] === 1) {
       // 垂直升降：以 y0 为基线上下摆动 yRange
-      const ny = pm.y0 + (Math.sin(gs.time * pm.spd + pm.ph) * 0.5 + 0.5) * pm.yRange;
-      pm.dy = ny - pos.y;
-      pm.dx = 0;
-      pos.y = ny;
+      const ny = PathMotion.y0[e] + (Math.sin(gs.time * PathMotion.spd[e] + PathMotion.ph[e]) * 0.5 + 0.5) * PathMotion.yRange[e];
+      PathMotion.dy[e] = ny - Position.y[e];
+      PathMotion.dx[e] = 0;
+      Position.y[e] = ny;
     } else {
       // 水平往返：x0 → x0 + range
-      const nx = pm.x0 + (Math.sin(gs.time * pm.spd + pm.ph) * 0.5 + 0.5) * pm.range;
-      pm.dx = nx - pos.x;
-      pm.dy = 0;
-      pos.x = nx;
+      const nx = PathMotion.x0[e] + (Math.sin(gs.time * PathMotion.spd[e] + PathMotion.ph[e]) * 0.5 + 0.5) * PathMotion.range[e];
+      PathMotion.dx[e] = nx - Position.x[e];
+      PathMotion.dy[e] = 0;
+      Position.x[e] = nx;
     }
   }
 }

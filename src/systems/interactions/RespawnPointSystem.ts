@@ -6,11 +6,8 @@
  *  - updateRespawnPointSystem(tx, ty, interact)：坐标版（远程玩家，host 模拟），
  *    玩家按下 E（interact=true）时才激活，未按 E 仅返回 null（等待交互）。
  */
-import { world } from '../../core/ecs';
-import type { EntityId } from '../../core/ecs/Entity';
-import { Position } from '../../components/physics/Position';
-import { Collider } from '../../components/physics/Collider';
-import { RespawnPoint } from '../../components/gameplay/RespawnPoint';
+import { world, Position, Collider, RespawnPoint, qCheckpoints } from '../../core/ecs';
+import type { EntityId } from '../../core/ecs';
 import { cpPoint } from '../../config';
 import { FX } from '../../Prefabs/Fx';
 import { spawnParticles } from '../particles';
@@ -26,30 +23,28 @@ import { pointInCollider } from '../level';
  * @returns 激活成功返回 {x, y}，否则 null
  */
 export function activateCheckpoint(e: EntityId, setCpPoint = true): { x: number; y: number } | null {
-  const rp = world.get<RespawnPoint>(e, RespawnPoint);
-  if (rp.active) return null;
+  if (RespawnPoint.active[e]) return null;
 
   // 解绑其他所有已激活的检查点（一个玩家一次只能绑定一个）
-  for (const other of world.query(Position, Collider, RespawnPoint)) {
+  for (const other of qCheckpoints()) {
     if (other === e) continue;
-    const otherRp = world.get<RespawnPoint>(other, RespawnPoint);
-    if (otherRp.active) {
-      otherRp.active = false;
-      otherRp.nearby = false;
+    if (RespawnPoint.active[other]) {
+      RespawnPoint.active[other] = 0;
+      RespawnPoint.nearby[other] = 0;
     }
   }
 
-  rp.active = true;
-  rp.nearby = false;
-  const pos = world.get<Position>(e, Position);
+  RespawnPoint.active[e] = 1;
+  RespawnPoint.nearby[e] = 0;
+  const px = Position.x[e], py = Position.y[e];
   if (setCpPoint) {
-    cpPoint.x = pos.x;
-    cpPoint.y = pos.y;
+    cpPoint.x = px;
+    cpPoint.y = py;
   }
-  spawnParticles(FX.cp, pos.x, pos.y);
+  spawnParticles(FX.cp, px, py);
   sfx.cp();
-  netBus.emit({ type: 'game:checkpoint', x: pos.x, y: pos.y });
-  return { x: pos.x, y: pos.y };
+  netBus.emit({ type: 'game:checkpoint', x: px, y: py });
+  return { x: px, y: py };
 }
 
 /**
@@ -60,9 +55,8 @@ export function activateCheckpoint(e: EntityId, setCpPoint = true): { x: number;
  * @returns 本次激活的复活点坐标；未激活返回 null
  */
 export function updateRespawnPointSystem(tx: number, ty: number, interact: boolean): { x: number; y: number } | null {
-  for (const e of world.query(Position, Collider, RespawnPoint)) {
-    const rp = world.get<RespawnPoint>(e, RespawnPoint);
-    if (rp.active) continue;
+  for (const e of qCheckpoints()) {
+    if (RespawnPoint.active[e]) continue;
     if (!pointInCollider(e, tx, ty)) continue;
     // 在触发区内但未按 E → 保持等待
     if (!interact) return null;

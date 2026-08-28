@@ -41,8 +41,10 @@ export function updateCamera(
   // 视口范围
   const vw = VW / (PPM * view.zoom);
   const vh = VH / (PPM * view.zoom);
-  cam.x = clamp(cam.x, vw / 2, mapW - vw / 2);
-  cam.y = clamp(cam.y, vh / 2, mapH - vh / 2);
+  // 地图某维小于视口时：clamp(cam, 半视口, map-半视口) 会 a>b 退化，导致
+  // 相机在两端逐帧交替（顶部/右缘重影）。此时改为固定在图中点（居中显示）。
+  cam.x = vw >= mapW ? mapW / 2 : clamp(cam.x, vw / 2, mapW - vw / 2);
+  cam.y = vh >= mapH ? mapH / 2 : clamp(cam.y, vh / 2, mapH - vh / 2);
   view.SZ = PPM * view.zoom;
   view.SL = cam.x - vw / 2 + (Math.random() - 0.5) * gs.shake * 0.5;
   view.SB = cam.y - vh / 2 + (Math.random() - 0.5) * gs.shake * 0.5;

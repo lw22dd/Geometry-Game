@@ -1,61 +1,47 @@
 /**
  * 碰撞系统 —— 统一 AABB 检测 + 事件分发。
- * 每帧检测玩家实体 vs 所有其他 Collider 实体，跟踪 enter/stay/exit 状态，
- * 通过 collisionBus 发射事件。
+ * 每帧检测玩家（由调用方传入 PlayerState）vs 新 ECS 世界中所有带 Collider 的实体，
+ * 跟踪 enter/stay/exit 状态，通过 collisionBus 发射事件。
  *
- * 物理分辨率（平台推挤）不由本系统处理，保留在 stepPlayerGeneric 中。
- * 本系统只处理触发事件（危险物/收集/检查点/终点）。
+ * 物理分辨率（平台推挤）由 stepPlayerGeneric 处理；本系统只负责触发事件。
+ * 远程玩家（host 模拟）走坐标版交互系统（systems/interactions）。
  *
- * 仅服务本地玩家（有 ECS 实体）。
- * 远程玩家（host 模拟，无 ECS 实体）：
- *   - 危险物检测由 stepPlayerGeneric 的 checkHazards 参数行内处理
- *   - 收集/检查点/终点由 game/index 的坐标版交互系统处理
+ * 接 PlayerState 入参而非依赖 PlayerController，避免 level → player 的循环依赖。
  */
-import { world } from '../../core/ecs';
-import type { EntityId } from '../../core/ecs/Entity';
-import { Position } from '../../components/physics/Position';
-import { Collider } from '../../components/physics/Collider';
-import { Hazard } from '../../components/gameplay/Hazard';
-import { Collectible } from '../../components/gameplay/Collectible';
-import { RespawnPoint } from '../../components/gameplay/RespawnPoint';
-import { Goal } from '../../components/gameplay/Goal';
-import { queryByTag, TAG_PLAYER } from '../../components/gameplay/tagHelpers';
+import type { PlayerState, Rect } from '../../types';
+import { Collectible, RespawnPoint, Goal, Timer, Hazard } from '../../core/ecs';
+import { query, hasComponent } from 'bitecs';
+import { world, Position as Pos, Collider as Col } from '../../core/ecs';
 import { colliderWorldRect, aabbOverlap } from './OverlapUtils';
 import { collisionBus } from '../../core/collisionBus';
 
-/** 上一帧的碰撞状态缓存（key = "playerId-entityId"） */
-let lastFrame = new Map<string, boolean>();
+type Signals = Record<string, boolean>;
+
+/** 上一帧碰撞状态缓存（key = 实体 eid） */
+let lastFrame = new Map<number, boolean>();
 
 /**
  * 更新碰撞系统（本地玩家）。
- * 检测玩家 vs 所有其他 Collider 实体，发射 enter/exit 事件。
+ * @param p       玩家状态（提供位置 + half 用于 AABB）
  * @param signals 可选帧信号对象，碰撞处理器可写入
  */
-export function updateCollisionSystem(signals?: Record<string, boolean>): void {
-  const players = queryByTag(TAG_PLAYER, Position, Collider);
-  if (players.length === 0) return;
+export function updateCollisionSystem(p: PlayerState, signals?: Signals): void {
+  const playerRect: Rect = {
+    x: p.x - p.half,
+    y: p.y - p.half,
+    w: p.half * 2,
+    h: p.half * 2,
+    top: p.y + p.half,
+  };
 
-  const playerEntity = players[0];
-  const thisFrame = new Map<string, boolean>();
+  const thisFrame = new Map<number, boolean>();
 
-  const playerPos = world.get<Position>(playerEntity, Position);
-  const playerCol = world.get<Collider>(playerEntity, Collider);
-  const playerRect = colliderWorldRect(playerPos, playerCol);
-
-  for (const e of world.query(Position, Collider)) {
-    if (e === playerEntity || players.includes(e)) continue;
-
-    const otherRect = colliderWorldRect(
-      world.get<Position>(e, Position),
-      world.get<Collider>(e, Collider),
-    );
-
+  for (const e of query(world, [Pos, Col])) {
+    const otherRect = colliderWorldRect(e);
     const overlap = aabbOverlap(playerRect, otherRect);
-    const key = `${playerEntity}-${e}`;
-    const was = lastFrame.get(key) ?? false;
-    thisFrame.set(key, overlap);
-
-    emitTransitions(playerEntity, e, overlap, was, signals);
+    const was = lastFrame.get(e) ?? false;
+    thisFrame.set(e, overlap);
+    emitTransitions(e, overlap, was, signals);
   }
 
   lastFrame = thisFrame;
@@ -63,36 +49,47 @@ export function updateCollisionSystem(signals?: Record<string, boolean>): void {
 
 /** 根据 enter/exit 状态变化发射事件 */
 function emitTransitions(
-  a: EntityId,
-  b: EntityId,
+  e: number,
   overlap: boolean,
   was: boolean,
-  signals?: Record<string, boolean>,
+  signals?: Signals,
 ): void {
   if (overlap && !was) {
-    const type = getEnterEventType(b);
-    if (type) collisionBus.emit(type, { a, b, signals });
+    const type = getEnterEventType(e);
+    if (type) collisionBus.emit(type, { a: -1, b: e, signals });
   } else if (overlap && was) {
     // stay：仅危险物需要（激光可能进入区域后变 on，必须逐帧复查）
-    if (world.has(b, Hazard)) collisionBus.emit('stay:player:hazard', { a, b, signals });
+    if (isHazard(e)) collisionBus.emit('stay:player:hazard', { a: -1, b: e, signals });
   } else if (!overlap && was) {
-    const type = getExitEventType(b);
-    if (type) collisionBus.emit(type, { a, b, signals });
+    const type = getExitEventType(e);
+    if (type) collisionBus.emit(type, { a: -1, b: e, signals });
   }
 }
 
 /** 根据实体组件决定 enter 事件类型 */
-function getEnterEventType(e: EntityId): string | null {
-  if (world.has(e, Hazard)) return 'enter:player:hazard';
-  if (world.has(e, Collectible)) return 'enter:player:pickup';
-  if (world.has(e, RespawnPoint)) return 'enter:player:respawn';
-  if (world.has(e, Goal)) return 'enter:player:goal';
+function getEnterEventType(e: number): string | null {
+  if (isHazard(e)) return 'enter:player:hazard';
+  if (isCollectible(e)) return 'enter:player:pickup';
+  if (isRespawnPoint(e)) return 'enter:player:respawn';
+  if (isGoal(e)) return 'enter:player:goal';
   return null;
 }
 
 /** 根据实体组件决定 exit 事件类型 */
-function getExitEventType(e: EntityId): string | null {
-  if (world.has(e, Hazard)) return 'exit:player:hazard';
-  if (world.has(e, RespawnPoint)) return 'exit:player:respawn';
+function getExitEventType(e: number): string | null {
+  if (isHazard(e)) return 'exit:player:hazard';
+  if (isRespawnPoint(e)) return 'exit:player:respawn';
   return null;
+}
+
+/** 探测组件存在性：统一走 bitECS hasComponent（不可用字段 undefined 判断——
+ * TypedArray（u8）槽位未写出 0，普通数组受 eid 复用残留影响，均不可靠） */
+function isCollectible(e: number): boolean { return hasComponent(world, e, Collectible); }
+function isHazard(e: number): boolean { return hasComponent(world, e, Hazard); }
+function isRespawnPoint(e: number): boolean { return hasComponent(world, e, RespawnPoint); }
+function isGoal(e: number): boolean { return hasComponent(world, e, Goal); }
+
+/** 工具：探测激光（Hazard + Timer；用于 hazard handler 区分 on/off） */
+export function isLaser(e: number): boolean {
+  return hasComponent(world, e, Hazard) && hasComponent(world, e, Timer);
 }

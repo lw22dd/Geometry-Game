@@ -4,32 +4,25 @@
  *
  * 处理：
  *   enter:player:hazard      → 尖刺/激光致死
- *   enter:player:pickup      → 可拾取物（按 Collectible.kind 分发：光球/二段跳票/钩锁）
+ *   enter:player:pickup      → 可拾取物（按 tag 组件分发：Orb / JumpBoost / Hook）
  *   enter:player:respawn     → 检查点进入（可交互标记）
  *   exit:player:respawn      → 检查点离开
  *   enter:player:goal        → 终点登顶
  */
-import { world } from '../../core/ecs';
-import { Position } from '../../components/physics/Position';
-import { Collider } from '../../components/physics/Collider';
-import { Timer } from '../../components/gameplay/Timer';
-import { Hazard } from '../../components/gameplay/Hazard';
-import { Collectible } from '../../components/gameplay/Collectible';
-import { RespawnPoint } from '../../components/gameplay/RespawnPoint';
-import { queryOneByTag, TAG_PLAYER } from '../../components/gameplay/tagHelpers';
-import { Goal } from '../../components/gameplay/Goal';
+import { hasComponent } from 'bitecs';
+import { world, Position, Collider, Timer, Hazard, Collectible, RespawnPoint, Goal, Orb, JumpBoost, Hook, qCheckpoints } from '../../core/ecs';
 import { collisionBus } from '../../core/collisionBus';
 import { gs } from '../game/gameState';
 import { playerController } from '../player';
 import { FX } from '../../Prefabs/Fx';
 import { spawnParticles } from '../particles';
 import { sfx } from '../../core/audio';
-import { cpPoint } from '../../config';
 import { netBus } from '../../core/netBus';
 import { room } from '../../net/room';
-import { addItem } from '../items/backpack';
+import { addItem, ITEMS } from '../items/backpack';
 import { activateCheckpoint } from './RespawnPointSystem';
 import { orbCount } from './ItemPickupSystem';
+import { applyEffect } from '../effects';
 
 /** 是否已初始化 */
 let _initialized = false;
@@ -43,110 +36,106 @@ export function initCollisionHooks(): void {
 
   // ── 危险物（尖刺/激光）──
   // enter + stay 都订阅：stay 覆盖"激光在玩家区域内变亮"的情况
+  // 契约：地刺/激光只投递 KillRequest，由结算管线裁决（无敌帧/已死免疫），不直接 die()
   const hazardHandler = ({ b }: { b: number }) => {
     // 激光有 Timer 组件，只在 on 时致死
-    if (world.has(b, Timer)) {
-      const t = world.get<Timer>(b, Timer);
-      if (!t.on) return;
+    if (hasComponent(world, b, Timer)) {
+      if (!Timer.on[b]) return;
     }
-    // 无敌帧保护
-    if (playerController.getState().inv > 0 || playerController.isDead()) return;
-    playerController.die();
+    applyEffect(playerController.getState(), { kind: 'KillRequest' }, {
+      onKill: () => playerController.die(),
+    });
   };
   collisionBus.on('enter:player:hazard', hazardHandler);
   collisionBus.on('stay:player:hazard', hazardHandler);
 
-  // ── 可拾取物：通用 Collectible 组件，按 kind 分发 ──
+  // ── 可拾取物：通用 Collectible 组件 + 类型 tag（Orb/JumpBoost/Hook）分发 ──
   collisionBus.on('enter:player:pickup', ({ b, signals }) => {
-    const col = world.get<Collectible>(b, Collectible);
-    if (col.collected) return;
+    if (Collectible.collected[b]) return;
 
-    switch (col.kind) {
-      case 'orb': {
-        // ── 光球收集（计数）──
-        col.collected = true;
-        gs.gotN++;
-        const pos = world.get<Position>(b, Position);
-        spawnParticles(FX.sparkle, pos.x, pos.y);
-        sfx.orb();
-        netBus.emit({ type: 'game:orb', count: gs.gotN, total: orbCount() });
-        if (signals) signals.collected = true;
-        if (gs.gotN === orbCount()) {
-          gs.toast = '✦ 全部光球收集完成！';
-          gs.toastT = 3;
-          spawnParticles(FX.confetti, pos.x, pos.y);
-          sfx.cp();
-        }
-        break;
+    // ── 光球收集（计数）──
+    if (hasComponent(world, b, Orb)) {
+      Collectible.collected[b] = 1;
+      gs.gotN++;
+      const pos = { x: Position.x[b], y: Position.y[b] };
+      spawnParticles(FX.sparkle, pos.x, pos.y);
+      sfx.orb();
+      netBus.emit({ type: 'game:orb', count: gs.gotN, total: orbCount() });
+      if (signals) signals.collected = true;
+      if (gs.gotN === orbCount()) {
+        gs.toast = '✦ 全部光球收集完成！';
+        gs.toastT = 3;
+        spawnParticles(FX.confetti, pos.x, pos.y);
+        sfx.cp();
       }
-      case 'jumpBoost': {
-        // ── 二段跳票（背包被动道具）──
-        const s = playerController.getState();
-        // 背包：入被动栏（满/已有则拾取不生效，实体保持未拾取可再次尝试）
-        if (!addItem(s.backpack, 'doubleJump')) {
-          gs.toast = '背包已满！';
-          gs.toastT = 2;
-          return;
-        }
-        col.collected = true;
-        s.extraJumpsMax = 1; // 被动效果：获得一次二段跳能力
-        s.extraJumps = s.extraJumpsMax;
+      return;
+    }
 
-        const pos = world.get<Position>(b, Position);
-        spawnParticles(FX.sparkle, pos.x, pos.y);
-        spawnParticles(FX.arrowBoost, pos.x, pos.y, 8);
-        sfx.orb();
-        netBus.emit({ type: 'game:jumpboost' });
-        if (signals) signals.jumpBoostPicked = true;
-
-        gs.toast = '二段跳票已装备！';
+    // ── 二段跳票（背包被动道具）──
+    if (hasComponent(world, b, JumpBoost)) {
+      const s = playerController.getState();
+      // 背包：入被动栏（满/已有则拾取不生效，实体保持未拾取可再次尝试）
+      if (!addItem(s.backpack, 'doubleJump')) {
+        gs.toast = '背包已满！';
         gs.toastT = 2;
-        break;
+        return;
       }
-      case 'hook': {
-        // ── 钩锁（背包主动道具）──
-        const s = playerController.getState();
-        // 背包：入主动栏（满/已有则拾取不生效，实体保持未拾取可再次尝试）
-        if (!addItem(s.backpack, 'hook')) {
-          gs.toast = '背包已满！';
-          gs.toastT = 2;
-          return;
-        }
-        col.collected = true;
-        // 主动装备：拾取后自动选中该槽位，便于立即使用
-        s.selectedSlot = s.backpack.indexOf('hook');
+      Collectible.collected[b] = 1;
+      // 被动效果经道具 onPickup → 契约层（GrantJumpCharges），不直写 extraJumpsMax
+      ITEMS['doubleJump'].onPickup?.(s);
 
-        const pos = world.get<Position>(b, Position);
-        spawnParticles(FX.sparkle, pos.x, pos.y);
-        sfx.hookPickup();
-        netBus.emit({ type: 'game:hookpickup' });
-        if (signals) signals.hookPicked = true;
+      const pos = { x: Position.x[b], y: Position.y[b] };
+      spawnParticles(FX.sparkle, pos.x, pos.y);
+      spawnParticles(FX.arrowBoost, pos.x, pos.y, 8);
+      sfx.orb();
+      netBus.emit({ type: 'game:jumpboost' });
+      if (signals) signals.jumpBoostPicked = true;
 
-        gs.toast = '钩锁已装备！左键发射，长按锁定';
-        gs.toastT = 2.5;
-        break;
+      gs.toast = '二段跳票已装备！';
+      gs.toastT = 2;
+      return;
+    }
+
+    // ── 钩锁（背包主动道具）──
+    if (hasComponent(world, b, Hook)) {
+      const s = playerController.getState();
+      // 背包：入主动栏（满/已有则拾取不生效，实体保持未拾取可再次尝试）
+      if (!addItem(s.backpack, 'hook')) {
+        gs.toast = '背包已满！';
+        gs.toastT = 2;
+        return;
       }
+      Collectible.collected[b] = 1;
+      // 主动装备：拾取后自动选中该槽位（道具 onPickup 负责），便于立即使用
+      ITEMS['hook'].onPickup?.(s);
+
+      const pos = { x: Position.x[b], y: Position.y[b] };
+      spawnParticles(FX.sparkle, pos.x, pos.y);
+      sfx.hookPickup();
+      netBus.emit({ type: 'game:hookpickup' });
+      if (signals) signals.hookPicked = true;
+
+      gs.toast = '钩锁已装备！左键发射，长按锁定';
+      gs.toastT = 2.5;
+      return;
     }
   });
 
   // ── 检查点：进入触发区 → 可交互（nearby），按 E 激活 ──
   collisionBus.on('enter:player:respawn', ({ b }) => {
-    const rp = world.get<RespawnPoint>(b, RespawnPoint);
-    if (rp.active) return;
-    rp.nearby = true;
+    if (RespawnPoint.active[b]) return;
+    RespawnPoint.nearby[b] = 1;
   });
 
   collisionBus.on('exit:player:respawn', ({ b }) => {
-    const rp = world.get<RespawnPoint>(b, RespawnPoint);
-    if (rp) rp.nearby = false;
+    if (hasComponent(world, b, RespawnPoint)) RespawnPoint.nearby[b] = 0;
   });
 
   // ── 终点（NOVA）──
   collisionBus.on('enter:player:goal', ({ b, signals }) => {
-    const goal = world.get<Goal>(b, Goal);
-    if (goal.triggered) return;
+    if (Goal.triggered[b]) return;
 
-    goal.triggered = true;
+    Goal.triggered[b] = 1;
     gs.win = true;
     gs.winTime = gs.gt;
     sfx.win();
@@ -164,19 +153,15 @@ export function initCollisionHooks(): void {
  * 可在 keydown 回调中安全调用。
  */
 export function tryInteractCheckpoint(): void {
-  const player = queryOneByTag(TAG_PLAYER, Position, Collider);
-  if (!player) return;
-  const pp = world.get<Position>(player, Position);
+  const pp = playerController.getState();
 
   // 找 nearby && !active && 玩家点在碰撞体内的检查点（取最近）
   let best: number | null = null;
   let bestD = Infinity;
-  for (const e of world.query(Position, Collider, RespawnPoint)) {
-    const rp = world.get<RespawnPoint>(e, RespawnPoint);
-    if (!rp.nearby || rp.active) continue;
-    const pos = world.get<Position>(e, Position);
-    const d = (pos.x - pp.x) ** 2 + (pos.y - pp.y) ** 2;
-    if (d < bestD) { bestD = d; best = e as number; }
+  for (const e of qCheckpoints()) {
+    if (!RespawnPoint.nearby[e] || RespawnPoint.active[e]) continue;
+    const d = (Position.x[e] - pp.x) ** 2 + (Position.y[e] - pp.y) ** 2;
+    if (d < bestD) { bestD = d; best = e; }
   }
   if (best === null) return;
 

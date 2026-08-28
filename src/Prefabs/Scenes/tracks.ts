@@ -1,30 +1,17 @@
 /**
  * 场景预制体 —— 轨道（玻璃管道）建模。v2
- * 视觉语言（对齐参考图）：
- *  ① 静态光晕外壳（霓虹结构，取代旧实心光晕）
- *  ② 近透明管身 + 内腔暗色 → 中空感
- *  ③ 两侧菲涅尔亮边（上亮下弱）+ 内壁折射细线
- *  ④ 顶部分段镜面高光条 + 端部圆点（呼吸，玻璃不整体闪烁）
- *  ⑤ 底部焦散细线
- *  ⑥ 周期箍环 + 底部梯形支座（参考图套环结构）
- *  ⑦ 内部中空流动虚线（能量芯，沿用旧版）
- * 偏移一律沿折线法线 → 直段/弧段圆柱着色一致；
- * 法线朝向取"趋近光源方向（左上）"投影，竖直段高光落在左侧，全局光照一致。
- * 绘制原语 neonGlassTube 面向路径折线，钩锁 / 滑索等管道类物件可直接复用。
- * 数据从 ECS World 查询（Position + Track），按 segments 采样绘制。
- * 所有数值走 theme.ts 令牌；动画一律 gs.time 正弦，待机节奏 = T.breathSpeed，
- * 多实例按世界坐标错相（与弹簧 r.x*0.6 同惯例）。
+ * 数据源：新 ECS（Track 组件 + TrackGeom AoS 侧表存 segments）。
  */
 import { ctx, VW } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
-import { world } from '../../core/ecs';
-import { Position } from '../../components/physics/Position';
-import { Track } from '../../components/physics/Track';
+import { Position, Track, TrackGeom } from '../../core/ecs';
 import type { PathSegment } from '../../types/path';
 import { gs } from '../../systems/game/gameState';
 import { T } from './theme';
+import { query } from 'bitecs';
+import { world } from '../../core/ecs';
 
-/** 功能色：青 = 轨道/滑行路径（与渐变起点 196 近似，靠"细线 + 流动虚线"形态区分） */
+/** 功能色：青 = 轨道/滑行路径 */
 const HUE_TRACK = 190;
 /** 直轨引导线长度（格） */
 const GUIDE_LEN = 12;
@@ -33,20 +20,42 @@ const LIGHT = { x: -0.31, y: -0.95 };
 
 type Pt = { x: number; y: number };
 
+/** 轨道数据视图（从 SoA 读出） */
+interface TrackData {
+  entryDist: number;
+  exitDist: number;
+  speedThreshold: number;
+  entryX: number;
+  entryY: number;
+}
+
+/** 从 SoA 读取轨道数据视图 */
+function readTrack(e: number): TrackData {
+  return {
+    entryDist: Track.entryDist[e],
+    exitDist: Track.exitDist[e],
+    speedThreshold: Track.speedThreshold[e],
+    entryX: Track.entryX[e],
+    entryY: Track.entryY[e],
+  };
+}
+
 /** 绘制所有轨道实体 */
 export function drawTracks(): void {
-  for (const e of world.query(Position, Track)) {
-    const tr = world.get<Track>(e, Track);
+  for (const e of query(world, [Position, Track])) {
+    const tr = readTrack(e);
+    const geom = TrackGeom[e];
+    if (!geom) continue;
 
     // 视口裁剪：按整条轨道包围盒（直段 + 弧段）
-    const b = trackBounds(tr);
-    if (sx(b.maxX) < -80 || sx(b.minX) > VW + 80) continue;
+    const b = trackBounds(tr, geom);
+    if (sx(b.minX) > VW + 80 || sx(b.maxX) < -80) continue;
 
     // 相位按世界坐标错开（多轨道/多实例不同步）
     const ph = tr.entryX * 0.6;
 
     // 玻璃管道：管身静止，仅顶部镜面呼吸（玻璃不该整体闪烁）
-    neonGlassTube(buildTubePoints(tr), HUE_TRACK, {
+    neonGlassTube(buildTubePoints(tr, geom), HUE_TRACK, {
       pulse: T.glassSpec * (0.7 + 0.3 * Math.sin(gs.time * T.breathSpeed + ph)),
     });
 
@@ -72,7 +81,7 @@ export function drawTracks(): void {
 }
 
 /** 引导线 + 各路径段 → 连续屏幕折线（neonGlassTube 的输入） */
-function buildTubePoints(tr: Track): Pt[] {
+function buildTubePoints(tr: TrackData, geom: { segments: PathSegment[] }): Pt[] {
   const pts: Pt[] = [{ x: sx(tr.entryX - GUIDE_LEN), y: sy(tr.entryY) }];
   const push = (x: number, y: number): void => {
     const last = pts[pts.length - 1];
@@ -80,7 +89,7 @@ function buildTubePoints(tr: Track): Pt[] {
     pts.push({ x, y });
   };
   push(sx(tr.entryX), sy(tr.entryY));
-  for (const seg of tr.segments) {
+  for (const seg of geom.segments) {
     if (seg.type === 'line') {
       push(sx(seg.x1), sy(seg.y1));
       push(sx(seg.x2), sy(seg.y2));
@@ -201,7 +210,6 @@ export function neonGlassTube(
     drawCollar(frameAt(pts, cum, s), r, hue);
   }
 
- 
 
   ctx.restore();
 }
@@ -258,7 +266,6 @@ function drawCollar(
     );
   }
 
- 
 
 
   ctx.restore();
@@ -310,10 +317,10 @@ function frameAt(pts: Pt[], cum: number[], s: number): { p: Pt; d: Pt; n: Pt } {
 }
 
 /** 整条轨道 + 引导线的世界包围盒（X 方向，用于视口裁剪） */
-function trackBounds(tr: Track): { minX: number; maxX: number } {
+function trackBounds(tr: TrackData, geom: { segments: PathSegment[] }): { minX: number; maxX: number } {
   let minX = tr.entryX - GUIDE_LEN;
   let maxX = tr.entryX;
-  for (const seg of tr.segments) {
+  for (const seg of geom.segments) {
     if (seg.type === 'line') {
       minX = Math.min(minX, seg.x1, seg.x2);
       maxX = Math.max(maxX, seg.x1, seg.x2);

@@ -16,8 +16,9 @@ import { stepPlayerGeneric } from '../player';
 import { FX } from '../../Prefabs/Fx';
 import { spawnParticles, stepParticles } from '../particles';
 import { updateMotion, updateLaserTimer, updateSpringPads } from '../level';
+import { stepAnimation } from '../animation';
 import {
-  drawParallax, drawGrid, drawBorder, drawDecos, drawSolids, drawMovers, drawSpringPads,
+  drawParallax, drawGrid, drawBorder, drawDecos, drawSolids, drawFloor, drawMovers, drawSpringPads,
   drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawJumpBoosts, drawHookPickups, drawNOVA,
   drawTrail, drawParticles, drawHints, drawTracks,
 } from '../../Prefabs/Scenes';
@@ -33,15 +34,17 @@ import {
   remotes, resetRemotes, registerRemote, removeRemote,
   setClientInput, getClientInput, applyNetPlayers, getSelfAuthority,
 } from '../player/remote';
+import { ensurePlayerEntity, syncToEcs } from '../player/playerEntity';
 import type { FrameSignals, InputKeys, NetPlayerState, NetOrbState, NetItemState, RemotePlayer, TrackState, PathSegment, ItemId } from '../../types';
-import { world } from '../../core/ecs';
-import { Position } from '../../components/physics/Position';
-import { Collectible } from '../../components/gameplay/Collectible';
-import { initCollisionHooks, updateCollectSystem, updateRespawnPointSystem, updateItemPickupSystem, orbCount, tryInteractCheckpoint } from '../interactions';
+import { hasComponent } from 'bitecs';
+import { world, Position, Collectible, Orb, qOrbs, qCollectibles } from '../../core/ecs';
+import { initCollisionHooks, updateCollectSystem, updateRespawnPointSystem, updateItemPickupSystem, orbCount, tryInteractCheckpoint, checkHazardOverlap } from '../interactions';
 import { buildCumulativeLengths, pathTotalLength } from '../../core/path';
 import { mouse } from '../../core/mouse';
-import { stepHookPlayer, drawHookAim, drawHookRope, fireHook, mouseAimDir, defaultAimDir } from '../items/hook';
-import { addItem, itemToNet, netToItem } from '../items/backpack';
+import { drawHookAim, drawHookRope, mouseAimDir, defaultAimDir } from '../items/hook';
+import { addItem, ITEMS, itemToNet, netToItem } from '../items/backpack';
+import { stepActiveItem } from '../items/activeItem';
+import { applyEffect } from '../effects';
 
 /* ==================== 轨道状态序列化辅助 ==================== */
 
@@ -76,6 +79,12 @@ let _netSeq = 0;
 let _stateTick = 0; // 房主状态广播计数器（每 2 帧广播一次，降低带宽）
 const STATE_INTERVAL = 2;
 
+/** 客户端尚未上报输入时的兜底：空输入（静止），绝不读本机键盘 */
+const IDLE_INPUT: InputKeys = {
+  left: false, right: false, jump: false, sprint: false,
+  interact: false, hook: false, aimX: 0, aimY: 0,
+};
+
 /** 远程玩家上一帧 interact 状态（用于检测"按下沿"） */
 const remoteInteractPrev = new Map<number, boolean>();
 
@@ -92,6 +101,9 @@ export function applyLevel(mapId: string): void {
   setupLevel(mapId);
   const sp = currentMap.playerSpawn;
   playerController.resetToSpawn(sp.x, sp.y);
+  // 玩家 ECS 实体：setupLevel 已 clearWorld + initEcs，这里重建并同步出生点
+  ensurePlayerEntity(room.playerId);
+  syncToEcs(playerController.getState());
   // gs 计数/计时复位
   gs.gt = 0;
   gs.gotN = 0;
@@ -149,19 +161,22 @@ function step(dt: number): void {
   updateSpringPads(dt);
   updateLaserTimer();
 
-  // 3. 粒子 + 曳光
+  // 3. 实体动画 FSM 步进（场景道具 / 未来敌人 / NPC；输出在渲染帧由绘制层实时求值）
+  stepAnimation(dt);
+
+  // 4. 粒子 + 曳光
   stepParticles(dt);
 
-  // 4. Toast 衰减
+  // 5. Toast 衰减
   if (gs.toastT > 0) gs.toastT -= dt;
 
-  // 5. 暂停/菜单/大厅中不执行游戏逻辑
+  // 6. 暂停/菜单/大厅中不执行游戏逻辑
   if (gs.screen !== 'playing') return;
 
-  // 6. 游戏计时
+  // 7. 游戏计时
   gs.gt += dt;
 
-  // 7. 死亡计时 & 8. 玩家物理（PlayerController 管理）
+  // 8. 死亡计时 & 9. 玩家物理（PlayerController 管理）
   const pState = playerController.getState();
   if (pState.dead) {
     if (inSession() && !isHost()) {
@@ -185,11 +200,13 @@ function step(dt: number): void {
 
   // 物理 + 碰撞 + 动画（单机/房主/客机统一走 controller.step）
   playerController.step(dt, getMode(), true);
+  // 玩家实体桥：物理步后 PlayerState → ECS（查询面/契约组件）
+  syncToEcs(pState);
 
-  // 钩锁主动道具：冷却 + 左键按下沿发射（本地预测；房主侧权威在 state 中矫正）
-  stepHookPlayer(dt, pState, hookEdge);
+  // 7. 主动道具（S7 槽位 ActiveItemSystem）：按选中槽位派发（本地鼠标边沿/瞄准）
+  stepActiveItem(pState, { dt, hookEdge, aim: { x: inputKeys.aimX, y: inputKeys.aimY }, sfx: true });
 
-  // 9. 房主模式：模拟所有客机物理 + 广播状态
+  // 10. 房主模式：模拟所有客机物理 + 广播状态
   if (isHost()) {
     stepRemoteClients(dt);
     _stateTick++;
@@ -237,8 +254,11 @@ function stepRemoteClients(dt: number): void {
     const input = getClientInput(id);
     const signals: FrameSignals = {};
     const wasDead = rp.dead;
-    // checkHazards=true：远程玩家无 ECS 实体，危险物检测行内处理
-    stepPlayerGeneric(rp, input, dt, false, signals, true);
+    // 客户端未上报输入（null）→ 兜底为空输入（静止），物理不依赖本机键盘
+    stepPlayerGeneric(rp, input ?? IDLE_INPUT, dt, false, signals);
+
+    // 远程玩家危险物：只投递 KillRequest，由结算管线裁决（与本地契约一致，不先判 inv）
+    if (checkHazardOverlap(rp)) applyEffect(rp, { kind: 'KillRequest' });
 
     // 远程玩家死亡：房主判定权威 → 本地播放 + 广播给客机
     if (!wasDead && rp.dead) {
@@ -264,25 +284,27 @@ function stepRemoteClients(dt: number): void {
     // 远程玩家双跳票收集（背包被动道具）
     if (updateItemPickupSystem(rp.x, rp.y, 'jumpBoost')) {
       addItem(rp.backpack, 'doubleJump');
-      rp.extraJumpsMax = 1;
-      rp.extraJumps = 1;
+      ITEMS['doubleJump'].onPickup?.(rp);
       signals.jumpBoostPicked = true;
     }
     // 远程玩家钩锁道具收集（背包主动道具）
     if (updateItemPickupSystem(rp.x, rp.y, 'hook')) {
       addItem(rp.backpack, 'hook');
+      ITEMS['hook'].onPickup?.(rp);
       signals.hookPicked = true;
     }
 
     // 远程玩家钩锁（客机上报鼠标瞄准 + 左键按住状态；沿 = hold && !prev）
-    rp.hookCd = Math.max(0, rp.hookCd - dt);
-    rp.hookMissT = Math.max(0, rp.hookMissT - dt);
+    // S7 槽位统一派发：与本地共用 ActiveItemSystem，逻辑去重
     const hookNow = input?.hook ?? false;
     const hookPrev = remoteHookPrev.get(id) ?? false;
     remoteHookPrev.set(id, hookNow);
-    if (hookNow && !hookPrev && !rp.dead && !rp.track && rp.hookCd <= 0) {
-      fireHook(rp, input?.aimX ?? 0, input?.aimY ?? 0, false);
-    }
+    stepActiveItem(rp, {
+      dt,
+      hookEdge: hookNow && !hookPrev,
+      aim: { x: input?.aimX ?? 0, y: input?.aimY ?? 0 },
+      sfx: false,
+    });
 
     stepPlayerAnimation(rp, dt, signals);
   }
@@ -324,13 +346,11 @@ function broadcastHostState(): void {
   net.sendHostState(_netSeq, players, orbs, items, gs.gt, gs.gotN, gs.deaths, gs.win);
 }
 
-/** 收集光球状态（ECS 查询，仅 kind === 'orb'） */
+/** 收集光球状态（ECS 查询，仅 Orb tag） */
 function collectOrbStates(): NetOrbState[] {
   const states: NetOrbState[] = [];
-  for (const e of world.query(Position, Collectible)) {
-    const c = world.get<{ collected: boolean; kind: string }>(e, Collectible);
-    if (c.kind !== 'orb') continue;
-    states.push({ entityId: e as number, collected: c.collected });
+  for (const e of qOrbs()) {
+    states.push({ entityId: e, collected: Collectible.collected[e] === 1 });
   }
   return states;
 }
@@ -338,10 +358,9 @@ function collectOrbStates(): NetOrbState[] {
 /** 收集道具状态（非 orb 的可拾取物 collected，供客机同步去重） */
 function collectItemStates(): NetItemState[] {
   const states: NetItemState[] = [];
-  for (const e of world.query(Position, Collectible)) {
-    const c = world.get<{ collected: boolean; kind: string }>(e, Collectible);
-    if (c.kind === 'orb') continue; // 光球走 orbs 通道
-    states.push({ entityId: e as number, collected: c.collected });
+  for (const e of qCollectibles()) {
+    if (hasComponent(world, e, Orb)) continue; // 光球走 orbs 通道
+    states.push({ entityId: e, collected: Collectible.collected[e] === 1 });
   }
   return states;
 }
@@ -541,21 +560,17 @@ function wireNetEvents(): void {
 /** 应用光球权威状态到本地 ECS + 本地特效（状态转变检测） */
 function applyOrbStates(orbs: NetOrbState[]): void {
   for (const os of orbs) {
-    const e = os.entityId as any;
-    if (world.has(e, Collectible)) {
-      const col = world.get<{ collected: boolean; kind: string }>(e, Collectible);
-      if (col.kind !== 'orb') continue;
-      if (col.collected !== os.collected) {
-        col.collected = os.collected;
-        if (os.collected) {
-          gs.gotN++;
-          // 本地播放光球收集特效（状态转变检测，无需网络广播）
-          const pos = world.get<Position>(e, Position);
-          spawnParticles(FX.sparkle, pos.x, pos.y);
-          // 全收集庆祝
-          if (gs.gotN === orbCount()) {
-            spawnParticles(FX.confetti, pos.x, pos.y);
-          }
+    const e = os.entityId;
+    if (!hasComponent(world, e, Orb)) continue;
+    if (Collectible.collected[e] !== (os.collected ? 1 : 0)) {
+      Collectible.collected[e] = os.collected ? 1 : 0;
+      if (os.collected) {
+        gs.gotN++;
+        // 本地播放光球收集特效（状态转变检测，无需网络广播）
+        spawnParticles(FX.sparkle, Position.x[e], Position.y[e]);
+        // 全收集庆祝
+        if (gs.gotN === orbCount()) {
+          spawnParticles(FX.confetti, Position.x[e], Position.y[e]);
         }
       }
     }
@@ -565,12 +580,11 @@ function applyOrbStates(orbs: NetOrbState[]): void {
 /** 应用道具权威状态（非 orb 可拾取物 collected）到本地 ECS */
 function applyItemStates(items: NetItemState[]): void {
   for (const is of items) {
-    const e = is.entityId as any;
-    if (world.has(e, Collectible)) {
-      const col = world.get<{ collected: boolean; kind: string }>(e, Collectible);
-      if (col.kind !== 'orb' && col.collected !== is.collected) {
-        col.collected = is.collected;
-      }
+    const e = is.entityId;
+    if (!hasComponent(world, e, Collectible)) continue;
+    if (hasComponent(world, e, Orb)) continue;
+    if (Collectible.collected[e] !== (is.collected ? 1 : 0)) {
+      Collectible.collected[e] = is.collected ? 1 : 0;
     }
   }
 }
@@ -632,6 +646,7 @@ function renderGame(dt: number): void {
   drawGrid(pulse);
   drawBorder();
   drawDecos();
+  drawFloor();
   drawSolids();
   drawTracks();
   drawMovers();

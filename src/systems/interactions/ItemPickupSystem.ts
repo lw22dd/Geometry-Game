@@ -3,22 +3,18 @@
  * 与本地玩家的 CollisionSystem + CollisionHooks（enter:player:pickup）不同，
  * 远程玩家无 ECS 碰撞实体，由房主用玩家坐标逐类检测。
  *
- * 通用 Collectible 组件以 kind 区分：'orb' / 'jumpBoost' / 'hook'。
+ * 通用 Collectible 组件 + 类型 tag（Orb / JumpBoost / Hook）。
  * 本模块同时提供共享的光球计数 helper（orbCount），供所有"全部光球"判定复用。
  */
-import { world } from '../../core/ecs';
-import { Position } from '../../components/physics/Position';
-import { Collider } from '../../components/physics/Collider';
-import { Collectible, type CollectibleKind } from '../../components/gameplay/Collectible';
+import { Collectible, Orb, JumpBoost, Hook, qOrbs, qJumpBoosts, qHooks } from '../../core/ecs';
 import { pointInCollider } from '../level';
 
-/** 当前地图光球总数（仅 kind === 'orb'） */
+/** 可拾取物类型（tag 组件 → 道具效果） */
+export type CollectibleKind = 'orb' | 'jumpBoost' | 'hook';
+
+/** 当前地图光球总数（仅 Orb tag） */
 export function orbCount(): number {
-  let n = 0;
-  for (const e of world.query(Position, Collectible)) {
-    if (world.get<Collectible>(e, Collectible).kind === 'orb') n++;
-  }
-  return n;
+  return qOrbs().length;
 }
 
 /**
@@ -27,11 +23,15 @@ export function orbCount(): number {
  * @returns true = 本次拾取（调用方据此执行对应效果：计数 / 入背包）
  */
 export function updateItemPickupSystem(tx: number, ty: number, kind: CollectibleKind): boolean {
-  for (const e of world.query(Position, Collider, Collectible)) {
-    const c = world.get<Collectible>(e, Collectible);
-    if (c.kind !== kind || c.collected) continue;
+  const ents = kind === 'orb'
+    ? qOrbs()
+    : kind === 'jumpBoost'
+      ? qJumpBoosts()
+      : qHooks();
+  for (const e of ents) {
+    if (Collectible.collected[e]) continue;
     if (!pointInCollider(e, tx, ty)) continue;
-    c.collected = true;
+    Collectible.collected[e] = 1;
     return true;
   }
   return false;

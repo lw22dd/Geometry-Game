@@ -16,13 +16,14 @@ Prefabs/Scenes/
 ├── checkpointEntity.ts         # 检查点工厂
 ├── hazards.ts                  # 绘制：尖刺 / 激光
 ├── index.ts                    # barrel 导出（绘制函数 + 实体工厂）
-├── items.ts                    # 绘制：光球 / 检查点 / NOVA 星
-├── jumpBoostEntity.ts          # 双跳光球工厂
+├── items.ts                    # 绘制：光球 / 检查点 / NOVA 星（读 AnimOutput 变换参数）
+├── itemsAnimators.ts           # 实体动画控制器：光球 / NOVA / 双跳票 / 钩锁（自注册）
+├── jumpBoostEntity.ts          # 双跳光球工厂（含 Animator）
 ├── laserEntity.ts              # 激光工厂
 ├── loopTrackEntity.ts          # 轨道工厂
 ├── movingPlatformEntity.ts     # 移动平台工厂
-├── novaEntity.ts               # NOVA 终点工厂
-├── orbEntity.ts                # 光球工厂
+├── novaEntity.ts               # NOVA 终点工厂（含 Animator）
+├── orbEntity.ts                # 光球工厂（含 Animator）
 ├── platforms.ts                # 绘制：平台 / 边框 / 装饰 / 网格
 ├── spikeEntity.ts              # 尖刺工厂
 ├── springPadEntity.ts          # 弹簧平台工厂

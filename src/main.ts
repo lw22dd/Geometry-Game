@@ -49,5 +49,12 @@ cv.addEventListener('mousemove', (e: MouseEvent) => {
   ui.handleMove(lx, ly);
 });
 
+// 滚轮 → UIManager 分发（选择页滚动等）；消费后阻止页面滚动
+cv.addEventListener('wheel', (e: WheelEvent) => {
+  if (ui.handleWheel(e.deltaY)) {
+    e.preventDefault();
+  }
+}, { passive: false });
+
 // 启动主循环
 startLoop();

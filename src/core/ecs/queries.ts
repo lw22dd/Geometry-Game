@@ -1,0 +1,44 @@
+/**
+ * 常用查询 —— 缓存组件引用，按语义命名。
+ * 每个查询都是 `query(world, terms)` 的直接调用（bitECS 会内部缓存）。
+ * 查询结果按实体 ID 升序返回；同一帧内多次查询结果一致。
+ */
+import { query, getAllEntities, type World } from 'bitecs';
+import {
+  Position, Velocity, Collider, PathMotion, SpringPad, Timer, Hazard,
+  Collectible, RespawnPoint, Goal, Track, Renderable, Animator, Hookable,
+  Player, PlayerControl, PlayerInput, Orb, JumpBoost, Hook, Backpack,
+} from './components';
+import { world } from './world';
+
+export type W = World;
+/** 查询结果（默认非 buffered：普通 EntityId[]） */
+type Q = readonly number[];
+
+/** 本地/全部玩家实体 */
+export const qPlayers = (): Q => query(world, [Position, Velocity, Collider, PlayerControl, Player]) as Q;
+export const qLocalPlayer = (): Q => query(world, [Position, Velocity, Collider, PlayerControl, Player, PlayerInput]) as Q;
+
+/** 场景实体 */
+export const qMovers = (): Q => query(world, [Position, Collider, PathMotion]) as Q;
+export const qSpringPads = (): Q => query(world, [Position, Collider, SpringPad]) as Q;
+export const qSpringAll = (): Q => query(world, [SpringPad]) as Q;
+export const qTimers = (): Q => query(world, [Timer]) as Q;
+export const qHazards = (): Q => query(world, [Position, Collider, Hazard]) as Q;
+export const qLasers = (): Q => query(world, [Position, Collider, Timer, Hazard]) as Q;
+export const qTracks = (): Q => query(world, [Position, Track]) as Q;
+export const qHookTargets = (): Q => query(world, [Position, Collider, Hookable]) as Q;
+export const qCheckpoints = (): Q => query(world, [Position, Collider, RespawnPoint]) as Q;
+export const qGoal = (): Q => query(world, [Position, Collider, Goal]) as Q;
+
+/** 可收集物（tag 区分类型） */
+export const qCollectibles = (): Q => query(world, [Position, Collider, Collectible]) as Q;
+export const qOrbs = (): Q => query(world, [Position, Collider, Collectible, Orb]) as Q;
+export const qJumpBoosts = (): Q => query(world, [Position, Collider, Collectible, JumpBoost]) as Q;
+export const qHooks = (): Q => query(world, [Position, Collider, Collectible, Hook]) as Q;
+
+/** 动画 */
+export const qAnimators = (): Q => query(world, [Position, Animator]) as Q;
+
+/** 全部实体（清场/调试用） */
+export const qAll = (): Q => getAllEntities(world) as Q;
