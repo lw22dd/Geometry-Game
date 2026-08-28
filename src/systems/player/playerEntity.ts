@@ -18,7 +18,7 @@ import {
   world,
   Position, Velocity, Collider, Player, PlayerControl, PlayerInput,
   JumpCharges, ImpulseQueue, Backpack, PlayerTrackState, PlayerPlat,
-  ITEM_DOUBLE_JUMP, ITEM_HOOK,
+  ITEM_DOUBLE_JUMP, ITEM_HOOK, PlayerModifiers, ControlMode,
 } from '../../core/ecs';
 import { qLocalPlayer } from '../../core/ecs';
 import type { ItemId, PlayerState, TrackState } from '../../types';
@@ -62,11 +62,14 @@ export function ensurePlayerEntity(playerId: number): number {
     addComponent(world, e, PlayerControl);
     addComponent(world, e, PlayerInput);
     addComponent(world, e, JumpCharges);
+    addComponent(world, e, ControlMode);
+    ControlMode.mode[e] = 0; // S3 仲裁初始值 = free
     // AoS 侧表槽位初始化
     ImpulseQueue[e] = [];
     Backpack[e] = [];
     PlayerTrackState[e] = null;
     PlayerPlat[e] = null;
+    PlayerModifiers[e] = [];
     Collider.w[e] = 0.84; // half*2，供查询侧碰撞语义
     Collider.h[e] = 0.84;
   }
@@ -111,6 +114,7 @@ export function syncToEcs(p: PlayerState): void {
   PlayerTrackState[e] = p.track;
   PlayerPlat[e] = p.plat;
   Backpack[e] = p.backpack.map(itemToCode);
+  PlayerModifiers[e] = p.modifiers;
 }
 
 /**
@@ -145,6 +149,7 @@ export function syncFromEcs(e: number = playerEid): PlayerState | null {
     impulses: (ImpulseQueue[e] ?? []).slice(),
     track,
     backpack: (Backpack[e] ?? []).map(codeToItem),
+    modifiers: (PlayerModifiers[e] ?? []).slice(),
     hookCd: PlayerControl.hookCd[e],
     hookMissT: PlayerControl.hookMissT[e],
     selectedSlot: PlayerControl.selectedSlot[e],

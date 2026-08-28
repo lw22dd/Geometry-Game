@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createPlayerState } from '../systems/player/createPlayerState';
-import { applyEffect, consumeImpulses } from '../systems/effects';
+import { applyEffect, consumeImpulses, applyModifier, removeModifier, recomputeStats } from '../systems/effects';
 import { ITEMS } from '../systems/items/backpack';
 import type { PlayerState } from '../types';
 
@@ -68,10 +68,40 @@ describe('契约层结算管线', () => {
 
   it('道具 onPickup 经契约层生效（不直写玩家字段）', () => {
     const p = fresh();
-    // 双跳票：先入背包（onPickup 前置），再挂能力
+    // 双跳票：先入背包（onPickup 前置），再挂能力（经 Modifier 管道）
     p.backpack.push('doubleJump');
     ITEMS['doubleJump'].onPickup?.(p);
     expect(p.extraJumpsMax).toBe(1);
     expect(p.extraJumps).toBe(1);
+    // 管道落表：modifiers 含来源标记的跳充能修正
+    expect(p.modifiers).toEqual([{ stat: 'jumpCharges', op: 'set', value: 1, source: 'doubleJump' }]);
+  });
+
+  it('Modifier 管道：ApplyModifier 请求幂等落表 + recomputeStats 重算', () => {
+    const p = fresh();
+    // 双跳票（set=1）
+    applyEffect(p, { kind: 'ApplyModifier', mod: { stat: 'jumpCharges', op: 'set', value: 1, source: 'doubleJump' } });
+    expect(p.extraJumpsMax).toBe(1);
+    expect(p.modifiers).toHaveLength(1);
+    // 同源重复投递 → 幂等替换（不叠加）
+    applyEffect(p, { kind: 'ApplyModifier', mod: { stat: 'jumpCharges', op: 'set', value: 1, source: 'doubleJump' } });
+    expect(p.modifiers).toHaveLength(1);
+    expect(p.extraJumpsMax).toBe(1);
+    // 第三方 add 修正 → 累加（如三跳票 add 1 → max 2）
+    applyEffect(p, { kind: 'ApplyModifier', mod: { stat: 'jumpCharges', op: 'add', value: 1, source: 'tripleJump' } });
+    expect(p.extraJumpsMax).toBe(2);
+  });
+
+  it('Modifier 管道：removeModifier 移除来源后重算', () => {
+    const p = fresh();
+    applyModifier(p, { stat: 'jumpCharges', op: 'set', value: 1, source: 'doubleJump' });
+    applyModifier(p, { stat: 'jumpCharges', op: 'add', value: 1, source: 'tripleJump' });
+    expect(p.extraJumpsMax).toBe(2);
+    removeModifier(p, 'jumpCharges', 'tripleJump');
+    expect(p.extraJumpsMax).toBe(1);
+    expect(p.modifiers).toHaveLength(1);
+    // recomputeStats 可直接手动触发（幂等）
+    recomputeStats(p);
+    expect(p.extraJumpsMax).toBe(1);
   });
 });

@@ -4,4 +4,7 @@
  */
 export { applyEffect } from './effects';
 export type { PlayerRequest, EffectContext } from './effects';
-export { grantImpulse, consumeImpulses, decayImpulses, grantJumpCharges, killState } from './verbs';
+export {
+  grantImpulse, consumeImpulses, decayImpulses, grantJumpCharges, killState,
+  applyModifier, removeModifier, recomputeStats,
+} from './verbs';

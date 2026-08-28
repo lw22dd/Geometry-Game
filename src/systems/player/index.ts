@@ -489,3 +489,9 @@ function tryEnterTrack(p: PlayerState, _dt: number, signals?: FrameSignals): voi
     break;
   }
 }
+
+/* ==================== S3 控制权仲裁 ==================== */
+
+// 控制权仲裁（每帧写 ControlMode 组件）：resolveControlMode 纯函数 + stepControlArbiter 系统入口。
+// 详见 controlArbiter.ts；MovementSystem 未来只读仲裁结果。
+export { resolveControlMode, writeControlMode, stepControlArbiter } from './controlArbiter';

@@ -18,6 +18,7 @@ import type { FrameSignals, PlayerState, InputKeys, TrackState } from '../../typ
 import type { PhysicsKey } from '../game/gameMode';
 import { stepPlayerGeneric } from './index';
 import { createPlayerState } from './createPlayerState';
+import { recomputeStats } from '../effects';
 import { stepPlayerAnimation } from '../../Prefabs/Player';
 import { updateCollisionSystem } from '../level';
 import { trail } from '../particles';
@@ -55,6 +56,17 @@ export class PlayerController {
   getState(): PlayerState { return this.state; }
   isDead(): boolean { return this.state.dead; }
   getDeathCount(): number { return this.deathCount; }
+
+  /**
+   * 用组件真源派生视图原地覆盖工作副本（阶段 B：每帧物理步前调用）。
+   * 组件是唯一权威存储；this.state 是本帧的工作副本。
+   * 原地覆盖（Object.assign）而非替换引用 —— 保留模块级 P 引用可见性。
+   * 注意：帧间事件（跳跃缓冲/槽位/复活）写副本后必须立即 syncToEcs，
+   * 否则下一帧 hydrateFrom 会覆盖掉事件修改。
+   */
+  hydrateFrom(source: PlayerState): void {
+    Object.assign(this.state, source);
+  }
 
   /* ==================== 输入注入 ==================== */
 
@@ -196,6 +208,9 @@ export class PlayerController {
     this.state.sprint = false;
     this.state.extraJumps = 0;
     this.state.extraJumpsMax = 0;
+    // Modifier 管道：换图清零全部数值修正（双跳票为"本图收集"语义）
+    this.state.modifiers = [];
+    recomputeStats(this.state);
     // 换图重置背包（死亡保留；背包为"本图收集"语义）
     this.state.backpack = [];
     this.state.hookCd = 0;

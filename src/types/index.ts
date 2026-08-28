@@ -16,6 +16,19 @@ export interface Impulse {
   t: number;
 }
 
+/** 玩家属性 id（Modifier 管道目标属性；扩展位：moveSpeed / jumpHeight / hookRange ...） */
+export type StatId = 'jumpCharges';
+
+/** 数值修正条目：目标属性 + 覆盖/累加 + 数值 + 来源（来源用于幂等替换） */
+export interface StatModifier {
+  stat: StatId;
+  /** set = 覆盖式设值（多来源取最大值）；add = 累加 */
+  op: 'set' | 'add';
+  value: number;
+  /** 来源标识（道具 id / 机制名），同 stat+source 重复投递时替换而非叠加 */
+  source: string;
+}
+
 /** 矩形刚体（平台 / 移动平台 / 碰撞盒） */
 export interface Rect {
   x: number;
@@ -199,8 +212,10 @@ export interface PlayerState {
   inv: number;
   /** 剩余额外跳跃次数（当前滞空期内可用；每次着陆刷新为 extraJumpsMax） */
   extraJumps: number;
-  /** 额外跳跃最大次数（双跳光球永久升级，拾取后 = 1；0 = 未拾取） */
+  /** 额外跳跃最大次数（由 modifier 管道重算；0 = 未拾取） */
   extraJumpsMax: number;
+  /** 数值修正列表（Modifier 管道：影响来源投递，recomputeStats 重算 extraJumpsMax 等） */
+  modifiers: StatModifier[];
   /** 上一物理步跳跃键是否按下（用于二段跳"新按下沿"检测：按下一次跳一次） */
   jumpWasDown: boolean;
   /** 输入层跳跃按下标记：由 keydown handler 写入，物理步消耗。

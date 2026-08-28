@@ -15,7 +15,7 @@
 |---|---|---|---|
 | S1 | 输入收集 | 键盘 → PlayerInput（本地）；网络输入缓冲（远程） | 已有（setInput / getClientInput） |
 | S2 | 输入解析 | 按下沿（jumpFresh / hook 边沿） | 部分内联在物理中 |
-| S3 | 控制权仲裁 (MoveMode) | dead > zipline > track > spring > sprint > free，单槽优先级别表 | **扩展位**（当前为 if/return 顺序隐式表达；Constraint 类机制启用时落地） |
+| S3 | 控制权仲裁 (MoveMode) | dead > zipline > track > spring > sprint > free，单槽优先级别表 | **已落地（ControlArbiter）**：每帧解析玩家状态事实写 ControlMode 组件（DEAD/ZIPLINE/TRACK/FREE 四档）；spring/sprint 为扩展位。**消费侧待接**：MovementSystem 仍按 if/return 顺序（stepPlayerGeneric 未改动，金测试护栏） |
 | S4 | 玩家物理 (MovementSystem) | 加速度/跳跃/重力/碰撞/外力消费（弹簧/击退/气流经 ImpulseQueue） | stepPlayerGeneric（外力已契约化：Effect.Impulse） |
 | S5 | 场景物理 | 移动平台 / 弹簧动画 / 激光计时 | updateMotion / updateSpringPads / updateLaserTimer |
 | S6 | 交互 | 收集 / 检查点 / 终点 / 危险物 | CollisionSystem + CollisionHooks（危险物投 KillRequest，经结算管线） |

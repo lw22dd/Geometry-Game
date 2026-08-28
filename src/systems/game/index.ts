@@ -11,7 +11,7 @@ import { gs } from './gameState';
 import { getMode, setMode } from './gameMode';
 import { prepare } from '../ui/prepare';
 import { lobby } from '../ui/lobby';
-import { playerController } from '../player';
+import { playerController, stepControlArbiter } from '../player';
 import { stepPlayerGeneric } from '../player';
 import { FX } from '../../Prefabs/Fx';
 import { spawnParticles, stepParticles } from '../particles';
@@ -34,7 +34,7 @@ import {
   remotes, resetRemotes, registerRemote, removeRemote,
   setClientInput, getClientInput, applyNetPlayers, getSelfAuthority,
 } from '../player/remote';
-import { ensurePlayerEntity, syncToEcs } from '../player/playerEntity';
+import { ensurePlayerEntity, syncToEcs, syncFromEcs, getPlayerEid } from '../player/playerEntity';
 import type { FrameSignals, InputKeys, NetPlayerState, NetOrbState, NetItemState, RemotePlayer, TrackState, PathSegment, ItemId } from '../../types';
 import { hasComponent } from 'bitecs';
 import { world, Position, Collectible, Orb, qOrbs, qCollectibles } from '../../core/ecs';
@@ -176,16 +176,24 @@ function step(dt: number): void {
   // 7. 游戏计时
   gs.gt += dt;
 
-  // 8. 死亡计时 & 9. 玩家物理（PlayerController 管理）
+  // 8. 组件真源 → 工作副本（阶段 B：物理前从玩家实体加载）
+  const view = syncFromEcs(getPlayerEid());
+  if (view) playerController.hydrateFrom(view);
+
+  // 9. 死亡计时 & 10. 玩家物理（PlayerController 管理）
   const pState = playerController.getState();
   if (pState.dead) {
     if (inSession() && !isHost()) {
       // 客机：死亡由房主权威裁决复活，本地保持死亡视觉等待
       playerController.maintainDeathVisual();
+      syncToEcs(pState);
+      stepControlArbiter(pState, getPlayerEid()); // S3：死亡分支也写 ControlMode（=DEAD）
       return;
     }
     // 房主/单机：控制器内部倒计时死亡并复活
     playerController.step(dt, getMode(), true);
+    syncToEcs(pState);
+    stepControlArbiter(pState, getPlayerEid()); // S3：结算后控制权（可能已复活）
     return;
   }
 
@@ -200,11 +208,17 @@ function step(dt: number): void {
 
   // 物理 + 碰撞 + 动画（单机/房主/客机统一走 controller.step）
   playerController.step(dt, getMode(), true);
-  // 玩家实体桥：物理步后 PlayerState → ECS（查询面/契约组件）
-  syncToEcs(pState);
 
   // 7. 主动道具（S7 槽位 ActiveItemSystem）：按选中槽位派发（本地鼠标边沿/瞄准）
+  //    必须在 syncToEcs 之前：钩锁写 track/hookCd 到副本，随步末统一写回组件
   stepActiveItem(pState, { dt, hookEdge, aim: { x: inputKeys.aimX, y: inputKeys.aimY }, sfx: true });
+
+  // 工作副本 → 组件（阶段 B：物理步后写回，组件是唯一权威存储）
+  syncToEcs(pState);
+
+  // S3 控制权仲裁：从本帧物理结果推导控制权写入 ControlMode 组件。
+  // 物理步之后调用 → mode 反映"结算后"状态；MovementSystem 未来在物理步内消费。
+  stepControlArbiter(pState, getPlayerEid());
 
   // 10. 房主模式：模拟所有客机物理 + 广播状态
   if (isHost()) {
@@ -448,6 +462,9 @@ function wireNetEvents(): void {
           pS.backpack = selfPs.backpack.map(netToItem);
         }
       }
+
+      // 步外权威矫正：立即写回组件，防下帧 hydrateFrom 覆盖
+      syncToEcs(pS);
     }
 
     // 更新全局状态（权威）
@@ -839,14 +856,19 @@ export function handleKeyDown(e: KeyboardEvent): void {
   // 游戏中操作
   if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') {
     playerController.setJumpBuffer(PHYS[getMode()].jb);
+    syncToEcs(playerController.getState()); // 帧间写点：立即写回组件，防下帧 hydrate 覆盖
   }
 
-  if (e.code === 'KeyR') playerController.respawn();
+  if (e.code === 'KeyR') {
+    playerController.respawn();
+    syncToEcs(playerController.getState());
+  }
 
   // 数字键 1-5：选中背包槽位（主动道具装备栏）
   if (e.code >= 'Digit1' && e.code <= 'Digit5') {
     const slot = parseInt(e.code[5]) - 1; // 'Digit1' → 0
     playerController.getState().selectedSlot = slot;
+    syncToEcs(playerController.getState());
     gs.toast = '装备栏 ' + (slot + 1);
     gs.toastT = 1.2;
   }
@@ -859,6 +881,7 @@ export function handleKeyDown(e: KeyboardEvent): void {
     const next = cur === 'tuned' ? 'classic' : 'tuned';
     const old = PHYS[cur], nw = PHYS[next];
     playerController.getState().velocity.y *= nw.JV / old.JV;
+    syncToEcs(playerController.getState());
     setMode(next);
     gs.toast = '物理 · ' + nw.name;
     gs.toastT = 2;

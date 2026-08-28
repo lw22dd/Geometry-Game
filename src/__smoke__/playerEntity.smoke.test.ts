@@ -106,4 +106,37 @@ describe('玩家 ECS 实体桥接', () => {
     ensurePlayerEntity(7);
     expect(isPlayerEntityMounted()).toBe(true);
   });
+
+  it('真源切换回环：组件 → 工作副本(hydrateFrom 语义) → 副本修改 → syncToEcs 全字段一致', () => {
+    const eid = ensurePlayerEntity(7);
+    const p = createPlayerState(3, 5);
+    p.velocity.x = 7;
+    p.grounded = true;
+    p.extraJumpsMax = 1;
+    p.backpack = ['hook'];
+    syncToEcs(p);
+
+    // 物理前：组件 → 工作副本（hydrateFrom 即 Object.assign 覆盖，语义等价）
+    const view = syncFromEcs(eid)!;
+    const working = createPlayerState(0, 0);
+    Object.assign(working, view);
+    expect(working.x).toBe(3);
+    expect(working.velocity.x).toBe(7);
+    expect(working.backpack).toEqual(['hook']);
+
+    // 模拟物理步对副本的修改（如落地位移 / 外力写入）
+    working.x += 2;
+    working.velocity.y = -9.5;
+    applyEffect(working, { kind: 'Impulse', ax: 0, ay: 96, dur: 0.3 });
+
+    // 物理后：副本 → 组件
+    syncToEcs(working);
+
+    // 组件反映全部修改（下帧 hydrate 可读回）
+    const after = syncFromEcs(eid)!;
+    expect(after.x).toBe(5);
+    expect(after.velocity.y).toBe(-9.5);
+    expect(after.impulses).toHaveLength(1);
+    expect(after.impulses[0].ay).toBe(96);
+  });
 });

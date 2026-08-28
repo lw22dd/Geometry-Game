@@ -43,8 +43,11 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     id: 'doubleJump',
     name: '二段跳票',
     category: 'passive',
-    // 被动效果：经契约层授予一次空中跳充能（不直写 extraJumpsMax）
-    onPickup: (p) => applyEffect(p, { kind: 'GrantJumpCharges', max: 1 }),
+    // 被动效果：经契约层 + Modifier 管道授予一次空中跳充能（不直写 extraJumpsMax）
+    onPickup: (p) => applyEffect(p, {
+      kind: 'ApplyModifier',
+      mod: { stat: 'jumpCharges', op: 'set', value: 1, source: 'doubleJump' },
+    }),
   },
   hook: {
     id: 'hook',

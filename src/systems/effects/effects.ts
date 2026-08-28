@@ -9,8 +9,8 @@
  * 例：地刺碰到玩家 → 只投递 KillRequest（"玩家碰到了危险物"），
  *    结算管线检查 无敌帧/已死 后决定是否真正致死。
  */
-import type { PlayerState } from '../../types';
-import { grantImpulse, grantJumpCharges, killState } from './verbs';
+import type { PlayerState, StatModifier } from '../../types';
+import { grantImpulse, grantJumpCharges, killState, applyModifier } from './verbs';
 
 /** 影响来源投递的契约请求（竞速子集；战斗扩展位注释标注） */
 export type PlayerRequest =
@@ -18,8 +18,10 @@ export type PlayerRequest =
   | { kind: 'KillRequest' }
   /** 请求外力（弹簧/击退/气流）：进 impulse 队列由运动系统消费 */
   | { kind: 'Impulse'; ax: number; ay: number; dur: number; instant?: boolean }
-  /** 请求授予空中跳充能（双跳票） */
+  /** 请求授予空中跳充能（双跳票快捷方式） */
   | { kind: 'GrantJumpCharges'; max: number }
+  /** 请求应用数值修正（Modifier 管道：新道具改数值 = 投递此请求，玩家核心零改动） */
+  | { kind: 'ApplyModifier'; mod: StatModifier }
   // 战斗扩展位（启用时在此扩 union + 结算分支）：
   //   | { kind: 'DamageRequest'; amount: number }   // 需 HP 结算管线
   //   | { kind: 'TeleportRequest'; x: number; y: number }
@@ -53,6 +55,9 @@ export function applyEffect(p: PlayerState, fx: PlayerRequest, ctx?: EffectConte
       break;
     case 'GrantJumpCharges':
       grantJumpCharges(p, fx.max);
+      break;
+    case 'ApplyModifier':
+      applyModifier(p, fx.mod);
       break;
   }
 }

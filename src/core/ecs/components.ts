@@ -11,7 +11,7 @@
  *
  * 本文件只定义数据，不含任何系统逻辑。
  */
-import type { PathSegment, TrackState } from '../../types';
+import type { PathSegment, StatModifier, TrackState } from '../../types';
 import { u8 } from 'bitecs/serialization';
 
 /* ==================== 物理 / 运动 ==================== */
@@ -165,6 +165,22 @@ export const PlayerTrackState = [] as (TrackState | null)[];
 /** 玩家骑乘平台增量（AoS 侧表，key = 玩家实体 eid）：每帧位移 dx/dy；null = 未骑乘 */
 export const PlayerPlat = [] as ({ dx: number; dy: number } | null)[];
 
+/** 玩家数值修正（AoS 侧表，key = 玩家实体 eid）：Modifier 管道（stat+source 幂等） */
+export const PlayerModifiers = [] as StatModifier[][];
+
+/**
+ * 玩家控制权（S3 仲裁结果，SoA）：每帧由 ControlArbiter 按优先级表写入，
+ * MovementSystem 消费时按 mode 分支。值见 CONTROL_MODE_* 常量。
+ * 默认 free=0；扩展位：ControlLock 类约束（冰冻/眩晕）经仲裁叠加更高优先级。
+ */
+export const ControlMode = { mode: [] as number[] };
+
+/** 控制权枚举：优先级越高越靠后（仲裁取最高） */
+export const CONTROL_MODE_FREE = 0;
+export const CONTROL_MODE_TRACK = 1;
+export const CONTROL_MODE_ZIPLINE = 2;
+export const CONTROL_MODE_DEAD = 3;
+
 /** 道具编码常量（Backpack 数组元素） */
 export const ITEM_DOUBLE_JUMP = 0;
 export const ITEM_HOOK = 1;
@@ -175,5 +191,5 @@ export const ITEM_HOOK = 1;
 export const soaComponents = [
   Position, Velocity, Collider, PathMotion, SpringPad,
   Timer, Hazard, Collectible, RespawnPoint, Goal, Track,
-  Renderable, Player, PlayerControl, PlayerInput, JumpCharges,
+  Renderable, Player, PlayerControl, PlayerInput, JumpCharges, ControlMode,
 ];
