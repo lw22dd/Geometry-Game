@@ -3,7 +3,9 @@
 <details>
 <summary>Audio — 音频资源目录（enemy / system / weapons 子目录）</summary>
 
-本目录存放运行期加载的音频资源文件（.ogg/.wav/.mp3）。当前游戏所有音效均为 WebAudio 代码合成（core/audio.ts），无需外部音频文件。子目录按用途分类：enemy（敌人音效）、system（系统音效）、weapons（武器音效）。
+本目录存放运行期加载的音频资源文件（.ogg/.wav/.mp3）。当前游戏所有音频均为 WebAudio 代码合成（音效见 `core/audio.ts`，分层动态 BGM 见 `core/music.ts`），无需外部音频文件。子目录按用途分类：enemy（敌人音效）、system（系统音效）、weapons（武器音效）。
+
+> 音画升级后仍是纯代码合成路线：音效走分轨总线（sfx/bgm/master + 限幅器）并支持声像与节流，BGM 为 bass / arp / pad / perc 四层动态织体。若将来要换成采样素材，把文件放进对应子目录并在 `core/audio.ts` 增加 AudioBuffer 解码通路即可，接口不变。
 </details>
 
 ```

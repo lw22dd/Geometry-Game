@@ -6,8 +6,9 @@
 import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
 import { clamp } from '../../core/math';
-import { currentMap } from '../../config';
+import { currentMap, DEFAULT_MAP_THEME } from '../../config';
 import { gs } from '../../systems/game/gameState';
+import type { MapTheme } from '../../types';
 import { Position, Collider, PathMotion, SpringPad } from '../../core/ecs';
 import { colliderWorldRect } from '../../systems/level';
 import { T, neonBox } from './theme';
@@ -24,14 +25,20 @@ function hexA(hex: string, a: number): string {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
-/** 颜色渐变（随位置从青 → 紫 → 品红） */
-const hue2 = (x: number, y: number): number =>
-  196 + 100 * clamp(x / currentMap.width * 0.55 + y / currentMap.height * 0.45, 0, 1);
+/** 当前地图主题（未声明 theme 的地图回退默认配色） */
+const themeOf = (): MapTheme => currentMap.theme ?? DEFAULT_MAP_THEME;
+
+/** 颜色渐变（随位置从主题 A 色相 → B 色相） */
+const hue2 = (x: number, y: number): number => {
+  const th = themeOf();
+  return th.hueA + (th.hueB - th.hueA)
+    * clamp(x / currentMap.width * 0.55 + y / currentMap.height * 0.45, 0, 1);
+};
 
 /** 网格线 */
 export function drawGrid(p: number): void {
   ctx.lineWidth = 1;
-  ctx.strokeStyle = 'rgba(120,150,255,' + (0.05 + 0.05 * p) + ')';
+  ctx.strokeStyle = 'rgba(' + themeOf().grid + ',' + (0.05 + 0.05 * p) + ')';
   ctx.beginPath();
   const gy0 = Math.max(0, view.SB), gy1 = Math.min(currentMap.height, view.SB + VH / view.SZ);
   const gx0 = Math.max(0, view.SL), gx1 = Math.min(currentMap.width, view.SL + VW / view.SZ);
@@ -46,9 +53,10 @@ export function drawGrid(p: number): void {
 
 /** 地图边界发光 */
 export function drawBorder(): void {
-  ctx.shadowColor = 'rgba(120,90,255,.8)';
+  const th = themeOf();
+  ctx.shadowColor = 'rgba(' + th.border + ',.8)';
   ctx.shadowBlur = 16;
-  ctx.strokeStyle = 'rgba(150,120,255,.7)';
+  ctx.strokeStyle = 'rgba(' + th.border + ',.7)';
   ctx.lineWidth = 2.5;
   ctx.strokeRect(sx(0), sy(currentMap.height), currentMap.width * view.SZ, currentMap.height * view.SZ);
   ctx.shadowBlur = 0;
@@ -56,6 +64,7 @@ export function drawBorder(): void {
 
 /** 装饰旋转方块 */
 export function drawDecos(): void {
+  const decoColor = 'rgba(' + themeOf().mid[0] + ',.3)';
   ctx.lineWidth = 1.5;
   for (const d of currentMap.decos) {
     const px = sx(d[0]), py = sy(d[1]);
@@ -63,7 +72,7 @@ export function drawDecos(): void {
     ctx.save();
     ctx.translate(px, py);
     ctx.rotate(gs.time * d[3]);
-    ctx.strokeStyle = 'rgba(170,140,255,.3)';
+    ctx.strokeStyle = decoColor;
     const r = d[2] * view.SZ * 0.5;
     ctx.strokeRect(-r, -r, r * 2, r * 2);
     ctx.restore();

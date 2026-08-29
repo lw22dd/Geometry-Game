@@ -4,19 +4,23 @@
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
-import { farShapes, midShapes, currentMap, TLIFE } from '../../config';
+import { farShapes, midShapes, currentMap, TLIFE, VIS, DEFAULT_MAP_THEME } from '../../config';
+import type { PlayerState } from '../../types';
 import { gs } from '../../systems/game/gameState';
 import { playerController } from '../../systems/player';
 import { trail, particles } from '../../systems/particles';
 
 /** 视差远层光斑 + 中层旋转形状 */
 export function drawParallax(): void {
-  for (const s of farShapes) {
+  // 视差层配色跟随地图主题（缺省回退默认配色）
+  const th = currentMap.theme ?? DEFAULT_MAP_THEME;
+  for (let i = 0; i < farShapes.length; i++) {
+    const s = farShapes[i];
     const px = (s.x - view.SL * 0.18) * view.SZ;
     const py = VH - (s.y - view.SB * 0.18) * view.SZ;
     if (px < -260 || px > VW + 260) continue;
     const g = ctx.createRadialGradient(px, py, 0, px, py, s.r * view.SZ);
-    g.addColorStop(0, 'rgba(' + s.c + ',' + s.a + ')');
+    g.addColorStop(0, 'rgba(' + th.far[i % 2] + ',' + s.a + ')');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
@@ -31,7 +35,7 @@ export function drawParallax(): void {
     ctx.save();
     ctx.translate(px, py);
     ctx.rotate(gs.time * s.sp + s.ph);
-    ctx.strokeStyle = s.t ? 'rgba(140,190,255,.12)' : 'rgba(190,130,255,.12)';
+    ctx.strokeStyle = 'rgba(' + th.mid[s.t] + ',.12)';
     if (s.t === 0) {
       ctx.strokeRect(-s.s * view.SZ / 2, -s.s * view.SZ / 2, s.s * view.SZ, s.s * view.SZ);
     } else {
@@ -43,7 +47,30 @@ export function drawParallax(): void {
   }
 }
 
-/** 冲刺曳光 */
+/** 高速速度线：水平速度超阈值时在玩家周围拉出放射短线（参数取 VIS.speedLines） */
+function drawSpeedLines(p: PlayerState): void {
+  const cfg = VIS.speedLines;
+  const sp = Math.abs(p.velocity.x);
+  if (p.dead || sp < cfg.speedThreshold) return;
+  const k = Math.min(1, (sp - cfg.speedThreshold) / 10);
+  if (k <= 0) return;
+  const cx = sx(p.x);
+  const cy = sy(p.y);
+  const dir = p.velocity.x >= 0 ? -1 : 1; // 线条朝运动反方向拖
+  ctx.strokeStyle = 'rgba(180,225,255,' + (cfg.alpha * k).toFixed(3) + ')';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  for (let i = 0; i < cfg.count; i++) {
+    const f = i / cfg.count;
+    const yy = cy + (f - 0.5) * VH * 0.72 + Math.sin(gs.time * 6 + i * 2.3) * 6;
+    const xx = cx + dir * (40 + ((i * 37 + gs.time * 900) % 260));
+    ctx.moveTo(xx, yy);
+    ctx.lineTo(xx + dir * cfg.len * k, yy);
+  }
+  ctx.stroke();
+}
+
+/** 冲刺曳光 + 速度线 */
 export function drawTrail(): void {
   ctx.globalCompositeOperation = 'lighter';
   for (const q of trail) {
@@ -67,12 +94,18 @@ export function drawTrail(): void {
       ctx.stroke();
     }
   }
+  drawSpeedLines(p);
   ctx.globalCompositeOperation = 'source-over';
 }
 
-/** 粒子绘制 */
+/**
+ * 粒子绘制 —— 常规类型逐颗绘制；冲击类（streak / ring / shock）分桶批量绘制，
+ * 只设置一次合成模式与线帽，减少状态切换与 save/restore 开销。
+ */
 export function drawParticles(): void {
-  for (const q of particles.all) {
+  const all = particles.all;
+  for (const q of all) {
+    if (q.type === 'streak' || q.type === 'ring' || q.type === 'shock') continue;
     const a = 1 - q.age / q.life;
     if (a <= 0) continue;
     const px = sx(q.x), py = sy(q.y);
@@ -113,6 +146,48 @@ export function drawParticles(): void {
       ctx.globalAlpha = 1;
     }
   }
+
+  // ② 冲击类：拖尾 / 光环 / 冲击波（统一 lighter 合成，批量描边）
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round';
+  for (const q of all) {
+    const a = 1 - q.age / q.life;
+    if (a <= 0) continue;
+    const px = sx(q.x), py = sy(q.y);
+    if (q.type === 'streak') {
+      // 沿速度反方向拉出拖尾（世界 vy 向上为正，屏幕 Y 轴相反）
+      const sp = Math.hypot(q.vx, q.vy) || 1;
+      const len = (q.len ?? 0.8) * view.SZ;
+      ctx.globalAlpha = a * 0.85;
+      ctx.strokeStyle = q.col;
+      ctx.lineWidth = q.lw ?? 2;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px - (q.vx / sp) * len, py + (q.vy / sp) * len);
+      ctx.stroke();
+    } else if (q.type === 'ring' || q.type === 'shock') {
+      const r0 = q.r0 ?? 0.2;
+      const r1 = q.r1 ?? 2;
+      const e = 1 - (1 - a) * (1 - a); // 缓出：起手快、尾段慢
+      const r = (r0 + (r1 - r0) * e) * view.SZ;
+      ctx.strokeStyle = q.col;
+      if (q.type === 'shock') {
+        // 冲击波：外圈 + 内圈双层，线宽随寿命收细
+        ctx.globalAlpha = a * 0.8;
+        ctx.lineWidth = (q.lw ?? 3) * a;
+        ctx.beginPath(); ctx.arc(px, py, r, 0, 6.283); ctx.stroke();
+        ctx.globalAlpha = a * 0.32;
+        ctx.beginPath(); ctx.arc(px, py, r * 0.62, 0, 6.283); ctx.stroke();
+      } else {
+        ctx.globalAlpha = a * 0.75;
+        ctx.lineWidth = (q.lw ?? 2.5) * a;
+        ctx.beginPath(); ctx.arc(px, py, r, 0, 6.283); ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
 }
 
 /** 关卡文字提示 */
@@ -171,10 +246,11 @@ export function drawMotes(): void {
 
 /** 底部雾（缓慢呼吸，增加纵深） */
 export function drawFog(): void {
+  const fogRGB = (currentMap.theme ?? DEFAULT_MAP_THEME).fog;
   const wob = 0.10 + 0.03 * Math.sin(gs.time * 0.5);
   const g = ctx.createLinearGradient(0, VH * 0.72, 0, VH);
-  g.addColorStop(0, 'rgba(90,70,180,0)');
-  g.addColorStop(1, 'rgba(90,70,180,' + wob.toFixed(3) + ')');
+  g.addColorStop(0, 'rgba(' + fogRGB + ',0)');
+  g.addColorStop(1, 'rgba(' + fogRGB + ',' + wob.toFixed(3) + ')');
   ctx.fillStyle = g;
   ctx.fillRect(0, VH * 0.72, VW, VH * 0.28);
 }

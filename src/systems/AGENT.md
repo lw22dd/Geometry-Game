@@ -15,9 +15,9 @@ systems/
 ├── interactions/  # 玩法交互触发系统：CollisionHooks（碰撞事件订阅）+ 坐标版 Collect / RespawnPoint / Goal / 拾取物（ItemPickupSystem）/ 危险检测（hazard.ts）
 │     # 坐标版系统供远程玩家（host 模拟）复用；危险/拾取均走 level/OverlapUtils 检测
 ├── effects/  # 契约层：影响来源 → PlayerRequest → applyEffect 结算 → verbs 写入玩家（另含 TriggerSystem 触发注册表）
-├── particles.ts  # 粒子运行时系统：池 / trail / part() / stepParticles()
-├── postfx.ts  # 后期特效管线：Bloom / 色散 / 暗角 / 扫描线 / 颗粒（主场景画完后调用）
-├── ui/  # 界面：菜单 / 准备 / 暂停 / 大厅 / HUD / 小地图 / 图鉴 / 操作说明 + 共享图元/图标/主题
+├── particles.ts  # 粒子运行时系统：池（上限随画质档位）/ trail / part() / stepParticles()；支持 dot / frag / arrow / streak / ring / shock
+├── postfx.ts  # 后期特效管线：阈值化 Bloom → 径向模糊 → 地图主题分区调色 → 暗角 → 扫描线 → 颗粒（主场景画完后调用；参数取自 config/visuals 的 VIS.postfx）
+├── ui/  # 界面：菜单 / 准备 / 暂停 / 大厅 / 设置 / HUD / 小地图 / 图鉴 / 操作说明 + 共享图元/图标/主题
 │   └── styles/  # 空目录
 ├── combat/  # 战斗系统（预留）
 ├── enemy/  # 敌人 AI / 生成（预留）

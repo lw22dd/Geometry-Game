@@ -10,6 +10,7 @@ import { resetHover } from './primitives';
 import { drawOrbIcon } from './icons';
 import { openGallery } from './gallery';
 import { openInstructions } from './instructions';
+import { openSettings } from './settings';
 
 /* ==================== 开始菜单 ==================== */
 
@@ -200,10 +201,20 @@ export function buildMenuScene(onStart: () => void): UIScene {
     onClick: openInstructions,
   });
 
+  // 设置按钮（音量 / 画质；图鉴与说明下方一行）
+  const settingsBtn = new Button({
+    id: 'menu_settings',
+    label: '设 置',
+    variant: 'plain',
+    x: VW / 2 - 100, y: VH / 2 + 296, w: 200, h: 36,
+    enterDelay: 0.9,
+    onClick: openSettings,
+  });
+
   return {
     name: UI_SCENE.MENU,
-    widgets: [menuBtn, galleryBtn, instrBtn],
+    widgets: [menuBtn, galleryBtn, instrBtn, settingsBtn],
     draw: drawMenuScene,
-    onExit: () => resetHover(menuBtn, galleryBtn, instrBtn),
+    onExit: () => resetHover(menuBtn, galleryBtn, instrBtn, settingsBtn),
   };
 }

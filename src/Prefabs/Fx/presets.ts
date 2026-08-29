@@ -23,6 +23,14 @@ export interface FxPreset {
   colors: string[];
   /** frag 专用：旋转起始范围 / 角速度范围 */
   spin?: { start: [number, number]; rate: [number, number] };
+  /** streak 专用：拖尾长度范围（世界米） */
+  len?: [number, number];
+  /** ring / shock 专用：起始半径范围（世界米） */
+  r0?: [number, number];
+  /** ring / shock 专用：结束半径范围（世界米） */
+  r1?: [number, number];
+  /** ring / shock / streak 专用：描边线宽（逻辑像素） */
+  lw?: number;
 }
 
 /** 特效预设注册表 */
@@ -176,5 +184,62 @@ export const FX: Record<string, FxPreset> = {
     life: [0.7, 0.7],
     size: [0.07, 0.07],
     colors: ['#ffe9a8', '#fff3cf', '#ffffff'],
+  },
+
+  /* ── 美术升级：冲击类特效（配合命中停顿使用）── */
+
+  /** 死亡冲击波：外扩描边圆（与 death 碎片同时发射，强化爆开感） */
+  deathShock: {
+    count: 1,
+    kind: 'shock',
+    vel: { mode: 'axis', vx: [0, 0], vy: [0, 0] },
+    gravity: 0,
+    life: [0.42, 0.42],
+    size: [0.1, 0.1],
+    colors: ['#ff6ad5', '#7de8ff'],
+    r0: [0.3, 0.3],
+    r1: [3.6, 4.4],
+    lw: 3,
+  },
+
+  /** 破盾环：快速外扩的蓝白光圈 */
+  shieldRing: {
+    count: 1,
+    kind: 'ring',
+    vel: { mode: 'axis', vx: [0, 0], vy: [0, 0] },
+    gravity: 0,
+    life: [0.38, 0.38],
+    size: [0.1, 0.1],
+    colors: ['#b3c7ff', '#ffffff'],
+    r0: [0.2, 0.2],
+    r1: [2.4, 2.9],
+    lw: 2.5,
+  },
+
+  /** 冲刺火花：沿速度方向的短拖尾（发射时按玩家朝向给 vx 符号） */
+  dashStreak: {
+    count: 8,
+    kind: 'streak',
+    vel: { mode: 'axis', vx: [-9, 9], vy: [-1.5, 1.5] },
+    gravity: 0,
+    life: [0.18, 0.32],
+    size: [0.05, 0.09],
+    colors: ['#8ff6ff', '#ffffff', '#59d4ff'],
+    len: [0.5, 1.1],
+    lw: 2,
+  },
+
+  /** 落地冲击环：贴地扩散的薄环（重落地时发射） */
+  landRing: {
+    count: 1,
+    kind: 'ring',
+    vel: { mode: 'axis', vx: [0, 0], vy: [0, 0] },
+    gravity: 0,
+    life: [0.3, 0.3],
+    size: [0.1, 0.1],
+    colors: ['#9fb8ff'],
+    r0: [0.15, 0.15],
+    r1: [1.2, 1.7],
+    lw: 2,
   },
 };

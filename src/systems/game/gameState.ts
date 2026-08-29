@@ -22,4 +22,5 @@ export const gs: GameState = {
   toastT: 0,
   flash: 0,
   shake: 0,
+  hitstop: 0,
 };

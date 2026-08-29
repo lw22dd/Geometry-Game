@@ -76,13 +76,29 @@ export const T = {
   ringEdgeA: 0.60,
   /** 底部支座高（r 倍率） */
   ringLug: 0.55,
+  /* ── neonBox v3：体积感增强 ── */
+  /** 底部内阴影高度（h 比例） */
+  bottomShade: 0.28,
+  /** 底部内阴影最大高度（逻辑像素） */
+  bottomShadeMax: 26,
+  /** 底部内阴影浓度 */
+  bottomShadeA: 0.22,
+  /** 外侧冷光描边透明度 */
+  rimAlpha: 0.32,
+  /** 外侧冷光描边外扩 px */
+  rimOut: 1.5,
+  /** 外侧冷光描边明度（%） */
+  rimLight: 76,
   /* ── 动画节奏 ── */
   /** 待机呼吸/脉冲基准角速度（rad/s），全场景待机动画归一到此 */
   breathSpeed: 2.4,
 };
 
-/** 霓虹方盒 v2 —— 全场景统一绘制原语（静态平台/移动平台/弹簧顶板…）
- *  ① 底色上亮下暗线性渐变（体积感）→ ② 内衬线 → ③ 发光描边 + 顶光 → ④ 顶面内侧反光 */
+/**
+ * 霓虹方盒 v3 —— 全场景统一绘制原语（静态平台/移动平台/弹簧顶板…）
+ * ① 底色上亮下暗渐变 → ② 内衬线 → ③ 发光描边 + 顶光 → ④ 顶面内侧反光
+ * → ⑤ 底部内阴影（v3：体积感）→ ⑥ 外侧冷光描边（v3：从背景中"拔"出来）
+ */
 export function neonBox(
   x: number, y: number, w: number, h: number, hue: number,
   o: { glow?: number; body?: string; bodyDark?: string } = {},
@@ -117,5 +133,20 @@ export function neonBox(
     rg.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = rg;
     ctx.fillRect(x + 2, y + T.topBarH, w - 4, rh);
+  }
+  // ⑥ 底部内阴影（v3：与顶部高光呼应，方盒有"厚度"而不是贴纸）
+  if (h > 12 && w > 4) {
+    const sh = Math.min(h * T.bottomShade, T.bottomShadeMax);
+    const sg = ctx.createLinearGradient(0, y + h - sh, 0, y + h);
+    sg.addColorStop(0, 'rgba(0,0,0,0)');
+    sg.addColorStop(1, 'rgba(0,0,0,' + T.bottomShadeA + ')');
+    ctx.fillStyle = sg;
+    ctx.fillRect(x + 1, y + h - sh, w - 2, sh);
+  }
+  // ⑦ 外侧冷光描边（v3：1px 冷色轮廓，让几何体在暗背景中更清晰）
+  if (w > 5 && h > 5) {
+    ctx.strokeStyle = `hsla(${hue},100%,${T.rimLight}%,${T.rimAlpha})`;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - T.rimOut, y - T.rimOut, w + T.rimOut * 2, h + T.rimOut * 2);
   }
 }

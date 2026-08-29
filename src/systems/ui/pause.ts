@@ -5,7 +5,7 @@
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { room } from '../../net/room';
-import { Button, UI_SCENE } from '../../core/uiComponent';
+import { Button, ui, UI_SCENE } from '../../core/uiComponent';
 import type { UIScene } from '../../core/uiComponent';
 import { tickLocal, drawMask, drawGlassPanel, drawTitle, resetHover } from './primitives';
 
@@ -34,6 +34,11 @@ export function buildPauseScene(a: PauseActions): UIScene {
   const btnResume = mkButton('pause_resume', '▶ 继续游戏', btnY, a.onResume);
   const btnDisconnect = mkButton('pause_disconnect', '✕ 断开连接', btnY + 60, a.onDisconnect);
   const btnDev = mkButton('pause_dev', '开发者设置', btnY + 120, a.onDevSettings);
+
+  // 设置（音量 / 画质）—— 以叠层打开，返回时回到暂停界面
+  const btnSettings = mkButton('pause_settings', '设置', btnY + 180, () => {
+    ui.pushOverlay(UI_SCENE.SETTINGS);
+  });
 
   // 左上角返回主菜单按钮（始终可见；联机中断开并复位房间）
   const btnMainMenu = mkButton('pause_mainmenu', '返回主菜单', py + 14, a.onReturnToMenu);
@@ -103,10 +108,10 @@ export function buildPauseScene(a: PauseActions): UIScene {
 
   return {
     name: UI_SCENE.PAUSE,
-    widgets: [btnResume, btnDisconnect, closeBtn, btnDev, btnMainMenu],
+    widgets: [btnResume, btnDisconnect, closeBtn, btnDev, btnSettings, btnMainMenu],
     draw: drawPanel,
     onEnter: () => { _pauseTime.t = 0; _pauseTime.last = 0; },
-    onExit: () => resetHover(btnResume, btnDisconnect, closeBtn, btnDev, btnMainMenu),
+    onExit: () => resetHover(btnResume, btnDisconnect, closeBtn, btnDev, btnSettings, btnMainMenu),
   };
 }
 

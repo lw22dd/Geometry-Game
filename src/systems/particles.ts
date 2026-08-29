@@ -7,7 +7,7 @@
 import type { Particle, TrailPoint } from '../types';
 import type { FxPreset } from '../Prefabs/Fx/presets';
 import { EntityPool } from '../core/entityPool';
-import { TLIFE } from '../config';
+import { TLIFE, VIS } from '../config';
 
 /** 粒子池（上限 420，超限从头剔除） */
 export const particles = new EntityPool<Particle>([]);
@@ -26,7 +26,9 @@ function part(o: Partial<Particle> & { x: number; y: number }): void {
     { age: 0, life: 0.6, vx: 0, vy: 0, grav: 0, size: 0.12, col: '#8ff6ff', type: 'dot', rot: 0, vr: 0 },
     o,
   ));
-  if (particles.length() > 420) particles.splice(0, particles.length() - 420);
+  // 池上限随画质档位变化（低 140 / 中 280 / 高 420）
+  const max = VIS.particles.poolMax;
+  if (particles.length() > max) particles.splice(0, particles.length() - max);
 }
 
 /**
@@ -37,7 +39,8 @@ function part(o: Partial<Particle> & { x: number; y: number }): void {
  * @param countOverride 覆盖粒子数量（如落地尘土按落地速度定量）
  */
 export function spawnParticles(preset: FxPreset, x: number, y: number, countOverride?: number): void {
-  const n = countOverride ?? preset.count;
+  // 发射数量随画质档位缩放（低配减半）；至少 1 颗，保证关键反馈不会被完全削掉
+  const n = Math.max(1, Math.round((countOverride ?? preset.count) * VIS.particles.emitScale));
   for (let i = 0; i < n; i++) {
     const ox = preset.spreadX ? (Math.random() - 0.5) * 2 * preset.spreadX : 0;
     let vx: number, vy: number;
@@ -55,7 +58,8 @@ export function spawnParticles(preset: FxPreset, x: number, y: number, countOver
       const v = rand(vel.speed);
       vx = Math.cos(a) * v; vy = Math.sin(a) * v + (vel.vyBias ?? 0);
     }
-    part({
+    const p: Particle = {
+      age: 0,
       x: x + ox, y,
       vx, vy,
       grav: preset.gravity,
@@ -65,7 +69,15 @@ export function spawnParticles(preset: FxPreset, x: number, y: number, countOver
       type: preset.kind,
       rot: preset.spin ? rand(preset.spin.start) : 0,
       vr: preset.spin ? rand(preset.spin.rate) : 0,
-    });
+    };
+    // 冲击类附加字段（旧预设不带这些字段，走类型默认值即可）
+    if (preset.kind === 'streak') p.len = rand(preset.len ?? [0.6, 1]);
+    if (preset.kind === 'ring' || preset.kind === 'shock') {
+      p.r0 = rand(preset.r0 ?? [0.2, 0.2]);
+      p.r1 = rand(preset.r1 ?? [2, 2]);
+      p.lw = preset.lw ?? 2;
+    }
+    part(p);
   }
 }
 

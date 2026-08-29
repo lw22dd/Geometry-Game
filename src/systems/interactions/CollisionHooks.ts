@@ -12,7 +12,10 @@
 import { hasComponent } from 'bitecs';
 import { world, Position, Collider, Timer, Hazard, Collectible, RespawnPoint, Goal, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, qCheckpoints } from '../../core/ecs';
 import { collisionBus } from '../../core/collisionBus';
+import { sx } from '../../core/camera';
+import { VW } from '../../core/canvas';
 import { gs } from '../game/gameState';
+import { VIS } from '../../config';
 import { playerController } from '../player';
 import { FX } from '../../Prefabs/Fx';
 import { spawnParticles } from '../particles';
@@ -25,6 +28,12 @@ import { orbCount } from './ItemPickupSystem';
 import { applyEffect } from '../effects';
 import type { ItemId, PlayerState } from '../../types';
 
+/** 世界 X → 声像 -1..1（按事件在屏幕上的左右位置映射，增强空间感） */
+function panOfX(worldX: number): number {
+  const p = (sx(worldX) / VW - 0.5) * 1.4;
+  return p < -1 ? -1 : p > 1 ? 1 : p;
+}
+
 /* ==================== 道具拾取规则表（问题 12：四段同构拾取样板收敛） ==================== */
 
 interface PickupRule {
@@ -36,8 +45,8 @@ interface PickupRule {
   guard?: (s: PlayerState) => boolean;
   /** 本地专属额外粒子（通用 sparkle 之外的差异化特效） */
   fx?: (x: number, y: number) => void;
-  /** 本地音效 */
-  sfx?: () => void;
+  /** 本地音效（pan = 声像 -1..1，按拾取物在屏幕上的左右位置） */
+  sfx?: (pan: number) => void;
   /** 本地提示文案 */
   toast: string;
   toastT: number;
@@ -53,14 +62,14 @@ const PICKUP_RULES: PickupRule[] = [
     tag: JumpBoost,
     item: 'doubleJump',
     fx: (x, y) => spawnParticles(FX.arrowBoost, x, y, 8),
-    sfx: () => sfx.orb(),
+    sfx: (pan) => sfx.jumpBoost({ pan }),
     toast: '二段跳票已装备！',
     toastT: 2,
   },
   {
     tag: Hook,
     item: 'hook',
-    sfx: () => sfx.hookPickup(),
+    sfx: (pan) => sfx.hookPickup({ pan }),
     toast: '钩锁已装备！左键发射，长按锁定',
     toastT: 2.5,
   },
@@ -68,7 +77,7 @@ const PICKUP_RULES: PickupRule[] = [
     tag: ShieldPickup,
     item: 'shield',
     guard: (s) => s.shieldsMax === 0,
-    sfx: () => sfx.shieldPickup(),
+    sfx: (pan) => sfx.shieldPickup({ pan }),
     toast: '护盾已装备！危险物命中将格挡一次',
     toastT: 2.5,
   },
@@ -77,7 +86,7 @@ const PICKUP_RULES: PickupRule[] = [
     item: 'speed',
     guard: (s) => s.speedMult <= 1,
     fx: (x, y) => spawnParticles(FX.speedBoost, x, y, 6),
-    sfx: () => sfx.speedPickup(),
+    sfx: (pan) => sfx.speedPickup({ pan }),
     toast: '极速冲刺！移速 ×2',
     toastT: 2.5,
   },
@@ -142,13 +151,17 @@ export function initCollisionHooks(): void {
           playerController.die();
         }
       },
-      // 护盾格挡：破盾特效；本地补音效，远端广播给客机
+      // 护盾格挡：破盾特效 + 震屏；本地补音效/停顿，远端广播给客机
       onShieldBlock: () => {
         spawnParticles(FX.shieldBreak, ps.x, ps.y);
+        spawnParticles(FX.shieldRing, ps.x, ps.y); // 破盾光环
         if (isRemote()) {
           if (simTarget) netBus.emit({ type: 'fx:shieldbreak', x: ps.x, y: ps.y, playerId: simTarget.remoteId as number });
         } else {
-          sfx.shieldBreak();
+          sfx.shieldBreak({ pan: panOfX(ps.x) });
+          // 命中停顿 + 震屏（远端不设置：避免影响房主权威模拟节奏）
+          gs.hitstop = Math.max(gs.hitstop, VIS.screen.hitstopMax * 0.7);
+          gs.shake = Math.max(gs.shake, VIS.screen.shieldShake);
         }
       },
     });
@@ -166,14 +179,14 @@ export function initCollisionHooks(): void {
       gs.gotN++;
       const pos = { x: Position.x[b], y: Position.y[b] };
       spawnParticles(FX.sparkle, pos.x, pos.y);
-      sfx.orb();
+      sfx.orb({ pan: panOfX(pos.x) });
       netBus.emit({ type: 'game:orb', count: gs.gotN, total: orbCount() });
       if (signals) signals.collected = true;
       if (gs.gotN === orbCount()) {
         gs.toast = '✦ 全部光球收集完成！';
         gs.toastT = 3;
         spawnParticles(FX.confetti, pos.x, pos.y);
-        sfx.cp();
+        sfx.cp({ pan: panOfX(pos.x) });
       }
       return;
     }
@@ -196,7 +209,7 @@ export function initCollisionHooks(): void {
         const pos = { x: Position.x[b], y: Position.y[b] };
         spawnParticles(FX.sparkle, pos.x, pos.y);
         rule.fx?.(pos.x, pos.y);
-        rule.sfx?.();
+        rule.sfx?.(panOfX(pos.x));
         netBus.emit({ type: 'game:itemPicked', item: rule.item });
         gs.toast = rule.toast;
         gs.toastT = rule.toastT;

@@ -10,7 +10,7 @@
 config/
 ├── index.ts  # barrel 导出
 ├── physics.ts  # 物理手感调参：双物理模式（tuned/classic）、RUN/SPRINT/JUMP_H、轨道/钩锁参数（跨模块集中调参表）
-├── visuals.ts  # 视觉调参：TLIFE 曳光轨迹寿命（particles/atmosphere 共享）
+├── visuals.ts  # 视觉调参总表 VIS（postfx / particles / screen / speedLines 分组）+ DEFAULT_MAP_THEME 默认地图主题 + TLIFE 曳光寿命；画质档位 applyQuality 原地写回本表
 ├── level.ts  # 多地图描述符 maps[]/currentMap/loadMap/initECSFromLevel：静态几何 + 实体生成描述（经 sceneFactory 装配 bitECS 实体；弹簧预设见 Prefabs/Scenes/springPresets）
 ├── background.ts  # 视差背景：farShapes 光斑 + midShapes 旋转形状（mulberry 种子生成）
 └── AGENT.md
@@ -30,4 +30,4 @@ config/
 
 3. 输出：流出的方向和目的
 
-导出常量与数据供 `systems/`（玩家物理、世界绘制、HUD、小地图、碰撞检测）和 `Prefabs/`（场景绘制）读取。`systems/game` 读取 PHYS 确定物理模式，`systems/player` 读取 PHSN 和关卡数据执行碰撞与交互。
+导出常量与数据供 `systems/`（玩家物理、世界绘制、HUD、小地图、碰撞检测）和 `Prefabs/`（场景绘制）读取。`systems/game` 读取 PHYS 确定物理模式，`systems/player` 读取 PHSN 和关卡数据执行碰撞与交互。`VIS` 是全部视觉参数（后期特效 / 粒子预算 / 震屏 / 速度线）的唯一真源：`systems/postfx` 的 PFX 与它**同一对象引用**，`core/settings` 的画质档位通过 `applyQuality()` 原地写字段；`DEFAULT_MAP_THEME` 供未声明 `theme` 的地图回退配色。

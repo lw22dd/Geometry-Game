@@ -24,7 +24,7 @@ Prefabs/Player/default/
 
 - **步进**：`stepDefaultAnimation(state, player, dt, signals?)` — 首帧快照不触发边沿；此后从上帧记忆推导边沿信号（起跳/落地/死亡/复活/冲刺），按 ANIM_TRANSITIONS 执行状态转换并注入形变事件（jumpRise 拉伸 / land 压扁 / collectPulse / bump），squash 指数衰减恢复。
 - **合成**：`getDefaultOutput(state, player)` — 按当前状态与 gs.time 合成 AnimOutput 参数包（scaleX/scaleY/rotation/offset/alpha），供绘制层消费。
-- **绘制**：`renderDefaultPlayer(player, output, style)` — 纯渲染：发光球体（径向渐变 + 外描边）、双眼（blink）/眨眼、受伤无敌闪烁（inv 帧闪烁）。
+- **绘制**：`renderDefaultPlayer(player, output, style)` — 纯渲染：发光球体（径向渐变 + 外描边）、双眼（blink）/眨眼、无敌提示（inv 期间柔和微光，非明暗硬切）。
 - **组合**：`defaultPrefab.ts` 将三者按 PlayerPrefab 接口（createState/step/getOutput/draw）装配，注册进 `Prefabs/Player/registry.ts`。
 
 3. 输出：流出的方向和目的

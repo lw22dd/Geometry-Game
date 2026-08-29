@@ -8,10 +8,11 @@
 
 ```
 core/uiComponent/
-├── index.ts       # barrel 导出：UI_SCENE / Button / Toggle / TextInput / ui / UIManager
-├── manager.ts     # UIManager 单例：register / show / handleClick / handleMove / handleKey / draw
+├── index.ts       # barrel 导出：UI_SCENE / Button / Toggle / Slider / TextInput / ui / UIManager
+├── manager.ts     # UIManager 单例：register / show / handleClick / handleMove / handleKey / handleRelease / handleWheel / draw
 ├── Button.ts      # Button 组件（label / variant / onClick / hover）
 ├── Toggle.ts      # Toggle 开关组件（定位 / 开关状态 / 点击回调）
+├── Slider.ts      # Slider 滑块组件（点击轨道定位 + 拖拽调节，音量等连续量用）
 ├── TextInput.ts   # TextInput 组件（label / value / focus / 文本编辑）
 └── types.ts       # UIWidget / UIScene / UISceneName 接口定义
 ```
@@ -26,7 +27,9 @@ core/uiComponent/
 2. 本模块：经过 core/uiComponent 做了什么
 
 
-维护当前 UI 场景（menu / pause / lobby / null 等）与焦点/悬停状态，统一分发点击、鼠标移动、键盘事件。`main.ts` 每帧调用 `ui.draw(t)` 绘制当前场景，事件回调调用 `ui.handleClick/handleMove/handleKey`。`systems/ui/$`（index/pause/lobby/scenes）用 `buildXxxScene()` 构建场景后 `ui.register()` 注册。
+维护当前 UI 场景（menu / pause / lobby / settings / null 等）与焦点/悬停状态，统一分发点击、按下、鼠标移动、键盘、滚轮事件。`main.ts` 每帧调用 `ui.draw(t)` 绘制当前场景，事件回调调用 `ui.handleClick/handlePress/handleMove/handleKey/handleWheel`；`handleRelease()` 由 window 的 mouseup 驱动，用于结束滑块拖拽（拖出画布也能结束）。`handleClick` 会把点击处的逻辑坐标传给 `onClick(lx, ly)`；按下经 `handlePress` 分发 `onPress`（拖拽起点，必须早于 click，否则 mouseup 先过境导致拖拽状态残留）；拖拽期间 `UIWidget.dragging` 为真时，`handleMove` 持续回调 `onDrag(lx, ly)`。
+
+**场景一致性约定**：所有事件分发与 `draw()` 一律按 `currentName` **实时解析**场景（`active` getter），并在入口先 `syncScene()` 补齐 onExit/onEnter —— 绝不依赖缓存的 `current` 字段做事件源。原因：外部若绕过 `show()` 直接写 `gs.scene`（历史上 `startGame` 曾这么做），派生的 `currentName` 已变而缓存 `current` 不变，会造成「画面已是游戏、点击却命中菜单按钮」的图层错位。因此任何进入/退出 UI 的路径都必须走 `ui.show(...)` 唯一写入口。`systems/ui/$`（index/pause/lobby/scenes）用 `buildXxxScene()` 构建场景后 `ui.register()` 注册。
 
 3. 输出：流出的方向和目的
 

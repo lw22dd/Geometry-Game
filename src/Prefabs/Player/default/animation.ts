@@ -165,8 +165,9 @@ export function getDefaultOutput(
       out.alpha = 0;
       break;
     case 'respawn': {
-      // 复活闪现
-      out.alpha = 0.7 + 0.3 * Math.sin(state.stateTime * 20);
+      // 复活渐显：透明度随时间上升。
+      // 原先 ±0.3 的高频正弦振荡（约 3Hz）会形成明显闪烁，改为单向淡入。
+      out.alpha = Math.min(1, 0.4 + state.stateTime * 2.5);
       break;
     }
   }

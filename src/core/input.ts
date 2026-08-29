@@ -16,6 +16,11 @@ export function setInputHandler(h: InputHandler): void {
 }
 
 export function initInput(): void {
+  // 指针首次交互也解锁音频覆盖「只点不按键盘」的用户（浏览器自动播放策略）
+  addEventListener('pointerdown', () => {
+    auInit();
+    if (AU.ctx && AU.ctx.state === 'suspended') AU.ctx.resume();
+  }, { once: true });
   addEventListener('keydown', (e: KeyboardEvent) => {
     if (['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
     // 首次交互时解锁 / 恢复音频上下文

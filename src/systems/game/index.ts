@@ -4,9 +4,11 @@
  */
 import { ctx, VW, VH, DPR, PPM } from '../../core/canvas';
 import { updateCamera, sx, sy, view, cam } from '../../core/camera';
-import { musicTick, MUS, sfx, AU } from '../../core/audio';
+import { sfx } from '../../core/audio';
+import { musicTick, setMusicState, resetMusicClock } from '../../core/music';
+import { Settings } from '../../core/settings';
 import { keys } from '../../core/input';
-import { currentMap, PHYS, setupLevel, cpPoint } from '../../config';
+import { currentMap, PHYS, setupLevel, cpPoint, VIS, DEFAULT_MAP_THEME } from '../../config';
 import { gs } from './gameState';
 import { getMode, setMode } from './gameMode';
 import { prepare } from '../ui/prepare';
@@ -109,8 +111,10 @@ export function applyLevel(mapId: string): void {
 export function startGame(): void {
   prepare.mode = 'prepare';
   applyLevel(prepare.mapId);
-  gs.screen = 'playing';
-  gs.scene = null; // 基础 UI 场景真源：游戏中无覆盖
+  // 唯一写入口：进入游戏画面（清叠层 + 写真源 gs.screen/gs.scene）。
+  // 切勿在此直接写 gs.scene —— 那会让 UIManager 的激活场景与真源失同步，
+  // 表现为「画面是游戏、点击却命中菜单按钮」。
+  ui.show(null);
   gs.started = true;
   if (isHost()) {
     // 房主模式下，重置远程玩家
@@ -168,10 +172,36 @@ function drawLocalPlayerInterpolated(alpha: number): void {
     drawPlayer(pS, getSelectedCharacter());
     return;
   }
+  // 死亡时不做插值：直接用真实状态（render 侧据此隐藏建模并让爆裂粒子接管）
+  if (pS.dead) {
+    drawPlayer(pS, getSelectedCharacter());
+    return;
+  }
   const rv = interpView ?? (interpView = { ...pS });
+  // 关键：每帧以当前状态为准刷新副本，只把 x/y 换成插值位置。
+  // 副本是首次展开时建立的，若只更新 x/y，dead / inv / shields / face 等字段
+  // 会永远停留在建副本那一刻 —— 死亡后副本仍是 dead=false，建模会被继续画出来。
+  Object.assign(rv, pS);
   rv.x = prevPx + (pS.x - prevPx) * alpha;
   rv.y = prevPy + (pS.y - prevPy) * alpha;
   drawPlayer(rv, getSelectedCharacter());
+}
+
+/**
+ * 表现层步进 —— 场景实体动画 FSM + 粒子 / 曳光 / 浮尘 / 光球环境光尘。
+ *
+ * 与玩法逻辑分开的原因：命中停顿（hitstop）只冻结物理与玩法，
+ * 表现层必须继续推进 —— 否则死亡爆裂生成的粒子会在生成点被定格成
+ * 一团静止碎块（FX.death 无散布偏移，生成时坐标重合），完全看不出"爆开"。
+ * gs.time 不参与任何物理计算（systems/player 内零引用），停顿期可照常推进。
+ */
+function stepPresentation(dt: number): void {
+  // 实体动画 FSM 步进（场景道具 / 未来敌人 / NPC；输出在渲染帧由绘制层实时求值）
+  stepAnimation(dt);
+  // 粒子 + 曳光
+  stepParticles(dt);
+  stepMotes(dt);          // 美术升级 3：前景浮尘步进
+  emitItemAmbient(dt);    // 美术升级 5：光球环境光尘
 }
 
 /** 逐帧步进（固定时间步长 1/120s） */
@@ -196,13 +226,8 @@ function step(dt: number): void {
   }
   stepAuraSystem(dt, auraPlayers);
 
-  // 3. 实体动画 FSM 步进（场景道具 / 未来敌人 / NPC；输出在渲染帧由绘制层实时求值）
-  stepAnimation(dt);
-
-  // 4. 粒子 + 曳光
-  stepParticles(dt);
-  stepMotes(dt);          // 美术升级 3：前景浮尘步进
-  emitItemAmbient(dt);    // 美术升级 5：光球环境光尘
+  // 3-4. 表现层（实体动画 FSM + 粒子 / 曳光 / 浮尘）
+  stepPresentation(dt);
 
   // 5. Toast 衰减
   if (gs.toastT > 0) gs.toastT -= dt;
@@ -539,8 +564,7 @@ function wireNetEvents(): void {
           lobby.inRoom = false;
           lobby.myReady = false;
           applyLevel(mapId);
-          gs.screen = 'playing';
-          gs.scene = null; // 基础 UI 场景真源：游戏中无覆盖
+          ui.show(null); // 同 startGame：走唯一写入口，保持 UIManager 与真源同步
           gs.started = true;
         }
         break;
@@ -694,6 +718,11 @@ function renderGame(dt: number): void {
 
   // （删除：原底部脉冲渐变 → Bloom 放大后成为全屏"闪光"，见 git 历史）
 
+  // 震屏：只包裹世界层（视差 → 提示文字）。前景浮尘 / 底部雾 / 暗角 / HUD /
+  // 后处理都在 restore 之后绘制，不参与抖动（避免 UI 与全屏叠加层跟着位移）。
+  ctx.save();
+  applyShake(dt);
+
   drawParallax();
   drawGrid(pulse);
   drawBorder();
@@ -729,6 +758,8 @@ function renderGame(dt: number): void {
 
   drawHints();
 
+  ctx.restore(); // 结束震屏包裹区（世界层绘制完毕）
+
   // 美术升级 3：前景浮尘 + 底部雾（玩家之上、UI 之下）
   drawMotes();
   drawFog();
@@ -756,8 +787,33 @@ function renderGame(dt: number): void {
   drawDebugHUD();
   drawMinimap(vw, vh);
 
-  // ★ 美术升级 1：后期特效管线（最后一层，覆盖全画布）
-  drawPostFX();
+  // ★ 后期特效管线（最后一层，覆盖全画布）：
+  //   速度驱动径向模糊强度，地图主题强调色驱动分区调色
+  drawPostFX({
+    speed: clamp((Math.abs(pS.velocity.x) - 10) / 14, 0, 1),
+    tint: (currentMap.theme ?? DEFAULT_MAP_THEME).accent,
+  });
+}
+
+/**
+ * 震屏（trauma 模型）—— 屏幕空间位移 + 轻微 roll，只改写 ctx 变换。
+ * trauma 平方映射：小抖动更细腻、大冲击更猛；双频正弦比纯随机更"有质感"。
+ * 不涉及物理与相机世界坐标，确定性不受影响。
+ */
+function applyShake(dt: number): void {
+  const s = gs.shake;
+  if (s <= 0.002) {
+    gs.shake = 0;
+    return;
+  }
+  const cfg = VIS.screen;
+  const trauma = s * s;
+  const amp = trauma * cfg.shakeAmp;
+  const t = gs.time * cfg.shakeFreq;
+  ctx.translate(VW / 2 + Math.sin(t * 1.7) * amp, VH / 2 + Math.cos(t * 2.3) * amp * 0.7);
+  ctx.rotate(Math.sin(t * 0.9) * trauma * 0.008);
+  ctx.translate(-VW / 2, -VH / 2);
+  gs.shake = s * Math.exp(-cfg.shakeDecay * dt);
 }
 
 /** 绘制远程玩家（走预制体通路；按房间信息里的角色 id 取样式，缺省回退按 playerId 配色变体） */
@@ -785,6 +841,27 @@ function drawRemotePlayer(rp: RemotePlayer, dt: number): void {
 
 /* ==================== 帧回调 ==================== */
 
+/**
+ * 音乐状态与强度同步 —— 按当前局面推导，避免在各逻辑分支散落接线。
+ * 每帧一次：一次状态比较 + 两次算术，开销可忽略。
+ */
+/**
+ * 音乐状态同步 —— 只按「场景级」状态切换（菜单 / 通关 / 死亡 / 游戏中）。
+ * 强度不再绑定玩家运动（速度 / 收集进度）—— BGM 的音色密度由 core/music
+ * 内部按乐句自行起伏（自主呼吸），玩家怎么动都不影响旋律走向。
+ */
+function syncMusic(): void {
+  if (gs.screen !== 'playing') {
+    setMusicState('menu');
+    return;
+  }
+  if (gs.win) {
+    setMusicState('victory');
+    return;
+  }
+  setMusicState(playerController.getState().dead ? 'tension' : 'playing');
+}
+
 function frame(nowMs: number): void {
   requestAnimationFrame(frame);
   tickFPS(nowMs);
@@ -794,10 +871,24 @@ function frame(nowMs: number): void {
   if (dt > 0.06) dt = 0.06;
   acc += dt;
   if (acc > 0.2) acc = 0.2;
-  // 问题 8：物理批步前快照（渲染 alpha 插值基准；仅表现层，不影响确定性物理）
-  snapshotRenderPrev();
-  let n = 0;
-  while (acc >= FDT && n < 10) { step(FDT); acc -= FDT; n++; }
+  // 命中停顿：本帧冻结物理推进（不消耗 acc），只跑渲染 ——
+  // 物理始终由整数个 FDT 步推进，确定性不受影响。
+  // 联机房主会话下不启用，避免影响权威模拟与客机预测。
+  if (gs.hitstop > 0 && !(inSession() && isHost())) {
+    gs.hitstop = Math.max(0, gs.hitstop - dt);
+    // 只冻结「物理与玩法逻辑」；表现层照常推进，
+    // 否则死亡爆裂 / 破盾火花会在生成瞬间被定格，看不出爆开。
+    gs.time += dt;
+    stepPresentation(dt);
+  } else {
+    gs.hitstop = 0;
+    // 问题 8：物理批步前快照（渲染 alpha 插值基准；仅表现层，不影响确定性物理）
+    snapshotRenderPrev();
+    let n = 0;
+    while (acc >= FDT && n < 10) { step(FDT); acc -= FDT; n++; }
+  }
+  // 音乐调度（前瞻基于 AudioContext 时钟，掉帧不影响节奏）
+  syncMusic();
   musicTick();
   render(dt);
 }
@@ -814,6 +905,13 @@ export function startLoop(): void {
 }
 
 let _playerEventsWired = false;
+
+/** 世界 X → 声像 -1..1（按事件在屏幕上的左右位置映射，增强空间感） */
+function panOf(worldX: number): number {
+  const p = (sx(worldX) / VW - 0.5) * 1.4;
+  return p < -1 ? -1 : p > 1 ? 1 : p;
+}
+
 /** 订阅玩家事件（问题 4）：PlayerController 经 netBus 统一派发；fireTriggers 逻辑由 TriggerSystem 订阅 */
 function wirePlayerEvents(): void {
   if (_playerEventsWired) return;
@@ -826,38 +924,51 @@ function wirePlayerEvents(): void {
         gs.shake = 1;
         gs.flash = 0.6;
         spawnParticles(FX.death, dp.x, dp.y);
+        spawnParticles(FX.deathShock, dp.x, dp.y); // 冲击波：配合命中停顿强化爆开感
+        gs.hitstop = VIS.screen.hitstopMax;
         netBus.emit({ type: 'fx:death', x: dp.x, y: dp.y, playerId: room.playerId });
-        sfx.die();
+        sfx.die({ pan: panOf(dp.x) });
         netBus.emit({ type: 'game:death', deaths: event.deaths });
         break;
       }
-      case 'player:jumped':
-        sfx.jump();
+      case 'player:jumped': {
+        const jp = playerController.getState();
+        sfx.jump({ pan: panOf(jp.x) });
         break;
+      }
       case 'player:springed': {
         const sps = playerController.getState();
-        sfx.spring();
+        sfx.spring({ pan: panOf(sps.x) });
         spawnParticles(FX.dust, sps.x, sps.y - sps.half, 8);
         spawnParticles(FX.springBurst, sps.x, sps.y - sps.half); // 美术升级 6：弹簧弹射火花
         gs.shake = Math.max(gs.shake, 0.25);
+        gs.hitstop = Math.max(gs.hitstop, VIS.screen.hitstopMax * 0.4);
         break;
       }
-      case 'player:dashed':
-        sfx.dash();
+      case 'player:dashed': {
+        const dsp = playerController.getState();
+        sfx.dash({ pan: panOf(dsp.x) });
+        spawnParticles(FX.dashStreak, dsp.x, dsp.y); // 冲刺拖尾火花
         break;
+      }
       case 'player:landed':
         if (event.impact > 7.5) {
           const s = playerController.getState();
           spawnParticles(FX.dust, s.x, s.y - s.half, 6);
-          sfx.land(event.impact * 0.02);
+          spawnParticles(FX.landRing, s.x, s.y - s.half); // 重落地冲击环
+          sfx.land(event.impact * 0.02, { pan: panOf(s.x) });
         }
         break;
-      case 'player:respawned':
-        // 复活无全局副作用（trail 清理在 controller 内部）
+      case 'player:respawned': {
+        // 复活：上行短琶音（回归感）；trail 清理在 controller 内部
+        const rp = playerController.getState();
+        sfx.respawn({ pan: panOf(rp.x) });
         break;
+      }
       case 'player:doubleJumped': {
         const dj = playerController.getState();
         spawnParticles(FX.doubleJump, dj.x, dj.y - dj.half, 8);
+        sfx.doubleJump({ pan: panOf(dj.x) });
         break;
       }
     }
@@ -939,10 +1050,12 @@ export function handleKeyDown(e: KeyboardEvent): void {
     gs.toastT = 2;
   }
 
+  // 静音开关：走 Settings（持久化 + 分轨总线同步），不再直接改 AU.on
   if (e.code === 'KeyM') {
-    AU.on = !AU.on;
-    gs.toast = AU.on ? '♪ 音效：开' : '♪ 音效：关';
+    const muted = !Settings.data.muted;
+    Settings.set({ muted });
+    gs.toast = muted ? '♪ 静音' : '♪ 恢复声音';
     gs.toastT = 2;
-    if (AU.on && AU.ctx) MUS.next = AU.ctx.currentTime + 0.05;
+    if (!muted) resetMusicClock();
   }
 }

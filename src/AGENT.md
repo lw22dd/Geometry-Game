@@ -20,9 +20,9 @@ src/
 │   └── weapons/  # 空目录
 ├── core/ecs/  # ECS 全部组件集中定义：core/ecs/components.ts（SoA 数值组件 + 标签组件 + AoS 侧表）
 ├── config/  # 纯数据 + 注册表：物理参数、关卡布局、背景装饰、cpPoint 复活点
-├── core/  # 无业务逻辑的底座：画布、输入、鼠标、音效、相机、数学、路径几何、轨道编解码、netBus、ECS、UI
+├── core/  # 无业务逻辑的底座：画布、输入、鼠标、音效与分层 BGM、玩家设置持久化、相机、数学、路径几何、轨道编解码、netBus、ECS、UI
 │   ├── ecs/  # bitECS 底座：world.ts（世界/注册/清空）+ components.ts（全部 SoA/AoS 组件）+ queries.ts（语义查询）
-│   └── uiComponent/  # UI 框架：UIManager + Button / Toggle / TextInput 组件
+│   └── uiComponent/  # UI 框架：UIManager + Button / Toggle / Slider / TextInput 组件
 ├── net/  # 网络层：NetClient（WebSocket）+ session 状态机 + room 房间状态
 ├── Prefabs/  # 预制体：实体工厂 / 角色 / 场景道具 / 特效的绘制建模
 │   ├── Enemy/  # 规划中（尚未创建）
@@ -44,7 +44,7 @@ src/
 │   ├── level/  # 关卡级系统：MotionSystem / SpringSystem / LaserTimerSystem / CollisionSystem / AuraSystem / OverlapUtils
 │   ├── player/  # 玩家控制：PlayerController + 物理引擎（stepPlayerGeneric）+ 玩家 ECS 实体（playerEntity）+ 统一 tick 管线 + remote 联机
 │   ├── quest/  # 规划中（尚未创建）
-│   ├── ui/  # 界面：菜单 / 准备 / 大厅 / 暂停 / 开发者 / 图鉴 / 操作说明 + HUD + 小地图 + 共享图元/图标/主题
+│   ├── ui/  # 界面：菜单 / 准备 / 大厅 / 暂停 / 开发者 / 图鉴 / 操作说明 / 设置 + HUD + 小地图 + 共享图元/图标/主题
 │   │   └── styles/  # 规划中（尚未创建）
 │   └── items/  # 物品系统（背包、钩锁、主动道具槽位）
 └── types/  # 共享类型定义（PlayerState / InputKeys / FrameSignals / NetPlayerState / ...）

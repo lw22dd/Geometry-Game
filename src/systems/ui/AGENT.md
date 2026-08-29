@@ -14,6 +14,7 @@
 - **dev.ts** — 开发者场景（物理网格 / 调试 HUD 开关 / FPS 计数器）
 - **gallery.ts** — 预制体图鉴场景
 - **instructions.ts** — 操作说明弹窗场景
+- **settings.ts** — 设置面板（主/音效/音乐三条音量滑块 + 静音 + 后期特效开关 + 画质四档 + 恢复默认；改动即时写入 core/settings 并持久化）
 - **scenes.ts** — 场景组合根（注册全部场景 + 每帧 syncUI 自动路由）
 </details>
 
@@ -30,6 +31,7 @@ systems/ui/
 ├── dev.ts           # 开发者场景
 ├── gallery.ts       # 预制体图鉴场景
 ├── instructions.ts  # 操作说明弹窗场景
+├── settings.ts      # 设置面板：音量滑块 / 静音 / 后期开关 / 画质档位（openSettings 由菜单与暂停共用）
 └── scenes.ts        # 组合根：注册 + syncUI
 ```
 

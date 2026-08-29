@@ -253,7 +253,7 @@ export interface TrailPoint {
 }
 
 /** 粒子类型 */
-export type ParticleKind = 'dot' | 'frag' | 'arrow';
+export type ParticleKind = 'dot' | 'frag' | 'arrow' | 'streak' | 'ring' | 'shock';
 
 /** 粒子 */
 export interface Particle {
@@ -269,6 +269,14 @@ export interface Particle {
   type: ParticleKind;
   rot: number;
   vr: number;
+  /** streak 专用：拖尾长度（世界米） */
+  len?: number;
+  /** ring / shock 专用：起始半径（世界米） */
+  r0?: number;
+  /** ring / shock 专用：结束半径（世界米） */
+  r1?: number;
+  /** ring / shock / streak 专用：描边线宽（逻辑像素） */
+  lw?: number;
 }
 
 /** 玩家动画状态（预制体 FSM 输出） */
@@ -338,6 +346,35 @@ export interface GameState {
   toastT: number;
   flash: number;
   shake: number;
+  /**
+   * 命中停顿剩余时间（秒）。> 0 时主循环冻结物理推进、只跑渲染，
+   * 用于强化死亡/破盾/弹射等瞬间的冲击感。联机房主会话下不启用。
+   */
+  hitstop: number;
+}
+
+/**
+ * 地图主题配色（纯观感数据）。
+ * 只影响绘制：平台渐变色相、网格、边界、雾、视差层与功能强调色；
+ * 不参与碰撞与任何玩法判定（碰撞真源仍是 solids）。
+ */
+export interface MapTheme {
+  /** 平台位置渐变色相起点 */
+  hueA: number;
+  /** 平台位置渐变色相终点 */
+  hueB: number;
+  /** 网格线颜色（'r,g,b'） */
+  grid: string;
+  /** 地图边界颜色（'r,g,b'） */
+  border: string;
+  /** 底部雾色（'r,g,b'） */
+  fog: string;
+  /** 功能强调色（危险物 / 收集品发光，'r,g,b'） */
+  accent: string;
+  /** 视差远层两色 */
+  far: [string, string];
+  /** 视差中层两色 */
+  mid: [string, string];
 }
 
 /** 地图描述符 —— 静态几何 + 实体生成描述（config/level.ts 注册表项） */
@@ -354,6 +391,12 @@ export interface MapDefinition {
   spikes: Spike[];
   decos: Deco[];
   hints: Hint[];
+
+  /**
+   * 地图主题配色（可选）：缺省时回退 config/visuals 的 DEFAULT_MAP_THEME。
+   * 只影响观感，不影响碰撞与任何玩法数据。
+   */
+  theme?: MapTheme;
 
   /**
    * ── MVMap 底盘可行走区视觉层（可选，只读）──

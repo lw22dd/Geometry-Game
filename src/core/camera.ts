@@ -35,8 +35,8 @@ export function updateCamera(
   // 冲刺缩放
   const zt = (p.sprint && !p.dead) ? 0.92 : 1;
   view.zoom = lerp(view.zoom, zt, 1 - Math.exp(-4 * dt));
-  // 震屏 / 闪光衰减
-  gs.shake *= Math.exp(-5 * dt);
+  // 闪光衰减（震屏已移至渲染层做屏幕空间位移，不再污染世界坐标，
+  // 否则小地图等以世界坐标绘制的元素会跟着一起抖）
   gs.flash = Math.max(0, gs.flash - dt * 1.8);
   // 视口范围
   const vw = VW / (PPM * view.zoom);
@@ -46,6 +46,6 @@ export function updateCamera(
   cam.x = vw >= mapW ? mapW / 2 : clamp(cam.x, vw / 2, mapW - vw / 2);
   cam.y = vh >= mapH ? mapH / 2 : clamp(cam.y, vh / 2, mapH - vh / 2);
   view.SZ = PPM * view.zoom;
-  view.SL = cam.x - vw / 2 + (Math.random() - 0.5) * gs.shake * 0.5;
-  view.SB = cam.y - vh / 2 + (Math.random() - 0.5) * gs.shake * 0.5;
+  view.SL = cam.x - vw / 2;
+  view.SB = cam.y - vh / 2;
 }

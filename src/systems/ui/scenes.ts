@@ -15,6 +15,7 @@ import { buildLobbyScene, lobby } from './lobby';
 import { buildDevScene } from './dev';
 import { buildGalleryScene } from './gallery';
 import { buildInstructionsScene } from './instructions';
+import { buildSettingsScene } from './settings';
 import { prepare, buildPrepareScene, buildMapSelectScene, buildCharSelectScene } from './prepare';
 import { net } from '../../net';
 import { resetRoom, room } from '../../net/room';
@@ -50,6 +51,13 @@ export function registerUIScenes(): void {
         resetRemotes();
       }
       ui.show('menu');
+    },
+  }));
+
+  // ── 设置场景（叠层：音量 / 后期 / 画质档位）──
+  ui.register(buildSettingsScene({
+    onBack: () => {
+      ui.popOverlay();
     },
   }));
 

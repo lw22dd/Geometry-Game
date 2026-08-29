@@ -11,6 +11,11 @@ import { registerUIScenes } from './systems/ui/scenes';
 import { ui } from './core/uiComponent';
 import './netBridge'; // 装配 netBus（组合根，副作用）
 import { initECSFromLevel } from './config/level';
+import { Settings } from './core/settings';
+
+// 载入玩家设置（音量 / 画质）—— 必须早于 UI 与音频初始化，
+// 否则首帧用的是默认参数，随后才被覆盖（画面与音量会闪一下）。
+Settings.load();
 
 // 初始化 ECS 实体（玩家、光球、检查点、NOVA）
 initECSFromLevel();
@@ -37,6 +42,13 @@ function lxly(e: MouseEvent): [number, number] {
   ];
 }
 
+// 鼠标按下 → UIManager 分发（滑块拖拽起点；必须早于 click，否则 mouseup 先过境）
+cv.addEventListener('mousedown', (e: MouseEvent) => {
+  if (e.button !== 0) return;
+  const [lx, ly] = lxly(e);
+  ui.handlePress(lx, ly);
+});
+
 // 点击 → UIManager 分发
 cv.addEventListener('click', (e: MouseEvent) => {
   const [lx, ly] = lxly(e);
@@ -47,6 +59,11 @@ cv.addEventListener('click', (e: MouseEvent) => {
 cv.addEventListener('mousemove', (e: MouseEvent) => {
   const [lx, ly] = lxly(e);
   ui.handleMove(lx, ly);
+});
+
+// 鼠标抬起 → UIManager 分发（结束滑块等组件的拖拽；挂 window 以便拖出画布也能结束）
+window.addEventListener('mouseup', () => {
+  ui.handleRelease();
 });
 
 // 滚轮 → UIManager 分发（选择页滚动等）；消费后阻止页面滚动

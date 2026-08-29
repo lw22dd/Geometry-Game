@@ -39,9 +39,9 @@ export class UIManager {
     return gs.scene;
   }
 
-  /** 当前场景对象（供外部操作组件可见性等） */
+  /** 当前场景对象（供外部操作组件可见性等；与 currentName 同源，实时解析） */
   get currentScene(): UIScene | null {
-    return this.current;
+    return this.active;
   }
 
   /** 当前叠层栈（只读，调试用） */
@@ -92,6 +92,23 @@ export class UIManager {
     this.applyScene();
   }
 
+  /**
+   * 当前场景对象 —— 按 currentName **实时解析**，而非读缓存。
+   *
+   * 背景：外部代码若绕过 show() 直接写 gs.scene（历史上 startGame 就这么做过），
+   * 派生的 currentName 会变而缓存的 current 不变，于是"画面已经是游戏、
+   * 点击却打在菜单按钮上"。事件分发与绘制一律走本 getter，保证与真源一致。
+   */
+  private get active(): UIScene | null {
+    const name = this.currentName;
+    return name ? this.scenes.get(name) ?? null : null;
+  }
+
+  /** 场景同步：真源已变但尚未走 applyScene 时补齐 onExit/onEnter（幂等，无变化即返回） */
+  private syncScene(): void {
+    if (this._currentName !== this.currentName) this.applyScene();
+  }
+
   /** 按派生 currentName 真正切换场景 */
   private applyScene(): void {
     const name = this.currentName;
@@ -105,7 +122,7 @@ export class UIManager {
     this._setCursor(false);
     // 进入新场景
     this._currentName = name;
-    this.current = name ? this.scenes.get(name) ?? null : null;
+    this.current = this.active;
     if (this.current) {
       this.current.onEnter?.();
     }
@@ -113,12 +130,14 @@ export class UIManager {
 
   /** 鼠标移动：分发 hover 状态 */
   handleMove(lx: number, ly: number): void {
-    if (!this.current) {
+    this.syncScene();
+    const s = this.active;
+    if (!s) {
       this._clearHover();
       return;
     }
     let found: UIWidget | null = null;
-    for (const w of this.current.widgets) {
+    for (const w of s.widgets) {
       if (!w.visible) continue;
       const h = w.hit(lx, ly);
       if (w.focusable) {
@@ -127,6 +146,8 @@ export class UIManager {
         w.hover = h;
       }
       if (h && !found) found = w;
+      // 拖拽中的组件持续接收移动事件（指针移出组件范围也不中断拖拽）
+      if (w.dragging) w.onDrag?.(lx, ly);
     }
     if (this.hovered !== found) {
       this.hovered = found;
@@ -134,11 +155,31 @@ export class UIManager {
     }
   }
 
+  /**
+   * 鼠标按下：分发给命中的组件（拖拽起点）。
+   * 与 handleClick 同样的命中顺序（最上层优先），但不处理焦点，只回调 onPress。
+   */
+  handlePress(lx: number, ly: number): boolean {
+    this.syncScene();
+    const s = this.active;
+    if (!s) return false;
+    const ws = s.widgets;
+    for (let i = ws.length - 1; i >= 0; i--) {
+      const w = ws[i];
+      if (!w.visible || !w.hit(lx, ly)) continue;
+      w.onPress?.(lx, ly);
+      return true;
+    }
+    return false;
+  }
+
   /** 点击：分发给命中的组件 */
   handleClick(lx: number, ly: number): boolean {
-    if (!this.current) return false;
+    this.syncScene();
+    const s = this.active;
+    if (!s) return false;
     // 从后往前遍历（最上层优先）
-    const ws = this.current.widgets;
+    const ws = s.widgets;
     for (let i = ws.length - 1; i >= 0; i--) {
       const w = ws[i];
       if (!w.visible || !w.hit(lx, ly)) continue;
@@ -161,7 +202,7 @@ export class UIManager {
           this._focusedId = null;
         }
       }
-      w.onClick?.();
+      w.onClick?.(lx, ly);
       return true;
     }
     // 点击空白 → 失焦
@@ -175,31 +216,50 @@ export class UIManager {
 
   /** 键盘：优先分发给聚焦输入框，再给场景各组件 */
   handleKey(e: KeyboardEvent): boolean {
-    if (!this.current) return false;
+    this.syncScene();
+    const s = this.active;
+    if (!s) return false;
     // 聚焦输入框优先
     if (this._focusedId) {
-      const fw = this.current.widgets.find(w => w.id === this._focusedId);
+      const fw = s.widgets.find(w => w.id === this._focusedId);
       if (fw?.onKey?.(e)) return true;
     }
     // 其他组件
-    for (const w of this.current.widgets) {
+    for (const w of s.widgets) {
       if (w.id === this._focusedId) continue;
       if (w.onKey?.(e)) return true;
     }
     return false;
   }
 
+  /** 鼠标抬起：结束所有组件的拖拽（挂在 window 上，拖出画布也能正确结束） */
+  handleRelease(): void {
+    this.syncScene();
+    const s = this.active;
+    if (!s) return;
+    for (const w of s.widgets) {
+      if (w.dragging) {
+        w.dragging = false;
+        w.onRelease?.();
+      }
+    }
+  }
+
   /** 滚轮：分发给当前场景的 onWheel（返回 true 表示已消费） */
   handleWheel(dy: number): boolean {
-    if (!this.current) return false;
-    return this.current.onWheel?.(dy) ?? false;
+    this.syncScene();
+    const s = this.active;
+    if (!s) return false;
+    return s.onWheel?.(dy) ?? false;
   }
 
   /** 绘制当前场景（场景背景 + 全部组件） */
   draw(t: number): void {
-    if (!this.current) return;
-    this.current.draw?.(t);
-    for (const w of this.current.widgets) {
+    this.syncScene();
+    const s = this.active;
+    if (!s) return;
+    s.draw?.(t);
+    for (const w of s.widgets) {
       if (!w.visible) continue;
       w.draw(t);
     }

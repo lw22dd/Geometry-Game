@@ -9,4 +9,6 @@ export { TextInput } from './TextInput';
 export type { TextInputOpts } from './TextInput';
 export { Toggle } from './Toggle';
 export type { ToggleOpts } from './Toggle';
+export { Slider } from './Slider';
+export type { SliderOpts } from './Slider';
 export { ui, UIManager } from './manager';

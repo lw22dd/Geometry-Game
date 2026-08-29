@@ -13,7 +13,9 @@ core/
 ├── math.ts         # clamp / lerp / mulberry32 RNG / rr 圆角矩形路径 / fmt 时间格式化
 ├── input.ts        # 键盘状态表 keys + 事件注册回调
 ├── mouse.ts        # 鼠标逻辑坐标状态（mousedown 边沿服务钩锁瞄准；UI 走 uiComponent 自带监听）
-├── audio.ts        # WebAudio 合成音效：AU 上下文、tone/nz 合成器、sfx 音效表、MUS 低音循环
+├── audio.ts        # WebAudio 合成音频：AU 上下文 + 分轨总线（sfx/bgm/master + 限幅器）、osc/noise 合成原语（ADSR/滤波/声像）、sfx 音效表（含节流）
+├── music.ts        # 分层动态 BGM：bass / arp / pad / perc 四层 + 状态机（menu/playing/tension/victory）+ 前瞻调度
+├── settings.ts     # 玩家设置存储：音量 / 静音 / 画质档位，localStorage 持久化（键 dash.settings.v1）+ 变更订阅
 ├── camera.ts       # 相机世界坐标 cam、视口变换 view（SL/SB/SZ）、sx/sy 坐标换算、updateCamera
 ├── netBus.ts       # 事件总线（systems↔net 交界，当前为桩）
 ├── collisionBus.ts # 碰撞事件总线（发布/订阅）：CollisionSystem emit，CollisionHooks 订阅
@@ -39,4 +41,4 @@ core/
 3. 输出：流出的方向和目的
 
 
-`ctx` / `VW` / `VH` / `DPR` → `systems/` 渲染和 `Prefabs/` 绘制。`keys` 状态表 → `systems/player` 读取输入。`mouse` → `systems/items/hook`（瞄准/发射）。`sfx` / `MUS` / `musicTick` → `systems/game` 播放音效和音乐。`cam` / `view` / `sx` / `sy` → 所有绘制函数。`path` → `systems/player`（轨道物理）、`systems/items`（钩锁）、`Prefabs/Scenes`（轨道绘制）、`config/level`（轨道工厂）。`trackCodec` → `systems/game` / `remote.ts`（网络同步）。`EntityPool` → `systems/particles`（粒子池，粒子不进入 ECS）。`world` / 组件 / 查询 → `systems/*` 与 `Prefabs/*`（依赖注入非强制，全项目共享单世界）。`ui`（UIManager）→ `systems/ui/scenes.ts` 注册场景，`main.ts` 每帧分发事件与绘制。
+`ctx` / `VW` / `VH` / `DPR` → `systems/` 渲染和 `Prefabs/` 绘制。`keys` 状态表 → `systems/player` 读取输入。`mouse` → `systems/items/hook`（瞄准/发射）。`sfx` → 各交互系统播放音效（可传 pan 声像）。`musicTick` / `setMusicState` → `systems/game` 每帧调度音乐（强度由 `core/music` 按乐句自行起伏，不再绑定玩家状态）。`Settings` → `core/audio`（音量写回总线）、`config/visuals`（画质写回 VIS）、`systems/postfx`（后期总开关）。`cam` / `view` / `sx` / `sy` → 所有绘制函数。`path` → `systems/player`（轨道物理）、`systems/items`（钩锁）、`Prefabs/Scenes`（轨道绘制）、`config/level`（轨道工厂）。`trackCodec` → `systems/game` / `remote.ts`（网络同步）。`EntityPool` → `systems/particles`（粒子池，粒子不进入 ECS）。`world` / 组件 / 查询 → `systems/*` 与 `Prefabs/*`（依赖注入非强制，全项目共享单世界）。`ui`（UIManager）→ `systems/ui/scenes.ts` 注册场景，`main.ts` 每帧分发事件与绘制。
