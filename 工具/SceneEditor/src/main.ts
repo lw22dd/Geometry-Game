@@ -16,7 +16,7 @@ import {
 } from './render';
 import { buildPalette } from './palette';
 import { buildInspector } from './inspector';
-import { saveToFile, loadFromFile, showExport, autoSave, loadAutoSave, buildImportDialog, setExportTab, runSelfCheck, buildTemplateDialog, importMvMap } from './io';
+import { openSaveTemplateDialog, loadFromFile, showExport, autoSave, loadAutoSave, buildImportDialog, setExportTab, runSelfCheck, buildTemplateDialog, importMvMap } from './io';
 import { createEmptyMapData, hitTest, hitTestRect, rectCenter, rectRad, rectWorldCorners, rectTopCenter, placeInstanceAt } from './mapTypes';
 import { getPrefabEntry, getEntryByType } from './registry';
 import { buildOutliner } from './outliner';
@@ -303,7 +303,7 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
   }
   if (e.ctrlKey && e.key === 'z') { store.undo(); e.preventDefault(); }
   if (e.ctrlKey && e.key === 'Z' && e.shiftKey) { store.redo(); e.preventDefault(); }
-  if (e.ctrlKey && e.key === 's') { saveToFile(store); e.preventDefault(); }
+  if (e.ctrlKey && e.key === 's') { openSaveTemplateDialog(store); e.preventDefault(); }
   if (e.ctrlKey && e.key === 'd') { store.duplicateSelected(); e.preventDefault(); }
   if (e.ctrlKey && e.key === 'c') {
     if (document.activeElement?.tagName === 'INPUT') return;
@@ -344,7 +344,7 @@ function execCommand(cmd: string): void {
       }).catch(() => {});
       break;
     case 'save':
-      saveToFile(store);
+      openSaveTemplateDialog(store);
       break;
     case 'import-game':
       buildImportDialog(store);
@@ -388,7 +388,7 @@ function execCommand(cmd: string): void {
       break;
     case 'help-shortcuts':
       showToast(
-        'Ctrl+Z 撤销 · Ctrl+Shift+Z 重做 · Ctrl+S 保存 · Ctrl+D 克隆 · Del 删除 · Ctrl+C/V 复制/粘贴 · Esc 取消选中',
+        'Ctrl+Z 撤销 · Ctrl+Shift+Z 重做 · Ctrl+S 保存为模板 · Ctrl+D 克隆 · Del 删除 · Ctrl+C/V 复制/粘贴 · Esc 取消选中',
         'info',
       );
       break;

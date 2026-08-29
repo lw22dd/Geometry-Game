@@ -127,3 +127,54 @@ export function drawHints(): void {
   }
   ctx.textAlign = 'left';
 }
+
+/* ==================== 漂浮尘埃 / 底部雾（美术升级 3） ==================== */
+
+/** 前景漂浮尘埃（不进 ECS，同 trail 轻量管理；step 中调用 stepMotes） */
+interface Mote { x: number; y: number; vx: number; vy: number; r: number; ph: number; }
+const motes: Mote[] = [];
+
+export function stepMotes(dt: number): void {
+  while (motes.length < 26) {
+    motes.push({
+      x: view.SL + Math.random() * (VW / view.SZ),
+      y: view.SB + Math.random() * (VH / view.SZ),
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: 0.08 + Math.random() * 0.22,
+      r: 0.02 + Math.random() * 0.05,
+      ph: Math.random() * 6.28,
+    });
+  }
+  for (let i = motes.length - 1; i >= 0; i--) {
+    const m = motes[i];
+    m.x += (m.vx + Math.sin(gs.time * 0.7 + m.ph) * 0.15) * dt;
+    m.y += m.vy * dt;
+    if (m.y > view.SB + VH / view.SZ + 2) motes.splice(i, 1);
+  }
+}
+
+export function drawMotes(): void {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = '#bcd8ff';
+  for (const m of motes) {
+    const a = 0.12 + 0.12 * Math.sin(gs.time * 1.3 + m.ph);
+    if (a <= 0.02) continue;
+    ctx.globalAlpha = a;
+    ctx.beginPath();
+    ctx.arc(sx(m.x), sy(m.y), m.r * view.SZ, 0, 6.283);
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+/** 底部雾（缓慢呼吸，增加纵深） */
+export function drawFog(): void {
+  const wob = 0.10 + 0.03 * Math.sin(gs.time * 0.5);
+  const g = ctx.createLinearGradient(0, VH * 0.72, 0, VH);
+  g.addColorStop(0, 'rgba(90,70,180,0)');
+  g.addColorStop(1, 'rgba(90,70,180,' + wob.toFixed(3) + ')');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, VH * 0.72, VW, VH * 0.28);
+}

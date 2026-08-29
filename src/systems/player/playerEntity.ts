@@ -17,8 +17,8 @@ import { addEntity, addComponent } from 'bitecs';
 import {
   world,
   Position, Velocity, Collider, Player, PlayerControl, PlayerInput,
-  JumpCharges, ImpulseQueue, Backpack, PlayerTrackState, PlayerPlat,
-  ITEM_DOUBLE_JUMP, ITEM_HOOK, PlayerModifiers, ControlMode,
+  JumpCharges, ShieldCharges, ImpulseQueue, Backpack, PlayerTrackState, PlayerPlat,
+  ITEM_DOUBLE_JUMP, ITEM_HOOK, ITEM_SHIELD, PlayerModifiers, ControlMode,
 } from '../../core/ecs';
 import { qLocalPlayer } from '../../core/ecs';
 import type { ItemId, PlayerState, TrackState } from '../../types';
@@ -31,14 +31,18 @@ export function getPlayerEid(): number {
   return playerEid;
 }
 
-/** 道具 id → 背包编码（与 Backpack 组件常量一致；0=doubleJump，1=hook） */
+/** 道具 id → 背包编码（与 Backpack 组件常量一致；0=doubleJump，1=hook，2=shield） */
 function itemToCode(id: ItemId): number {
-  return id === 'hook' ? ITEM_HOOK : ITEM_DOUBLE_JUMP;
+  if (id === 'hook') return ITEM_HOOK;
+  if (id === 'shield') return ITEM_SHIELD;
+  return ITEM_DOUBLE_JUMP;
 }
 
 /** 背包编码 → 道具 id（未知编码防御为 doubleJump） */
 function codeToItem(code: number): ItemId {
-  return code === ITEM_HOOK ? 'hook' : 'doubleJump';
+  if (code === ITEM_HOOK) return 'hook';
+  if (code === ITEM_SHIELD) return 'shield';
+  return 'doubleJump';
 }
 
 /**
@@ -62,6 +66,7 @@ export function ensurePlayerEntity(playerId: number): number {
     addComponent(world, e, PlayerControl);
     addComponent(world, e, PlayerInput);
     addComponent(world, e, JumpCharges);
+    addComponent(world, e, ShieldCharges);
     addComponent(world, e, ControlMode);
     ControlMode.mode[e] = 0; // S3 仲裁初始值 = free
     // AoS 侧表槽位初始化
@@ -105,9 +110,11 @@ export function syncToEcs(p: PlayerState): void {
   PlayerControl.hookMissT[e] = p.hookMissT;
   PlayerControl.selectedSlot[e] = p.selectedSlot;
 
-  // 契约组件：空中跳充能 / 外力队列
+  // 契约组件：空中跳充能 / 护盾格挡 / 外力队列
   JumpCharges.left[e] = p.extraJumps;
   JumpCharges.max[e] = p.extraJumpsMax;
+  ShieldCharges.left[e] = p.shields;
+  ShieldCharges.max[e] = p.shieldsMax;
   ImpulseQueue[e] = p.impulses;
 
   // 复杂对象侧表
@@ -144,6 +151,8 @@ export function syncFromEcs(e: number = playerEid): PlayerState | null {
     inv: PlayerControl.inv[e],
     extraJumps: JumpCharges.left[e],
     extraJumpsMax: JumpCharges.max[e],
+    shields: ShieldCharges.left[e],
+    shieldsMax: ShieldCharges.max[e],
     jumpWasDown: PlayerControl.jumpWasDown[e] === 1,
     jumpFresh: PlayerControl.jumpFresh[e] === 1,
     impulses: (ImpulseQueue[e] ?? []).slice(),

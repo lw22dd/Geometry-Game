@@ -15,19 +15,119 @@ import { showToast } from './toast';
 import { renderIcon } from './td-icons';
 import { importMvMapFile, MvImportError } from './mvmapImport';
 
-/* ==================== 保存（下载标准地图数据 JSON v2） ==================== */
+/* ==================== 保存为模板（当前地图 → 自定义模板，存浏览器 localStorage） ==================== */
 
-export function saveToFile(store: EditorStore): void {
-  const data = store.mapSnapshot();
-  const json = JSON.stringify(data, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${data.id}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  showToast(`已保存 ${data.name}（${data.width}×${data.height}）`, 'success');
+/** 自定义模板的浏览器存储键（模板存在本地，与 MVMap 的 Storage 思路一致） */
+const USER_TEMPLATES_KEY = 'mapcreater.userTemplates';
+
+interface UserTemplate {
+  id: string;
+  name: string;
+  icon: string;
+  desc: string;
+  /** 模板的 MapData 快照（深拷贝存储） */
+  data: MapData;
+}
+
+/** 「保存为模板」弹窗当前作用的地图 store */
+let saveTplStore: EditorStore | null = null;
+
+function loadUserTemplates(): UserTemplate[] {
+  try {
+    const raw = localStorage.getItem(USER_TEMPLATES_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(
+      (t): t is UserTemplate => !!t && typeof t.id === 'string' && !!t.data && typeof t.data === 'object',
+    );
+  } catch { return []; }
+}
+
+function persistUserTemplates(list: UserTemplate[]): void {
+  localStorage.setItem(USER_TEMPLATES_KEY, JSON.stringify(list));
+}
+
+function removeUserTemplate(id: string): void {
+  persistUserTemplates(loadUserTemplates().filter((t) => t.id !== id));
+}
+
+/** 打开「保存为模板」弹窗（文件菜单 / 快捷键 Ctrl+S 入口） */
+export function openSaveTemplateDialog(store: EditorStore): void {
+  saveTplStore = store;
+  const nameEl = document.getElementById('templateSaveName') as HTMLInputElement;
+  nameEl.value = store.map.name || '';
+  document.getElementById('templateSaveOverlay')!.classList.remove('hidden');
+  nameEl.focus();
+  nameEl.select();
+}
+
+/** 关闭「保存为模板」弹窗 */
+export function hideTemplateSave(): void {
+  document.getElementById('templateSaveOverlay')!.classList.add('hidden');
+}
+
+/**
+ * 确认：把当前地图保存为模板。
+ * 优先通过 dev 服务器自动写入 src/mapTemplate/*.ts 并注册进 templates.ts（需 npm run dev）；
+ * 写入失败时回退为浏览器 localStorage 自定义模板。
+ */
+export function confirmSaveTemplate(): void {
+  const nameEl = document.getElementById('templateSaveName') as HTMLInputElement;
+  const iconEl = document.getElementById('templateSaveIcon') as HTMLSelectElement;
+  const descEl = document.getElementById('templateSaveDesc') as HTMLInputElement;
+  const name = nameEl.value.trim();
+  if (!name) { showToast('请输入模板名称', 'error'); nameEl.focus(); return; }
+  if (!saveTplStore) { showToast('未找到当前地图', 'error'); return; }
+
+  const icon = iconEl?.value || 'Star';
+  const desc = descEl?.value.trim() || '';
+  const snapshot = saveTplStore.mapSnapshot();
+
+  // 先落一份到浏览器 localStorage 兜底（dev 写入失败时也能用）
+  const tpl: UserTemplate = {
+    id: 'tpl-' + Date.now().toString(36),
+    name,
+    icon,
+    desc,
+    data: JSON.parse(JSON.stringify(snapshot)) as MapData,
+  };
+  try {
+    const list = loadUserTemplates();
+    list.push(tpl);
+    persistUserTemplates(list);
+  } catch {
+    showToast('模板保存失败（可能超出浏览器存储上限）', 'error');
+    return;
+  }
+  hideTemplateSave();
+
+  // 自动写入 src/mapTemplate/*.ts（dev 服务器中间件；不可用则提示手动导出）
+  saveTemplateSourceToDisk(name, icon, desc, snapshot).then((res) => {
+    if (res.ok) {
+      removeUserTemplate(tpl.id); // 已固化为内置源码模板，移除浏览器里的重复副本
+      showToast(`已保存为模板「${name}」→ 写入 src/mapTemplate/${res.fileName}（已在 templates.ts 注册）`, 'success');
+    } else {
+      showToast(`已保存为浏览器模板「${name}」（未自动写入源码：${res.error}）。可用「导出为内置模板源码」手动生成文件`, 'info');
+    }
+  });
+}
+
+/** 经 dev 服务器把当前地图自动写入 src/mapTemplate/*.ts 并注册（vite.config.ts 的中间件） */
+function saveTemplateSourceToDisk(
+  name: string, icon: string, desc: string, snapshot: MapData,
+): Promise<{ ok: boolean; fileName?: string; error?: string }> {
+  return fetch('/__dsh-template-save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, icon, desc, data: snapshot }),
+  })
+    .then((r) => r.json().catch(() => ({ ok: false, error: '响应解析失败' })))
+    .then((j) => {
+      if (j && j.ok) return { ok: true, fileName: j.fileName as string };
+      return { ok: false, error: (j && j.error) || '写入失败' };
+    })
+    .catch(() => ({ ok: false, error: 'dev 服务器不可用（请用 npm run dev 启动编辑器）' }));
 }
 
 /* ==================== 加载（从文件读取，兼容 v1/v2） ==================== */
@@ -222,29 +322,71 @@ export function importMvMap(store: EditorStore): void {
 
 /* ==================== 模板新建弹窗 ==================== */
 
-/** 构建模板选择列表并打开弹窗 */
+/** HTML 转义（用户输入的模板名/描述可能含特殊字符） */
+function escHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string
+  ));
+}
+
+/** 构建模板选择列表并打开弹窗（内置模板 + 自定义模板） */
 export function buildTemplateDialog(store: EditorStore): void {
   const overlay = document.getElementById('templateOverlay')!;
   const list = document.getElementById('templateList')!;
   list.innerHTML = '';
-  for (const tpl of MAP_TEMPLATES) {
+
+  const items: {
+    id: string; name: string; icon: string; desc: string;
+    removable: boolean; create: () => MapData;
+  }[] = [
+    ...MAP_TEMPLATES.map((tpl) => ({
+      id: tpl.id, name: tpl.name, icon: tpl.icon, desc: tpl.desc,
+      removable: false,
+      create: () => tpl.create(),
+    })),
+    ...loadUserTemplates().map((ut) => ({
+      id: ut.id, name: ut.name, icon: ut.icon, desc: ut.desc,
+      removable: true,
+      create: () => JSON.parse(JSON.stringify(ut.data)) as MapData,
+    })),
+  ];
+
+  for (const it of items) {
+    const row = document.createElement('div');
+    row.className = 'template-row';
+
     const btn = document.createElement('button');
     btn.className = 'template-item';
     btn.innerHTML = `
-      <span class="template-icon">${renderIcon(tpl.icon, 18)}</span>
+      <span class="template-icon">${renderIcon(it.icon, 18)}</span>
       <span class="template-main">
-        <span class="template-name">${tpl.name}</span>
-        <span class="template-desc">${tpl.desc}</span>
+        <span class="template-name">${escHtml(it.name)}</span>
+        <span class="template-desc">${escHtml(it.desc)}</span>
       </span>
-      <code>${tpl.id}</code>`;
+      <code>${escHtml(it.id)}</code>`;
     btn.addEventListener('click', () => {
-      store.loadMap(tpl.create());
+      store.loadMap(it.create());
       centerOn(store.map.playerSpawn.x, store.map.playerSpawn.y, 0.8);
       overlay.classList.add('hidden');
       store.onChange?.();
-      showToast(`已新建「${tpl.name}」`, 'success');
+      showToast(`已新建「${it.name}」`, 'success');
     });
-    list.appendChild(btn);
+    row.appendChild(btn);
+
+    if (it.removable) {
+      const del = document.createElement('button');
+      del.className = 'template-del';
+      del.title = '删除此模板';
+      del.textContent = '×';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeUserTemplate(it.id);
+        buildTemplateDialog(store);
+        showToast(`已删除模板「${it.name}」`, 'info');
+      });
+      row.appendChild(del);
+    }
+    list.appendChild(row);
   }
   overlay.classList.remove('hidden');
 }
@@ -301,6 +443,8 @@ const win = window as any;
 win.hideExport = () => document.getElementById('exportOverlay')!.classList.add('hidden');
 win.hideImport = () => document.getElementById('importOverlay')!.classList.add('hidden');
 win.hideTemplate = () => document.getElementById('templateOverlay')!.classList.add('hidden');
+win.hideTemplateSave = hideTemplateSave;
+win.confirmSaveTemplate = confirmSaveTemplate;
 win.copyExport = () => {
   const ta = document.getElementById('exportCode') as HTMLTextAreaElement;
   ta.select(); ta.setSelectionRange(0, 999999);

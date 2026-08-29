@@ -14,7 +14,7 @@ import type { MapInstance, InstanceType } from './mapTypes';
 // 游戏侧工厂统一收口于 sceneFactory（旧 Prefabs/Scenes/*Entity.ts 已重构合并）
 import {
   createSpike, createOrb, createJumpBoost, createCheckpoint, createNova,
-  createHookPickup, createLoopTrack, createMovingPlatform, createLaser, createSpringPad,
+  createHookPickup, createShieldPickup, createLoopTrack, createMovingPlatform, createLaser, createSpringPad,
 } from '@game/Prefabs/Scene/sceneFactory';
 // 弹簧默认数值与游戏侧单一数据源（垂直/水平预设）
 import { VERTICAL_SPRING, HORIZONTAL_SPRING } from '@game/config/springs';
@@ -87,6 +87,16 @@ export const PREFAB_ENTRIES: PrefabEntry[] = [
       { key: 'rotation', label: '旋转°', type: 'number', step: 5 },
     ],
     defaults: () => ({ type: 'hookPickup', x: 0, y: 0 }),
+  },
+  {
+    toolId: 'shieldPickup', type: 'shieldPickup', name: '护盾道具', category: '可收集物',
+    swatch: '#9aa7ff', icon: 'LockOn', factory: createShieldPickup,
+    fields: [
+      { key: 'x', label: 'X', type: 'number', step: 0.5 },
+      { key: 'y', label: 'Y', type: 'number', step: 0.5 },
+      { key: 'rotation', label: '旋转°', type: 'number', step: 5 },
+    ],
+    defaults: () => ({ type: 'shieldPickup', x: 0, y: 0 }),
   },
 
   // ── 机关 ──
@@ -193,8 +203,8 @@ export const PREFAB_ENTRIES: PrefabEntry[] = [
     defaults: () => ({ type: 'nova', x: 0, y: 0 }),
   },
   {
-    toolId: 'track', type: 'track', name: '冲刺轨道', category: '特殊',
-    swatch: '#66d4ff', icon: 'Rollback', factory: createLoopTrack,
+    toolId: 'track', type: 'track', name: '玻璃管道（冲刺轨道）', category: '特殊',
+    swatch: '#66d4ff', icon: 'Refresh', factory: createLoopTrack,
     fields: [
       { key: 'x1', label: '起点 X', type: 'number', step: 0.5 },
       { key: 'y1', label: '起点 Y', type: 'number', step: 0.5 },

@@ -11,8 +11,8 @@ import { addEntity, addComponent } from 'bitecs';
 import { world } from '../../core/ecs';
 import {
   Position, Velocity, Collider, PathMotion, SpringPad, Timer, Hazard,
-  Collectible, RespawnPoint, Goal, Track, Renderable, Animator, TrackGeom,
-  Hookable, Orb, JumpBoost, Hook, renderStyles,
+  Collectible, RespawnPoint, Goal, Track, Aura, Renderable, Animator, TrackGeom,
+  Hookable, Orb, JumpBoost, Hook, ShieldPickup, renderStyles,
 } from '../../core/ecs';
 import type { PathSegment } from '../../types';
 import type { LaserSpawnData, MoverSpawnData, SpringPadSpawnData } from '../../types';
@@ -28,6 +28,7 @@ export const STYLE_JUMP_BOOST = 1;
 export const STYLE_HOOK = 2;
 export const STYLE_CHECKPOINT = 3;
 export const STYLE_NOVA = 4;
+export const STYLE_SHIELD = 5;
 
 /** 写入手写样式表（renderStyles 为 src/ecs 注册表；幂等） */
 function ensureStyles(): void {
@@ -38,6 +39,7 @@ function ensureStyles(): void {
     { bodyGrad: ['#ffe0b3', '#ffb347', '#cc7000'], glow: 'rgba(255,180,70,.85)' },       // 2 hook
     { bodyGrad: ['#7df9ff', '#7df9ff', '#7df9ff'], glow: '#7df9ff' },                    // 3 checkpoint
     { bodyGrad: ['#f2e4ff', '#e3ccff', '#c07dff'], glow: '#c07dff' },                    // 4 nova
+    { bodyGrad: ['#e8f0ff', '#b3c7ff', '#7d6bff'], glow: 'rgba(150,140,255,.85)' },      // 5 shield
   );
 }
 
@@ -108,6 +110,20 @@ export function createHookPickup(x: number, y: number, phase: number): number {
   addComponent(world, e, Hook);
   setRenderable(e, 0.45, STYLE_HOOK);
   setAnimator(e, 'hook', createHoverAnimState({ phase }));
+  return e;
+}
+
+/** 护盾道具（限时 buff：拾取获得 1 格护盾，格挡一次或超时自动失效） */
+export function createShieldPickup(x: number, y: number, phase: number): number {
+  ensureStyles();
+  const e = addEntity(world);
+  setPosition(e, x, y);
+  setCollider(e, 1.2, 1.2, 0);
+  addComponent(world, e, Collectible); Collectible.collected[e] = 0;
+  addComponent(world, e, ShieldPickup);
+  setRenderable(e, 0.45, STYLE_SHIELD);
+  // 复用 hover 动画控制器（浮动/摇摆），绘制层按 shield 样式画盾形
+  setAnimator(e, 'jumpBoost', createHoverAnimState({ phase }));
   return e;
 }
 
@@ -233,6 +249,23 @@ export function createLineTrack(
   const line: PathSegment = { type: 'line', x1, y1, x2, y2 };
   const len = pathTotalLength([line]);
   return createLoopTrack([line], 0, len, speedThreshold);
+}
+
+/**
+ * 光环（范围持续场，扩展占位）。
+ * @param x,y 圆心坐标（格）
+ * @param radius 半径（格）
+ * @param tick 周期结算间隔（秒）；0 = 仅进出不周期
+ * 效果配置（onEnter/onExit/onTick）由 AuraSystem.setAuraFx 注册（"每个光环只是配置"）。
+ */
+export function createAura(x: number, y: number, radius: number, tick = 0): number {
+  const e = addEntity(world);
+  setPosition(e, x, y);
+  addComponent(world, e, Aura);
+  Aura.radius[e] = radius;
+  Aura.tick[e] = tick;
+  Aura.tickT[e] = 0;
+  return e;
 }
 
 /** 便捷：垂直弹簧（默认数值 W2.5×H2，垂直弹跳力 96） */

@@ -16,7 +16,7 @@
  */
 import type { FrameSignals, PlayerState, InputKeys, TrackState } from '../../types';
 import type { PhysicsKey } from '../game/gameMode';
-import { stepPlayerGeneric } from './index';
+import { stepPlayerByMode, resolveControlMode } from './index';
 import { createPlayerState } from './createPlayerState';
 import { recomputeStats } from '../effects';
 import { stepPlayerAnimation } from '../../Prefabs/Player';
@@ -107,7 +107,8 @@ export class PlayerController {
     const wasDead = this.state.dead;
 
     const signals: FrameSignals = {};
-    stepPlayerGeneric(this.state, this.input, dt, isLocal, signals);
+    // S3 消费：按控制权仲裁结果分派物理（TRACK/ZIPLINE/FREE；约束类机制只插仲裁表+消费分支）
+    stepPlayerByMode(this.state, resolveControlMode(this.state), this.input, dt, isLocal, signals);
 
     // 二段跳触发 → 发射事件
     if (signals.doubleJump) {

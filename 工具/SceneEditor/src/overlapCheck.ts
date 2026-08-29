@@ -66,14 +66,14 @@ const fmtR = (r: any) => `${fmtP(r.x, r.y)} ${r.w}×${r.h}`;
 const TYPE_NAMES: Record<string, string> = {
   orb: '光球', jumpBoost: '双跳光球', nova: 'NOVA', deco: '装饰方块',
   hint: '提示文字', spike: '尖刺', checkpoint: '检查点', mover: '移动平台',
-  laser: '激光栅栏', springPad: '弹簧跳板', hookPickup: '钩锁道具', track: '冲刺轨道',
+  laser: '激光栅栏', springPad: '弹簧跳板', hookPickup: '钩锁道具', shieldPickup: '护盾道具', track: '玻璃管道',
 };
 
 /** 与地形重叠的严重级别：可收集/装饰 → 错误；机关/危险/插地 → 警告 */
 const TERRAIN_SEV: Record<string, 'error' | 'warn'> = {
   orb: 'error', jumpBoost: 'error', nova: 'error', deco: 'error',
   spike: 'warn', checkpoint: 'warn', mover: 'warn', laser: 'warn', springPad: 'warn',
-  hookPickup: 'error', track: 'warn',
+  hookPickup: 'error', shieldPickup: 'error', track: 'warn',
 };
 
 /** 重叠面积阈值（格²）：低于此值视为贴边/接触 */

@@ -6,11 +6,11 @@
  * 通用 Collectible 组件 + 类型 tag（Orb / JumpBoost / Hook）。
  * 本模块同时提供共享的光球计数 helper（orbCount），供所有"全部光球"判定复用。
  */
-import { Collectible, Orb, JumpBoost, Hook, qOrbs, qJumpBoosts, qHooks } from '../../core/ecs';
+import { Collectible, Orb, JumpBoost, Hook, ShieldPickup, qOrbs, qJumpBoosts, qHooks, qShields } from '../../core/ecs';
 import { pointInCollider } from '../level';
 
 /** 可拾取物类型（tag 组件 → 道具效果） */
-export type CollectibleKind = 'orb' | 'jumpBoost' | 'hook';
+export type CollectibleKind = 'orb' | 'jumpBoost' | 'hook' | 'shield';
 
 /** 当前地图光球总数（仅 Orb tag） */
 export function orbCount(): number {
@@ -27,7 +27,9 @@ export function updateItemPickupSystem(tx: number, ty: number, kind: Collectible
     ? qOrbs()
     : kind === 'jumpBoost'
       ? qJumpBoosts()
-      : qHooks();
+      : kind === 'hook'
+        ? qHooks()
+        : qShields();
   for (const e of ents) {
     if (Collectible.collected[e]) continue;
     if (!pointInCollider(e, tx, ty)) continue;

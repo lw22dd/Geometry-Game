@@ -27,6 +27,7 @@ import { trail } from '../particles';
 import {
   PathMotion, SpringPad, Track, TrackGeom,
   qMovers, qSpringPads, qHookTargets, qTracks,
+  CONTROL_MODE_TRACK, CONTROL_MODE_ZIPLINE, CONTROL_MODE_DEAD, CONTROL_MODE_CONSTRAINT,
 } from '../../core/ecs';
 import { colliderWorldRect } from '../level';
 import {
@@ -148,16 +149,69 @@ export function stepPlayerGeneric(
   isLocal: boolean,
   outSignals?: FrameSignals,
 ): void {
-  // ── 轨道运动分派：在轨玩家不走自由物理 ──
+  // 轨道/滑索 → 轨道分派；否则 → 自由物理（与 S3 消费入口 stepPlayerByMode 逐位一致）
   if (p.track) {
-    // 保持 jumpWasDown 同步（轨道退出后 jumpFresh 不乱）
-    p.jumpWasDown = input.jump;
-    // 钩锁"长按锁定"输入：发射后持续按下左键 → 到站锁定（拉住不动）
-    const hookHeld = input.hook;
-    stepTrackMotion(p, dt, getMode(), outSignals, hookHeld);
+    stepTrackDispatch(p, input, dt, outSignals);
     return;
   }
+  stepFreePhysics(p, input, dt, isLocal, outSignals);
+}
 
+/**
+ * S3 控制权消费入口（MovementSystem 读 ControlMode）—— 按仲裁结果分派物理。
+ * 当前各档映射与旧行为逐位一致（金测试护栏，S1–S8 不变）：
+ *   DEAD → 无物理（死亡计时/复活由 PlayerController 生命周期处理）；
+ *   ZIPLINE / TRACK → 轨道分派（含滑索长按锁定）；
+ *   FREE → 自由物理（含外力消费 / 轨道入口捕获）。
+ * 扩展位：CONSTRAINT（眩晕/定身）→ 玩家被冻结，跳过自由输入积分，仅衰减计时。
+ * 新控制权机制（冰冻/眩晕/强制冲刺）= 在 controlArbiter PRIORITY 表插更高优先级谓词
+ * + 本函数加对应分支；MovementSystem 其余部分零改动 —— "之后眩晕/定身零物理改动"。
+ */
+export function stepPlayerByMode(
+  p: PlayerState,
+  mode: number,
+  input: InputKeys,
+  dt: number,
+  isLocal: boolean,
+  outSignals?: FrameSignals,
+): void {
+  if (mode === CONTROL_MODE_DEAD) return;
+  if (mode === CONTROL_MODE_ZIPLINE || mode === CONTROL_MODE_TRACK) {
+    stepTrackDispatch(p, input, dt, outSignals);
+    return;
+  }
+  // 扩展位：约束类控制权（眩晕/定身）—— 冻结，跳过自由输入积分
+  if (mode === CONTROL_MODE_CONSTRAINT) {
+    p.jumpWasDown = input.jump;
+    decayImpulses(p, dt);
+    p.inv = Math.max(0, p.inv - dt);
+    return;
+  }
+  stepFreePhysics(p, input, dt, isLocal, outSignals);
+}
+
+/** 轨道/滑索运动分派（TRACK / ZIPLINE 档） */
+function stepTrackDispatch(
+  p: PlayerState,
+  input: InputKeys,
+  dt: number,
+  outSignals?: FrameSignals,
+): void {
+  // 保持 jumpWasDown 同步（轨道退出后 jumpFresh 不乱）
+  p.jumpWasDown = input.jump;
+  // 钩锁"长按锁定"输入：发射后持续按下左键 → 到站锁定（拉住不动）
+  const hookHeld = input.hook;
+  stepTrackMotion(p, dt, getMode(), outSignals, hookHeld);
+}
+
+/** 自由物理核心（FREE 档；金测试经 stepPlayerGeneric 直接调用） */
+function stepFreePhysics(
+  p: PlayerState,
+  input: InputKeys,
+  dt: number,
+  isLocal: boolean,
+  outSignals?: FrameSignals,
+): void {
   buildSolids();
 
   // 移动平台携带（水平 + 垂直）

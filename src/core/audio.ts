@@ -87,6 +87,10 @@ export const sfx = {
   jumpBoost(): void { tone('triangle', 660, 990, now(), 0.1, 0.16); tone('triangle', 880, 1320, now() + 0.08, 0.16, 0.14); },
   /** 钩锁拾取：金属双音 */
   hookPickup(): void { tone('triangle', 660, 660, now(), 0.08, 0.15); tone('square', 880, 660, now() + 0.06, 0.12, 0.08, 2500); },
+  /** 护盾拾取：上扬低频双音 */
+  shieldPickup(): void { tone('sine', 440, 660, now(), 0.12, 0.14); tone('sine', 660, 880, now() + 0.08, 0.14, 0.12); },
+  /** 护盾破碎：快速下坠 + 短噪声（格挡时） */
+  shieldBreak(): void { tone('sawtooth', 600, 120, now(), 0.25, 0.14, 1800); nz(now(), 0.15, 0.07, 1200); },
   /** 钩锁发射：快速上滑 + 短噪声（滑索收绳） */
   hook(): void { tone('sawtooth', 160, 480, now(), 0.12, 0.12, 1600); nz(now(), 0.08, 0.05, 1800); },
   /** 弹簧弹射：快速上滑 + 噪声 */

@@ -47,6 +47,40 @@ export function renderDefaultPlayer(
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
+  // 护盾光罩（限时护盾：蓝紫脉冲光罩，外扩到 1.5r，与受伤无敌闪烁区分）
+  if (player.shields > 0) {
+    const pulse = 0.5 + 0.5 * Math.sin(gs.time * 5);
+    // ① 外层光晕（lighter 叠加，强化存在感）
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = (0.22 + 0.12 * pulse) * output.alpha;
+    const g = ctx.createRadialGradient(0, 0, r * 1.1, 0, 0, r * 2.0);
+    g.addColorStop(0, 'rgba(150,140,255,.55)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 2.0, 0, 6.283);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    // ② 主光罩环（呼吸 + 强发光）
+    ctx.globalAlpha = (0.75 + 0.25 * pulse) * output.alpha;
+    ctx.strokeStyle = 'rgba(170,160,255,.95)';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = 'rgba(150,140,255,1)';
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.5, 0, 6.283);
+    ctx.stroke();
+    // ③ 内层细环（层次感）
+    ctx.globalAlpha = (0.35 + 0.2 * pulse) * output.alpha;
+    ctx.strokeStyle = 'rgba(200,200,255,.9)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.32, 0, 6.283);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = output.alpha;
+  }
+
   // 双眼（眨眼）
   const blink = (gs.time % 3.4) > 3.25;
   const ew = r * 0.17;

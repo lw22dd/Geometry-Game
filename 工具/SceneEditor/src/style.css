@@ -397,6 +397,7 @@ html, body {
 }
 #exportPanel { width: 820px; }
 #importPanel, #templatePanel { width: 480px; }
+#templateSavePanel { width: 460px; }
 .modal textarea, #exportCode {
   width: 100%;
   height: 340px;
@@ -627,6 +628,29 @@ html, body {
 .template-name { font-size: 13px; }
 .template-desc { font-size: 11px; color: var(--text-muted); }
 #templateList > .template-item code { margin-left: auto; flex-shrink: 0; }
+
+/* 模板列表行（自定义模板带删除按钮） */
+.template-row { display: flex; gap: 6px; align-items: stretch; }
+.template-row .template-item { flex: 1; min-width: 0; }
+.template-row code { margin-left: auto; color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
+.template-del {
+  flex-shrink: 0;
+  width: 34px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.template-del:hover {
+  color: var(--danger);
+  background: rgba(255, 80, 120, 0.15);
+  border-color: rgba(255, 80, 120, 0.4);
+}
 
 /* ==================== 重叠检查结果 ==================== */
 #checkPanel { width: 560px; max-width: 92vw; max-height: 82vh; }

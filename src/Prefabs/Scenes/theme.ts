@@ -12,6 +12,8 @@ export const T = {
   body: 'rgba(15,11,42,.94)',        // 静态刚体
   bodyMovable: 'rgba(20,14,52,.95)', // 可动刚体（略亮一档，暗示"活物"）
   bodySoft: 'rgba(30,25,60,.95)',    // 次要部件（底座等）
+  /* neonBox v2 体积感：底部渐变端色（上亮下暗 → 立体） */
+  bodyDark: 'rgba(8,6,26,.96)',
   /* 描边 */
   strokeW: 2,
   innerInset: 3,
@@ -79,13 +81,17 @@ export const T = {
   breathSpeed: 2.4,
 };
 
-/** 霓虹方盒 —— 全场景统一绘制原语（静态平台/移动平台/弹簧顶板…） */
+/** 霓虹方盒 v2 —— 全场景统一绘制原语（静态平台/移动平台/弹簧顶板…）
+ *  ① 底色上亮下暗线性渐变（体积感）→ ② 内衬线 → ③ 发光描边 + 顶光 → ④ 顶面内侧反光 */
 export function neonBox(
   x: number, y: number, w: number, h: number, hue: number,
-  o: { glow?: number; body?: string } = {},
+  o: { glow?: number; body?: string; bodyDark?: string } = {},
 ): void {
-  // ① 底色
-  ctx.fillStyle = o.body ?? T.body;
+  // ① 底色：上亮下暗线性渐变（替代单色填充）
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, o.body ?? T.body);
+  g.addColorStop(1, o.bodyDark ?? T.bodyDark);
+  ctx.fillStyle = g;
   ctx.fillRect(x, y, w, h);
   // ② 内衬线（小尺寸自动省略）
   if (w > 8 && h > 8) {
@@ -103,4 +109,13 @@ export function neonBox(
   // ④ 顶部高光
   ctx.fillStyle = `hsla(${hue},100%,78%,.95)`;
   ctx.fillRect(x, y, w, T.topBarH);
+  // ⑤ 顶面内侧反光渐变（大块才有，模拟霓虹灯管映在面板上）
+  if (h > 16 && w > 12) {
+    const rh = Math.min(h * 0.3, 22);
+    const rg = ctx.createLinearGradient(0, y + T.topBarH, 0, y + T.topBarH + rh);
+    rg.addColorStop(0, `hsla(${hue},100%,78%,.10)`);
+    rg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(x + 2, y + T.topBarH, w - 4, rh);
+  }
 }

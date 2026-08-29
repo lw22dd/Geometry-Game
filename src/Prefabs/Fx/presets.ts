@@ -108,4 +108,62 @@ export const FX: Record<string, FxPreset> = {
     size: [0.08, 0.12],
     colors: ['#66ff99', '#33cc66', '#99ffbb'],
   },
+
+  /** 护盾破碎：蓝紫碎片环（危险物命中格挡时爆开） */
+  shieldBreak: {
+    count: 14,
+    kind: 'frag',
+    vel: { mode: 'radial', uniform: false, speed: [3, 9] },
+    gravity: 10,
+    life: [0.45, 0.7],
+    size: [0.1, 0.18],
+    colors: ['#b3c7ff', '#7d6bff', '#ffffff'],
+    spin: { start: [0, 3], rate: [-6, 6] },
+  },
+
+  /** 光球环境光尘：单颗缓慢上浮，青白（emitItemAmbient 每 0.5s 发 1 颗） */
+  orbAmbient: {
+    count: 1,
+    kind: 'dot',
+    vel: { mode: 'radial', uniform: false, speed: [0.15, 0.4] },
+    gravity: -0.8,
+    life: [1.0, 1.6],
+    size: [0.04, 0.07],
+    colors: ['#bfffff', '#8ff6ff'],
+  },
+
+  /** 弹簧弹射火花：绿色上喷（弹簧 firing 时于顶板中心发射一次） */
+  springBurst: {
+    count: 10,
+    kind: 'dot',
+    vel: { mode: 'axis', vx: [-2.2, 2.2], vy: [5, 10] },
+    spreadX: 0.3,
+    gravity: 16,
+    life: [0.35, 0.6],
+    size: [0.05, 0.09],
+    colors: ['#7dffb0', '#c8ffe0', '#59ff8f'],
+  },
+
+  /** 激光命中火花：品红碎屑（接触瞬间发射） */
+  laserHit: {
+    count: 12,
+    kind: 'frag',
+    vel: { mode: 'radial', uniform: false, speed: [3, 8], vyBias: 2 },
+    gravity: 14,
+    life: [0.4, 0.7],
+    size: [0.08, 0.14],
+    colors: ['#ff8ad8', '#ffffff', '#ff5fc8'],
+    spin: { start: [0, 3], rate: [-8, 8] },
+  },
+
+  /** NOVA 通关脉冲：24 颗金色射线均匀扩散（win 触发时发射一次） */
+  novaPulse: {
+    count: 24,
+    kind: 'dot',
+    vel: { mode: 'radial', uniform: true, speed: [4, 4] },
+    gravity: 0,
+    life: [0.7, 0.7],
+    size: [0.07, 0.07],
+    colors: ['#ffe9a8', '#fff3cf', '#ffffff'],
+  },
 };

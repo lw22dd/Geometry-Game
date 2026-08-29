@@ -330,6 +330,35 @@ function renderOne(inst: MapInstance, time: number): void {
       ctx.stroke();
       break;
     }
+    case 'shieldPickup': {
+      // 蓝紫盾形 + V 型高光（与游戏内拾取物渲染一致）
+      const hx = sx(inst.x), hy = sy(inst.y);
+      ctx.save();
+      ctx.translate(hx, hy);
+      if (inst.rotation) ctx.rotate((inst.rotation * Math.PI) / 180);
+      ctx.shadowColor = 'rgba(150,140,255,.9)';
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(0, 0, 0.5 * sz, Math.PI, 0);
+      ctx.lineTo(0.5 * sz, 0.3 * sz);
+      ctx.lineTo(0, 0.62 * sz);
+      ctx.lineTo(-0.5 * sz, 0.3 * sz);
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      // V 型高光
+      ctx.strokeStyle = 'rgba(235,240,255,.9)';
+      ctx.lineWidth = 1.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-0.18 * sz, -0.12 * sz);
+      ctx.lineTo(0, 0.16 * sz);
+      ctx.lineTo(0.18 * sz, -0.12 * sz);
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
     case 'track': {
       // 绘制轨道路径折线（预览简单线框 + 入口亮点）
       const pts: { x: number; y: number }[] = [];

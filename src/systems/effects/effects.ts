@@ -10,7 +10,7 @@
  *    结算管线检查 无敌帧/已死 后决定是否真正致死。
  */
 import type { PlayerState, StatModifier } from '../../types';
-import { grantImpulse, grantJumpCharges, killState, applyModifier } from './verbs';
+import { grantImpulse, grantJumpCharges, grantInv, killState, applyModifier, removeModifier } from './verbs';
 
 /** 影响来源投递的契约请求（竞速子集；战斗扩展位注释标注） */
 export type PlayerRequest =
@@ -35,7 +35,15 @@ export interface EffectContext {
    * 远程玩家（host 模拟）缺省 → killState（直接置死，与现状一致）。
    */
   onKill?: () => void;
+  /**
+   * 格挡应用回调：护盾被消耗格挡致死后触发（本地 = 破盾特效/音效；
+   * 远程 = 房主广播 fx，客机播放）。
+   */
+  onShieldBlock?: () => void;
 }
+
+/** 护盾格挡后给予的短暂无敌时长（秒），防多帧连续判定 */
+export const SHIELD_BLOCK_INV = 1.2;
 
 /**
  * 结算入口 —— 影响来源唯一合法的"影响玩家"通道。
@@ -46,6 +54,15 @@ export function applyEffect(p: PlayerState, fx: PlayerRequest, ctx?: EffectConte
     case 'KillRequest': {
       // 结算：已死 / 无敌帧 → 免疫致死
       if (p.dead || p.inv > 0) return;
+      // 结算：护盾格挡（次数性免疫，与无敌帧的时间性免疫互补）——
+      // 消耗 1 格挡掉这次致死，并给短暂无敌防连续帧重复判定。护盾本体不写任何状态，
+      // 全部由本结算管线经通用动词（removeModifier + grantInv）完成。
+      if (p.shields > 0) {
+        removeModifier(p, 'shields', 'shield');
+        grantInv(p, SHIELD_BLOCK_INV);
+        ctx?.onShieldBlock?.();
+        return;
+      }
       if (ctx?.onKill) ctx.onKill();
       else killState(p);
       break;

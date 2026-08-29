@@ -27,7 +27,7 @@ const BAR_X = (VW - BAR_W) / 2;
 const BAR_Y = VH - 46;
 
 /** 背包栏（玩家自带 5 格装备栏，屏幕最下方居中）；
- *  占用格显示道具图标：二段跳票 = 绿色上箭头（被动），钩锁 = 金色钩形（主动）。
+ *  占用格显示道具图标：二段跳票 = 绿色上箭头（被动），钩锁 = 金色钩形（主动），护盾 = 蓝紫盾形（被动）。
  *  主动道具需选中对应槽位（数字键 1-5）才能使用，选中格高亮 + 键位数字提示。
  *  钩锁格在冷却中显示弧形遮罩。 */
 export function drawHUD(): void {
@@ -77,6 +77,8 @@ export function drawHUD(): void {
       const cy = y + SLOT / 2;
       if (id === 'doubleJump') {
         drawJumpTicketIcon(cx, cy);
+      } else if (id === 'shield') {
+        drawShieldIcon(cx, cy);
       } else {
         drawHookIcon(cx, cy);
       }
@@ -93,15 +95,6 @@ export function drawHUD(): void {
         ctx.fill();
         ctx.restore();
       }
-
-      // 主动/被动角标（active ▶ / passive ◆）
-      ctx.save();
-      ctx.font = '700 10px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = active ? 'rgba(255,190,90,.85)' : 'rgba(120,255,170,.8)';
-      ctx.fillText(active ? '▶' : '◆', cx, y + SLOT - 9);
-      ctx.restore();
     }
 
     // 槽位数字键提示（1-5）
@@ -167,6 +160,33 @@ function drawHookIcon(cx: number, cy: number): void {
   // 顶部圆头
   ctx.fillStyle = '#ffe3ad';
   ctx.beginPath(); ctx.arc(0, -10, 2, 0, 6.283); ctx.fill();
+  ctx.restore();
+}
+
+/** 护盾图标：蓝紫盾形（上圆 + 收尖下底 + V 型高光，缩小版，与拾取物同形） */
+function drawShieldIcon(cx: number, cy: number): void {
+  ctx.save();
+  ctx.translate(cx, cy - 1);
+  ctx.shadowColor = 'rgba(150,140,255,.8)';
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = '#b3c7ff';
+  ctx.beginPath();
+  ctx.arc(0, 0, 6.75, Math.PI, 0);
+  ctx.lineTo(6.75, 4);
+  ctx.lineTo(0, 8.5);
+  ctx.lineTo(-6.75, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  // V 型高光
+  ctx.strokeStyle = 'rgba(235,240,255,.9)';
+  ctx.lineWidth = 1.4;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-2.7, -1.8);
+  ctx.lineTo(0, 2.3);
+  ctx.lineTo(2.7, -1.8);
+  ctx.stroke();
   ctx.restore();
 }
 

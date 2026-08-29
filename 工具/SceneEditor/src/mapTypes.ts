@@ -83,6 +83,12 @@ export interface HookPickupInstance {
   rotation?: number;
 }
 
+export interface ShieldPickupInstance {
+  type: 'shieldPickup';
+  x: number; y: number;
+  rotation?: number;
+}
+
 /** 冲刺轨道（玻璃管道）：路径段数组 + 入口/出口弧长 + 捕获速度 */
 export interface TrackInstance {
   type: 'track';
@@ -113,6 +119,7 @@ export type MapInstance =
   | CheckpointInstance
   | NovaInstance
   | HookPickupInstance
+  | ShieldPickupInstance
   | TrackInstance
   | SpringPadInstance;
 
@@ -328,6 +335,7 @@ export function instancePosition(inst: MapInstance): { x: number; y: number } {
     case 'checkpoint': return { x: inst.x, y: inst.y };
     case 'nova':    return { x: inst.x, y: inst.y };
     case 'hookPickup': return { x: inst.x, y: inst.y };
+    case 'shieldPickup': return { x: inst.x, y: inst.y };
     case 'track':   return { x: inst.x, y: inst.y };
     case 'springPad': return { x: inst.x, y: inst.y };
   }
@@ -346,6 +354,7 @@ export function moveInstance(inst: MapInstance, dx: number, dy: number): void {
     case 'checkpoint': inst.x += dx; inst.y += dy; break;
     case 'nova':    inst.x += dx; inst.y += dy; break;
     case 'hookPickup': inst.x += dx; inst.y += dy; break;
+    case 'shieldPickup': inst.x += dx; inst.y += dy; break;
     case 'track': {
       inst.x += dx; inst.y += dy;
       for (const seg of inst.segments) {
@@ -371,6 +380,7 @@ export function instanceLabel(inst: MapInstance): string {
     case 'checkpoint': return `检查点 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
     case 'nova':    return `NOVA (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
     case 'hookPickup': return `钩锁 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
+    case 'shieldPickup': return `护盾 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
     case 'track':   return `轨道 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
     case 'springPad': return `${inst.h > inst.w ? '水平' : '垂直'}弹簧 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
   }
@@ -410,6 +420,10 @@ export function instanceHitBounds(inst: MapInstance, minSize = 0.6): { x: number
       return { x: inst.x - r, y: inst.y - r, w: r * 2, h: r * 2 };
     }
     case 'hookPickup': {
+      const r = Math.max(0.6, minSize / 2);
+      return { x: inst.x - r, y: inst.y - r, w: r * 2, h: r * 2 };
+    }
+    case 'shieldPickup': {
       const r = Math.max(0.6, minSize / 2);
       return { x: inst.x - r, y: inst.y - r, w: r * 2, h: r * 2 };
     }

@@ -16,7 +16,7 @@
       <button class="menu-opt" data-cmd="new"><span class="td-icon" data-icon="Add" data-size="15"></span> 新建 <span class="kbd">Ctrl+N</span></button>
       <button class="menu-opt" data-cmd="template"><span class="td-icon" data-icon="Template" data-size="15"></span> 从模板新建</button>
       <button class="menu-opt" data-cmd="open"><span class="td-icon" data-icon="FolderOpen" data-size="15"></span> 打开…</button>
-      <button class="menu-opt" data-cmd="save"><span class="td-icon" data-icon="Save" data-size="15"></span> 保存 <span class="kbd">Ctrl+S</span></button>
+      <button class="menu-opt" data-cmd="save"><span class="td-icon" data-icon="Star" data-size="15"></span> 保存为模板 <span class="kbd">Ctrl+S</span></button>
       <div class="menu-sep"></div>
       <button class="menu-opt" data-cmd="export"><span class="td-icon" data-icon="Upload" data-size="15"></span> 导出地图数据</button>
     </div>
@@ -61,7 +61,7 @@
   <button class="tb-btn" data-cmd="new" title="新建 (Ctrl+N)"><span class="td-icon" data-icon="Add"></span></button>
   <button class="tb-btn" data-cmd="template" title="从模板新建"><span class="td-icon" data-icon="Template"></span></button>
   <button class="tb-btn" data-cmd="open" title="打开"><span class="td-icon" data-icon="FolderOpen"></span></button>
-  <button class="tb-btn" data-cmd="save" title="保存 Ctrl+S"><span class="td-icon" data-icon="Save"></span></button>
+  <button class="tb-btn" data-cmd="save" title="保存为模板 Ctrl+S"><span class="td-icon" data-icon="Star"></span></button>
   <div class="sep"></div>
   <button class="tb-btn" data-cmd="undo" title="撤销 Ctrl+Z"><span class="td-icon" data-icon="Undo"></span></button>
   <button class="tb-btn" data-cmd="redo" title="重做 Ctrl+Shift+Z"><span class="td-icon" data-icon="Redo"></span></button>
@@ -162,6 +162,39 @@
     <div id="templateList"></div>
     <div class="actions">
       <button class="closeBtn" onclick="hideTemplate()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 保存为模板弹窗 -->
+<div id="templateSaveOverlay" class="overlay hidden" onclick="if(event.target===this)hideTemplateSave()">
+  <div id="templateSavePanel" class="modal">
+    <h2><span class="td-icon" data-icon="Star" data-size="16"></span> 保存当前地图为模板</h2>
+    <p>点击「保存为模板」会<strong>自动在 src/mapTemplate/ 生成 .ts 源码文件</strong>并注册进 templates.ts（需以 <code>npm run dev</code> 启动编辑器）；写入失败时自动回退为浏览器 localStorage 模板。</p>
+    <div class="field-group">
+      <label class="field-label">模板名称 *</label>
+      <input class="field-input" id="templateSaveName" placeholder="例如：冰封王座">
+    </div>
+    <div class="field-group">
+      <label class="field-label">图标</label>
+      <select class="field-input" id="templateSaveIcon">
+        <option value="Star" selected>★ 星标</option>
+        <option value="Template">▦ 模板</option>
+        <option value="Map">◫ 地图</option>
+        <option value="Flag">⚑ 旗帜</option>
+        <option value="Gift">▣ 礼物</option>
+        <option value="Home">⌂ 家</option>
+        <option value="Tools">⚒ 工具</option>
+        <option value="Location">◉ 定位</option>
+      </select>
+    </div>
+    <div class="field-group">
+      <label class="field-label">描述</label>
+      <input class="field-input" id="templateSaveDesc" placeholder="模板简介（显示在模板列表中）">
+    </div>
+    <div class="actions">
+      <button class="closeBtn" onclick="hideTemplateSave()">取消</button>
+      <button onclick="confirmSaveTemplate()">保存为模板</button>
     </div>
   </div>
 </div>

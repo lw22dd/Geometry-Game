@@ -5,6 +5,6 @@
  */
 export { drawSolids, drawFloor, drawMovers, drawSpringPads, drawBorder, drawDecos, drawGrid } from './platforms';
 export { drawSpikes, drawLasers } from './hazards';
-export { drawOrbs, drawJumpBoosts, drawHookPickups, drawCheckpoints, drawNOVA } from './items';
-export { drawParallax, drawTrail, drawParticles, drawHints } from './atmosphere';
+export { drawOrbs, drawJumpBoosts, drawHookPickups, drawShieldPickups, drawCheckpoints, drawNOVA, emitItemAmbient } from './items';
+export { drawParallax, drawTrail, drawParticles, drawHints, drawMotes, stepMotes, drawFog } from './atmosphere';
 export { drawTracks, neonGlassTube } from './tracks';

@@ -17,7 +17,7 @@ export interface Impulse {
 }
 
 /** 玩家属性 id（Modifier 管道目标属性；扩展位：moveSpeed / jumpHeight / hookRange ...） */
-export type StatId = 'jumpCharges';
+export type StatId = 'jumpCharges' | 'shields';
 
 /** 数值修正条目：目标属性 + 覆盖/累加 + 数值 + 来源（来源用于幂等替换） */
 export interface StatModifier {
@@ -27,6 +27,10 @@ export interface StatModifier {
   value: number;
   /** 来源标识（道具 id / 机制名），同 stat+source 重复投递时替换而非叠加 */
   source: string;
+  /** 可选：有效时长（秒）。存在即"限时 buff"，由 stepBuffTimers 递减，到期自动失效 */
+  dur?: number;
+  /** 剩余时长（秒），由 stepBuffTimers 维护；未提供时起步取 dur（再拾取 = 重置计时） */
+  t?: number;
 }
 
 /** 矩形刚体（平台 / 移动平台 / 碰撞盒） */
@@ -174,7 +178,7 @@ export interface TrackState {
 /* ==================== 背包/道具 ==================== */
 
 /** 道具 id */
-export type ItemId = 'doubleJump' | 'hook';
+export type ItemId = 'doubleJump' | 'hook' | 'shield';
 
 /** 道具类别：主动（玩家触发）/ 被动（拾取即生效常驻） */
 export type ItemCategory = 'active' | 'passive';
@@ -214,6 +218,10 @@ export interface PlayerState {
   extraJumps: number;
   /** 额外跳跃最大次数（由 modifier 管道重算；0 = 未拾取） */
   extraJumpsMax: number;
+  /** 护盾剩余格数（危险物命中时消耗 1 格挡掉致死，由结算管线写入） */
+  shields: number;
+  /** 护盾最大格数（由 modifier 管道重算；0 = 未激活） */
+  shieldsMax: number;
   /** 数值修正列表（Modifier 管道：影响来源投递，recomputeStats 重算 extraJumpsMax 等） */
   modifiers: StatModifier[];
   /** 上一物理步跳跃键是否按下（用于二段跳"新按下沿"检测：按下一次跳一次） */
@@ -295,6 +303,8 @@ export interface FrameSignals {
   jumpBoostPicked?: boolean;
   /** 本帧拾取了钩锁道具 */
   hookPicked?: boolean;
+  /** 本帧拾取了护盾道具 */
+  shieldPicked?: boolean;
   /** 本帧触发了弹簧平台 */
   spring?: boolean;
   /** 本帧使用了空中二段跳 */
@@ -362,6 +372,8 @@ export interface MapDefinition {
     jumpBoosts: [number, number][];
     /** 钩锁道具坐标（可选；无钩锁的地图省略） */
     hooks?: [number, number][];
+    /** 护盾道具坐标（可选；限时护盾：格挡一次或超时自动失效） */
+    shields?: [number, number][];
     checkpoints: [number, number][];
     nova: { x: number; y: number };
     /** 冲刺轨道（可选；无轨道的地图省略） */
@@ -376,10 +388,12 @@ export type NetBusEvent =
   | { type: 'game:orb'; count: number; total: number }
   | { type: 'game:jumpboost' }
   | { type: 'game:hookpickup' }
+  | { type: 'game:shieldpickup' }
   | { type: 'game:death'; deaths: number }
   | { type: 'game:win'; time: number; orbs: number; total: number; x: number; y: number; playerId: number }
-  // ── 特效同步：死亡特效由房主广播（房主是死亡判定权威）──
+  // ── 特效同步：死亡/护盾破碎特效由房主广播（房主是判定权威）──
   | { type: 'fx:death'; x: number; y: number; playerId: number }
+  | { type: 'fx:shieldbreak'; x: number; y: number; playerId: number }
   // ── 联机扩展 ──
   | { type: 'net:connected'; role: NetRole; playerId: number }
   | { type: 'net:playerJoined'; player: RemotePlayerInfo }

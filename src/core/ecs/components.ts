@@ -75,6 +75,7 @@ export const Collectible = { collected: u8([]) };
 export const Orb = {};
 export const JumpBoost = {};
 export const Hook = {};
+export const ShieldPickup = {};
 
 /** 检查点 */
 export const RespawnPoint = { active: [] as number[], nearby: [] as number[] };
@@ -92,6 +93,14 @@ export const Track = {
 };
 /** 轨道路径段几何（AoS 侧表，key = 轨道实体 eid） */
 export const TrackGeom = [] as { segments: PathSegment[] }[];
+
+/**
+ * 光环（范围持续场，扩展占位）—— 进出/周期结算由 AuraSystem 处理。
+ * radius 半径（格）/ tick 结算周期（秒，0=仅进出不周期）/ tickT 累计计时。
+ * 效果配置（onEnter/onExit/onTick → PlayerRequest）由 AuraSystem 侧注册，
+ * 保持组件层纯数据（"之后每个光环只是配置"）。
+ */
+export const Aura = { radius: [] as number[], tick: [] as number[], tickT: [] as number[] };
 
 /** 可被钩锁命中（tag；需同时有 Position + Collider） */
 export const Hookable = {};
@@ -141,6 +150,9 @@ export const PlayerControl = {
 /** 空中跳充能（双跳票等能力挂载点）：left 剩余次数 / max 上限 */
 export const JumpCharges = { left: [] as number[], max: [] as number[] };
 
+/** 护盾格挡次数（限时 buff 的 SoA 投影，对称 JumpCharges）：left 剩余格数 / max 上限 */
+export const ShieldCharges = { left: [] as number[], max: [] as number[] };
+
 /** 外力队列（AoS 侧表，key = 玩家实体 eid）：弹簧/击退/气流通用 */
 export const ImpulseQueue = [] as { ax: number; ay: number; t: number }[][];
 
@@ -180,16 +192,19 @@ export const CONTROL_MODE_FREE = 0;
 export const CONTROL_MODE_TRACK = 1;
 export const CONTROL_MODE_ZIPLINE = 2;
 export const CONTROL_MODE_DEAD = 3;
+/** 约束类控制权（眩晕/定身等，扩展位）：仲裁表插入更高优先级谓词后启用 */
+export const CONTROL_MODE_CONSTRAINT = 4;
 
 /** 道具编码常量（Backpack 数组元素） */
 export const ITEM_DOUBLE_JUMP = 0;
 export const ITEM_HOOK = 1;
+export const ITEM_SHIELD = 2;
 
 /* ==================== 注册表（供 query/observe 使用） ==================== */
 
 /** 全部数值 SoA 组件的汇总数组（一次性 registerComponents 用） */
 export const soaComponents = [
   Position, Velocity, Collider, PathMotion, SpringPad,
-  Timer, Hazard, Collectible, RespawnPoint, Goal, Track,
-  Renderable, Player, PlayerControl, PlayerInput, JumpCharges, ControlMode,
+  Timer, Hazard, Collectible, RespawnPoint, Goal, Track, Aura,
+  Renderable, Player, PlayerControl, PlayerInput, JumpCharges, ShieldCharges, ControlMode,
 ];

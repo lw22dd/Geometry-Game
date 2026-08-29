@@ -25,6 +25,9 @@ netBus.on(e => {
     case 'game:hookpickup':
       net.sendHostEvent('hookpickup', {});
       break;
+    case 'game:shieldpickup':
+      net.sendHostEvent('shieldpickup', {});
+      break;
     case 'game:death':
       net.sendHostEvent('death', { deaths: e.deaths });
       break;
@@ -37,6 +40,10 @@ netBus.on(e => {
     // ── 死亡特效：房主是死亡判定权威，广播给客机播放 ──
     case 'fx:death':
       net.sendHostEvent('fx_death', { x: e.x, y: e.y, playerId: e.playerId });
+      break;
+    // ── 护盾破碎特效：房主是格挡判定权威，广播给客机播放 ──
+    case 'fx:shieldbreak':
+      net.sendHostEvent('fx_shieldbreak', { x: e.x, y: e.y, playerId: e.playerId });
       break;
   }
 });

@@ -12,16 +12,18 @@ import { getMode, setMode } from './gameMode';
 import { prepare } from '../ui/prepare';
 import { lobby } from '../ui/lobby';
 import { playerController, stepControlArbiter } from '../player';
-import { stepPlayerGeneric } from '../player';
+import { stepPlayerByMode, resolveControlMode } from '../player';
 import { FX } from '../../Prefabs/Fx';
 import { spawnParticles, stepParticles } from '../particles';
 import { updateMotion, updateLaserTimer, updateSpringPads } from '../level';
 import { stepAnimation } from '../animation';
 import {
   drawParallax, drawGrid, drawBorder, drawDecos, drawSolids, drawFloor, drawMovers, drawSpringPads,
-  drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawJumpBoosts, drawHookPickups, drawNOVA,
+  drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawJumpBoosts, drawHookPickups, drawShieldPickups, drawNOVA,
   drawTrail, drawParticles, drawHints, drawTracks,
+  drawMotes, stepMotes, drawFog, emitItemAmbient,
 } from '../../Prefabs/Scenes';
+import { drawPostFX, pfxPerf } from '../postfx';
 import { drawPlayer, drawPlayerFor, stepPlayerAnimation, getSelectedCharacter, getCharacterById, DEFAULT_CHARACTER } from '../../Prefabs/Player';
 import { drawHUD, drawMinimap } from '../ui/hud';
 import { syncUI } from '../ui/scenes';
@@ -42,9 +44,11 @@ import { initCollisionHooks, updateCollectSystem, updateRespawnPointSystem, upda
 import { buildCumulativeLengths, pathTotalLength } from '../../core/path';
 import { mouse } from '../../core/mouse';
 import { drawHookAim, drawHookRope, mouseAimDir, defaultAimDir } from '../items/hook';
-import { addItem, ITEMS, itemToNet, netToItem } from '../items/backpack';
+import { addItem, ITEMS, itemToNet, netToItem, reconcileShield } from '../items/backpack';
 import { stepActiveItem } from '../items/activeItem';
-import { applyEffect } from '../effects';
+import { applyEffect, stepBuffTimers } from '../effects';
+import { fireTriggers } from '../effects/TriggerSystem';
+import { stepAuraSystem, resetAuraState } from '../level/AuraSystem';
 
 /* ==================== 轨道状态序列化辅助 ==================== */
 
@@ -99,6 +103,7 @@ const remoteHookPrev = new Map<number, boolean>();
  */
 export function applyLevel(mapId: string): void {
   setupLevel(mapId);
+  resetAuraState(); // 光环进出/周期状态随切图清空
   const sp = currentMap.playerSpawn;
   playerController.resetToSpawn(sp.x, sp.y);
   // 玩家 ECS 实体：setupLevel 已 clearWorld + initEcs，这里重建并同步出生点
@@ -161,11 +166,21 @@ function step(dt: number): void {
   updateSpringPads(dt);
   updateLaserTimer();
 
+  // 2.5 光环系统（范围持续场，扩展占位；当前无地图光环 → 查询为空，零成本）
+  // 本地 + 远端玩家统一进同一光环场（房主对远端同判定）
+  const auraPlayers = [{ id: room.playerId, state: playerController.getState() }];
+  for (const [id, rp] of remotes) {
+    if (!rp.dead) auraPlayers.push({ id, state: rp });
+  }
+  stepAuraSystem(dt, auraPlayers);
+
   // 3. 实体动画 FSM 步进（场景道具 / 未来敌人 / NPC；输出在渲染帧由绘制层实时求值）
   stepAnimation(dt);
 
   // 4. 粒子 + 曳光
   stepParticles(dt);
+  stepMotes(dt);          // 美术升级 3：前景浮尘步进
+  emitItemAmbient(dt);    // 美术升级 5：光球环境光尘
 
   // 5. Toast 衰减
   if (gs.toastT > 0) gs.toastT -= dt;
@@ -208,6 +223,18 @@ function step(dt: number): void {
 
   // 物理 + 碰撞 + 动画（单机/房主/客机统一走 controller.step）
   playerController.step(dt, getMode(), true);
+
+  // 限时 buff 计时（护盾等）：到期自动失效（死亡分支已提前 return → 死亡期间计时暂停）
+  const expired = stepBuffTimers(pState, dt);
+  for (const ex of expired) {
+    ITEMS[ex.source as ItemId]?.onExpire?.(pState);
+    if (ex.source === 'shield') {
+      gs.toast = '护盾失效';
+      gs.toastT = 2;
+    }
+  }
+  // 护盾一致性：格挡消耗 / 超时两条失效路径统一收尾（背包自动退出）
+  reconcileShield(pState);
 
   // 7. 主动道具（S7 槽位 ActiveItemSystem）：按选中槽位派发（本地鼠标边沿/瞄准）
   //    必须在 syncToEcs 之前：钩锁写 track/hookCd 到副本，随步末统一写回组件
@@ -269,10 +296,19 @@ function stepRemoteClients(dt: number): void {
     const signals: FrameSignals = {};
     const wasDead = rp.dead;
     // 客户端未上报输入（null）→ 兜底为空输入（静止），物理不依赖本机键盘
-    stepPlayerGeneric(rp, input ?? IDLE_INPUT, dt, false, signals);
+    // S3 消费：与本地共用控制权仲裁 + 消费入口（远端同样走 stepPlayerByMode）
+    stepPlayerByMode(rp, resolveControlMode(rp), input ?? IDLE_INPUT, dt, false, signals);
 
     // 远程玩家危险物：只投递 KillRequest，由结算管线裁决（与本地契约一致，不先判 inv）
-    if (checkHazardOverlap(rp)) applyEffect(rp, { kind: 'KillRequest' });
+    // 护盾格挡：房主是判定权威 → 本地破盾特效 + 广播给客机
+    if (checkHazardOverlap(rp)) {
+      applyEffect(rp, { kind: 'KillRequest' }, {
+        onShieldBlock: () => {
+          spawnParticles(FX.shieldBreak, rp.x, rp.y);
+          netBus.emit({ type: 'fx:shieldbreak', x: rp.x, y: rp.y, playerId: id });
+        },
+      });
+    }
 
     // 远程玩家死亡：房主判定权威 → 本地播放 + 广播给客机
     if (!wasDead && rp.dead) {
@@ -307,6 +343,12 @@ function stepRemoteClients(dt: number): void {
       ITEMS['hook'].onPickup?.(rp);
       signals.hookPicked = true;
     }
+    // 远程玩家护盾道具收集（背包被动道具 · 限时 buff）
+    if (updateItemPickupSystem(rp.x, rp.y, 'shield')) {
+      if (rp.shieldsMax === 0) addItem(rp.backpack, 'shield');
+      ITEMS['shield'].onPickup?.(rp);
+      signals.shieldPicked = true;
+    }
 
     // 远程玩家钩锁（客机上报鼠标瞄准 + 左键按住状态；沿 = hold && !prev）
     // S7 槽位统一派发：与本地共用 ActiveItemSystem，逻辑去重
@@ -319,6 +361,13 @@ function stepRemoteClients(dt: number): void {
       aim: { x: input?.aimX ?? 0, y: input?.aimY ?? 0 },
       sfx: false,
     });
+
+    // 限时 buff 计时（护盾等）：房主是计时权威，超时移除 → 背包权威同步给客机
+    const rpExpired = stepBuffTimers(rp, dt);
+    for (const ex of rpExpired) {
+      if (ex.source === 'shield') ITEMS['shield'].onExpire?.(rp);
+    }
+    reconcileShield(rp);
 
     stepPlayerAnimation(rp, dt, signals);
   }
@@ -461,6 +510,8 @@ function wireNetEvents(): void {
         if (selfPs.backpack) {
           pS.backpack = selfPs.backpack.map(netToItem);
         }
+        // 护盾一致性：房主超时移除护盾 → 本地盾能力随之清除（背包为权威）
+        reconcileShield(pS);
       }
 
       // 步外权威矫正：立即写回组件，防下帧 hydrateFrom 覆盖
@@ -520,6 +571,10 @@ function wireNetEvents(): void {
         gs.toast = '队友拾取了钩锁';
         gs.toastT = 2;
         break;
+      case 'shieldpickup':
+        gs.toast = '队友拾取了护盾';
+        gs.toastT = 2;
+        break;
       case 'win':
         gs.win = true;
         gs.winTime = d.time;
@@ -533,6 +588,12 @@ function wireNetEvents(): void {
         // 自己的死亡已在本地播放，不再重复
         if (d.playerId === room.playerId) break;
         spawnParticles(FX.death, d.x, d.y);
+        break;
+      // ── 护盾破碎特效：房主广播（房主是格挡判定权威）──
+      case 'fx_shieldbreak':
+        // 自己的破盾已在本地播放，不再重复
+        if (d.playerId === room.playerId) break;
+        spawnParticles(FX.shieldBreak, d.x, d.y);
         break;
     }
   });
@@ -651,13 +712,7 @@ function renderGame(dt: number): void {
 
   const pulse = Math.exp(-((gs.time * 128 / 60) % 1) * 4.5);
 
-  ctx.globalCompositeOperation = 'lighter';
-  let bg = ctx.createRadialGradient(VW / 2, VH * 1.05, 50, VW / 2, VH * 1.05, VH * 0.95);
-  bg.addColorStop(0, 'rgba(120,70,255,' + (0.16 + 0.14 * pulse) + ')');
-  bg.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, VW, VH);
-  ctx.globalCompositeOperation = 'source-over';
+  // （删除：原底部脉冲渐变 → Bloom 放大后成为全屏"闪光"，见 git 历史）
 
   drawParallax();
   drawGrid(pulse);
@@ -674,6 +729,7 @@ function renderGame(dt: number): void {
   drawOrbs();
   drawJumpBoosts();
   drawHookPickups();
+  drawShieldPickups();
   drawNOVA(pulse);
   drawTrail();
   drawParticles();
@@ -691,6 +747,10 @@ function renderGame(dt: number): void {
   drawHookRope(pS);
 
   drawHints();
+
+  // 美术升级 3：前景浮尘 + 底部雾（玩家之上、UI 之下）
+  drawMotes();
+  drawFog();
 
   // 开发者坐标网格（全场景覆盖）
   drawDevGrid();
@@ -714,6 +774,9 @@ function renderGame(dt: number): void {
   drawHUD();
   drawDebugHUD();
   drawMinimap(vw, vh);
+
+  // ★ 美术升级 1：后期特效管线（最后一层，覆盖全画布）
+  drawPostFX();
 }
 
 /** 绘制远程玩家（走预制体通路；按房间信息里的角色 id 取样式，缺省回退按 playerId 配色变体） */
@@ -744,6 +807,7 @@ function drawRemotePlayer(rp: RemotePlayer, dt: number): void {
 function frame(nowMs: number): void {
   requestAnimationFrame(frame);
   tickFPS(nowMs);
+  pfxPerf(nowMs - last); // 后期特效自适应降级（美术升级 1）
   let dt = (nowMs - last) / 1000;
   last = nowMs;
   if (dt > 0.06) dt = 0.06;
@@ -768,6 +832,8 @@ export function startLoop(): void {
 /** 订阅 PlayerController 事件（幂等） */
 function wirePlayerEvents(): void {
   playerController.onEvent = (event) => {
+    // 触发系统：事件总线 → 条件 → 投递请求（扩展占位；无注册触发时零成本）
+    fireTriggers(event.type, playerController.getState(), event);
     switch (event.type) {
       case 'died': {
         const dp = playerController.getState();
@@ -787,6 +853,7 @@ function wirePlayerEvents(): void {
         const sps = playerController.getState();
         sfx.spring();
         spawnParticles(FX.dust, sps.x, sps.y - sps.half, 8);
+        spawnParticles(FX.springBurst, sps.x, sps.y - sps.half); // 美术升级 6：弹簧弹射火花
         gs.shake = Math.max(gs.shake, 0.25);
         break;
       }

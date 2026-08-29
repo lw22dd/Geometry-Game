@@ -6,8 +6,8 @@
 import { query, getAllEntities, type World } from 'bitecs';
 import {
   Position, Velocity, Collider, PathMotion, SpringPad, Timer, Hazard,
-  Collectible, RespawnPoint, Goal, Track, Renderable, Animator, Hookable,
-  Player, PlayerControl, PlayerInput, Orb, JumpBoost, Hook, Backpack,
+  Collectible, RespawnPoint, Goal, Track, Aura, Renderable, Animator, Hookable,
+  Player, PlayerControl, PlayerInput, Orb, JumpBoost, Hook, ShieldPickup, Backpack,
 } from './components';
 import { world } from './world';
 
@@ -27,6 +27,7 @@ export const qTimers = (): Q => query(world, [Timer]) as Q;
 export const qHazards = (): Q => query(world, [Position, Collider, Hazard]) as Q;
 export const qLasers = (): Q => query(world, [Position, Collider, Timer, Hazard]) as Q;
 export const qTracks = (): Q => query(world, [Position, Track]) as Q;
+export const qAuras = (): Q => query(world, [Position, Aura]) as Q;
 export const qHookTargets = (): Q => query(world, [Position, Collider, Hookable]) as Q;
 export const qCheckpoints = (): Q => query(world, [Position, Collider, RespawnPoint]) as Q;
 export const qGoal = (): Q => query(world, [Position, Collider, Goal]) as Q;
@@ -36,6 +37,7 @@ export const qCollectibles = (): Q => query(world, [Position, Collider, Collecti
 export const qOrbs = (): Q => query(world, [Position, Collider, Collectible, Orb]) as Q;
 export const qJumpBoosts = (): Q => query(world, [Position, Collider, Collectible, JumpBoost]) as Q;
 export const qHooks = (): Q => query(world, [Position, Collider, Collectible, Hook]) as Q;
+export const qShields = (): Q => query(world, [Position, Collider, Collectible, ShieldPickup]) as Q;
 
 /** 动画 */
 export const qAnimators = (): Q => query(world, [Position, Animator]) as Q;

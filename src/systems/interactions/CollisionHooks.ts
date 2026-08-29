@@ -10,7 +10,7 @@
  *   enter:player:goal        → 终点登顶
  */
 import { hasComponent } from 'bitecs';
-import { world, Position, Collider, Timer, Hazard, Collectible, RespawnPoint, Goal, Orb, JumpBoost, Hook, qCheckpoints } from '../../core/ecs';
+import { world, Position, Collider, Timer, Hazard, Collectible, RespawnPoint, Goal, Orb, JumpBoost, Hook, ShieldPickup, qCheckpoints } from '../../core/ecs';
 import { collisionBus } from '../../core/collisionBus';
 import { gs } from '../game/gameState';
 import { playerController } from '../player';
@@ -42,8 +42,18 @@ export function initCollisionHooks(): void {
     if (hasComponent(world, b, Timer)) {
       if (!Timer.on[b]) return;
     }
-    applyEffect(playerController.getState(), { kind: 'KillRequest' }, {
-      onKill: () => playerController.die(),
+    const ps = playerController.getState();
+    applyEffect(ps, { kind: 'KillRequest' }, {
+      onKill: () => {
+        // 美术升级 6：激光命中火花（仅激光；尖刺保持现有死亡爆裂）
+        if (hasComponent(world, b, Timer)) spawnParticles(FX.laserHit, ps.x, ps.y);
+        playerController.die();
+      },
+      // 护盾格挡：破盾特效/音效（本地玩家；联机房主对远端破盾由 stepRemoteClients 广播）
+      onShieldBlock: () => {
+        spawnParticles(FX.shieldBreak, ps.x, ps.y);
+        sfx.shieldBreak();
+      },
     });
   };
   collisionBus.on('enter:player:hazard', hazardHandler);
@@ -119,6 +129,30 @@ export function initCollisionHooks(): void {
       gs.toastT = 2.5;
       return;
     }
+
+    // ── 护盾（背包被动道具 · 限时 buff）──
+    if (hasComponent(world, b, ShieldPickup)) {
+      const s = playerController.getState();
+      // 未激活时才占背包格（已有盾 = 拾取只刷新计时，不重复占格）
+      if (s.shieldsMax === 0 && !addItem(s.backpack, 'shield')) {
+        gs.toast = '背包已满！';
+        gs.toastT = 2;
+        return;
+      }
+      Collectible.collected[b] = 1;
+      // 被动效果经道具 onPickup → 契约层（ApplyModifier shields 限时 buff），不直写 shieldsMax
+      ITEMS['shield'].onPickup?.(s);
+
+      const pos = { x: Position.x[b], y: Position.y[b] };
+      spawnParticles(FX.sparkle, pos.x, pos.y);
+      sfx.shieldPickup();
+      netBus.emit({ type: 'game:shieldpickup' });
+      if (signals) signals.shieldPicked = true;
+
+      gs.toast = '护盾已装备！危险物命中将格挡一次';
+      gs.toastT = 2.5;
+      return;
+    }
   });
 
   // ── 检查点：进入触发区 → 可交互（nearby），按 E 激活 ──
@@ -142,6 +176,7 @@ export function initCollisionHooks(): void {
     const px = playerController.getState().x;
     const py = playerController.getState().y;
     spawnParticles(FX.confetti, px, py);
+    spawnParticles(FX.novaPulse, px, py); // 美术升级 6：NOVA 通关金色脉冲
     gs.shake = 0.5;
     netBus.emit({ type: 'game:win', time: gs.winTime, orbs: gs.gotN, total: orbCount(), x: px, y: py, playerId: room.playerId });
     if (signals) signals.goalReached = true;

@@ -56,6 +56,11 @@ export function grantJumpCharges(p: PlayerState, max: number): void {
   p.extraJumps = max;
 }
 
+/** 授予无敌时间（护盾格挡/复活通用；衰减已由物理层处理，此处只写字段） */
+export function grantInv(p: PlayerState, seconds: number): void {
+  p.inv = Math.max(p.inv, seconds);
+}
+
 /**
  * 应用/替换一个数值修正（同 stat+source 幂等替换），然后重算派生属性。
  * @param mod 修正条目（如双跳票 → { stat:'jumpCharges', op:'set', value:1, source:'doubleJump' }）
@@ -63,6 +68,8 @@ export function grantJumpCharges(p: PlayerState, max: number): void {
 export function applyModifier(p: PlayerState, mod: StatModifier): void {
   const i = p.modifiers.findIndex(m => m.stat === mod.stat && m.source === mod.source);
   if (i >= 0) p.modifiers.splice(i, 1);
+  // 限时 buff：未显式提供剩余时长时按有效时长起步（同键替换 = 重置计时）
+  if (mod.dur !== undefined && mod.t === undefined) mod.t = mod.dur;
   p.modifiers.push(mod);
   recomputeStats(p);
 }
@@ -75,11 +82,12 @@ export function removeModifier(p: PlayerState, stat: StatId, source: string): vo
 }
 
 /**
- * 重算玩家派生属性（当前仅 extraJumpsMax）。
+ * 重算玩家派生属性（extraJumpsMax / shieldsMax）。
  * 规则：同一 stat 的 set 修正取最大值；add 修正累加。
- * 语义保持旧 grantJumpCharges：上限增加时补充可用次数（拾取即用），上限减少时钳制。
+ * 语义与旧 grantJumpCharges 一致：上限增加时补充可用次数（拾取即用），上限减少时钳制。
  */
 export function recomputeStats(p: PlayerState): void {
+  // ── jumpCharges → extraJumpsMax ──
   let jumps = 0;
   for (const m of p.modifiers) {
     if (m.stat !== 'jumpCharges') continue;
@@ -92,6 +100,37 @@ export function recomputeStats(p: PlayerState): void {
   }
   p.extraJumpsMax = jumps;
   if (p.extraJumps > p.extraJumpsMax) p.extraJumps = p.extraJumpsMax;
+
+  // ── shields → shieldsMax（护盾格挡次数；set 取最大，add 累加）──
+  let shields = 0;
+  for (const m of p.modifiers) {
+    if (m.stat !== 'shields') continue;
+    shields = m.op === 'set' ? Math.max(shields, m.value) : shields + m.value;
+  }
+  const oldShieldsMax = p.shieldsMax;
+  if (shields > oldShieldsMax) {
+    // 上限提升 → 补充差额格数（护盾拾取立即生效）
+    p.shields += shields - oldShieldsMax;
+  }
+  p.shieldsMax = shields;
+  if (p.shields > p.shieldsMax) p.shields = p.shieldsMax;
+}
+
+/**
+ * 限时 buff 计时步进 —— 递减带 dur 的 modifier 剩余时长，到期移除并重算。
+ * @returns 本帧到期移除的修正来源列表（调用方据此做表现：toast / 粒子等）
+ */
+export function stepBuffTimers(p: PlayerState, dt: number): { stat: StatId; source: string }[] {
+  const expired: { stat: StatId; source: string }[] = [];
+  for (const m of p.modifiers) {
+    if (m.dur === undefined) continue;
+    m.t = (m.t ?? m.dur) - dt;
+    if (m.t <= 0) expired.push({ stat: m.stat, source: m.source });
+  }
+  for (const ex of expired) {
+    removeModifier(p, ex.stat, ex.source);
+  }
+  return expired;
 }
 
 /** 直接标记死亡（纯状态；deadT/计数/事件由 PlayerController 或调用方处理） */

@@ -5,13 +5,15 @@
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
-import { Position, Collider, Collectible, RespawnPoint, Goal, Renderable, Animator, Orb, JumpBoost, Hook } from '../../core/ecs';
+import { Position, Collider, Collectible, RespawnPoint, Goal, Renderable, Animator, Orb, JumpBoost, Hook, ShieldPickup } from '../../core/ecs';
 import { gs } from '../../systems/game/gameState';
 import { colliderWorldRect } from '../../systems/level';
 import { T } from './theme';
 import { getAnimOutput } from '../Animations';
 import { query } from 'bitecs';
 import { world } from '../../core/ecs';
+import { spawnParticles } from '../../systems/particles';
+import { FX } from '../Fx';
 
 /** 光球 */
 export function drawOrbs(): void {
@@ -128,6 +130,18 @@ export function drawNOVA(p: number): void {
   ctx.shadowColor = gs.win ? '#ffd76b' : '#c07dff';
   ctx.shadowBlur = 22;
   const d = ren.radius * view.SZ * out.scaleX;
+  // ★ 星体下方椭圆光池（"神圣"光池，叠加在光柱之上的地面光斑）
+  ctx.save();
+  ctx.translate(px, py + d * 1.1);
+  ctx.scale(1, 0.28);
+  const pool = ctx.createRadialGradient(0, 0, 0, 0, 0, d * 2);
+  pool.addColorStop(0, 'rgba(' + col + ',.30)');
+  pool.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = pool;
+  ctx.beginPath();
+  ctx.arc(0, 0, d * 2, 0, 6.283);
+  ctx.fill();
+  ctx.restore();
   ctx.fillStyle = gs.win ? '#fff3cf' : '#f2e4ff';
   ctx.beginPath();
   ctx.moveTo(0, -d); ctx.lineTo(d, 0); ctx.lineTo(0, d); ctx.lineTo(-d, 0); ctx.closePath();
@@ -250,5 +264,68 @@ export function drawHookPickups(): void {
     ctx.beginPath(); ctx.arc(0, -R * 1.25, R * 0.22, 0, 6.283); ctx.fill();
     ctx.restore();
     ctx.globalAlpha = 1;
+  }
+}
+
+/** 护盾道具（蓝紫盾形 + 泛光圈，拾取获得限时护盾） */
+export function drawShieldPickups(): void {
+  for (const e of query(world, [Position, Collider, Collectible, Renderable, Animator, ShieldPickup])) {
+    if (Collectible.collected[e] === 1) continue;
+    const out = getAnimOutput(e);
+    const r = colliderWorldRect(e);
+    const cx = sx(r.x + r.w / 2);
+    const cy = sy(r.top + r.h / 2 + out.offsetY);
+    const R = Renderable.radius[e] * view.SZ;
+
+    // ① 蓝紫泛光圈（外发光层）
+    ctx.globalAlpha = out.alpha;
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.4);
+    g.addColorStop(0, 'rgba(150,140,255,.30)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+
+    // ② 盾形（上圆 + 收尖下底 + V 型高光）
+    ctx.save();
+    ctx.translate(cx, cy + R * 0.1);
+    ctx.rotate(out.rotation);
+    ctx.shadowColor = 'rgba(150,140,255,.9)';
+    ctx.shadowBlur = T.glowMovable;
+    ctx.fillStyle = '#b3c7ff';
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.75, Math.PI, 0);
+    ctx.lineTo(R * 0.75, R * 0.45);
+    ctx.lineTo(0, R * 0.95);
+    ctx.lineTo(-R * 0.75, R * 0.45);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // V 型高光
+    ctx.strokeStyle = 'rgba(235,240,255,.9)';
+    ctx.lineWidth = R * 0.16;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.3, -R * 0.2);
+    ctx.lineTo(0, R * 0.25);
+    ctx.lineTo(R * 0.3, -R * 0.2);
+    ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+}
+
+/**
+ * 光球环境光尘 —— 每颗未收集光球每 0.5s 缓慢上浮一颗青白光尘。
+ * 由 game step 每帧调用（与粒子步进同帧）。
+ */
+export function emitItemAmbient(dt: number): void {
+  for (const e of query(world, [Position, Collectible, Orb])) {
+    if (Collectible.collected[e] === 1) continue;
+    const ph = Position.x[e] * 0.37 + Position.y[e] * 0.13;
+    if ((gs.time + ph) % 0.5 < dt) {                       // 每光球每 0.5s 一颗
+      spawnParticles(FX.orbAmbient, Position.x[e], Position.y[e], 1);
+    }
   }
 }
