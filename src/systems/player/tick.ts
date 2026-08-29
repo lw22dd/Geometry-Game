@@ -18,10 +18,10 @@
  *   远端：stepPlayer → mirrorPlayerState(rp, scratch)。
  * 死亡分支中的复活点来自 ctx.spawnX/Y（本地=cpPoint，远端=rp.cpX/cpY）。
  */
-import type { FrameSignals, InputKeys, ItemId, PlayerEvent, PlayerState } from '../../types';
+import type { FrameSignals, InputKeys, PlayerEvent, PlayerState } from '../../types';
 import { stepActiveItem } from '../items/activeItem';
 import { stepBuffTimers } from '../effects';
-import { reconcileShield, reconcileSpeed, ITEMS } from '../items/backpack';
+import { reconcileShield, reconcileSpeed, itemDefBySource } from '../items/backpack';
 import { stepPlayerAnimation } from '../../Prefabs/Player';
 import { stepControlArbiter } from './controlArbiter';
 import { storePlayerComponents } from './playerEntity';
@@ -133,7 +133,8 @@ export function tickPlayer(
   // ── 限时 buff 计时 + 一致性收尾 ──
   const expired = stepBuffTimers(p, ctx.dt);
   for (const ex of expired) {
-    ITEMS[ex.source as ItemId]?.onExpire?.(p);
+    // 问题 12：经 itemDefBySource 类型安全窄化（未知来源 = undefined），无断言
+    itemDefBySource(ex.source)?.onExpire?.(p);
     ctx.onBuffExpired(ex.source);
   }
   reconcileShield(p);

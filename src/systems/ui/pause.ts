@@ -4,14 +4,13 @@
  * 通过 buildPauseScene() 构建场景，由 scenes.ts 组合根注册。
  */
 import { ctx, VW, VH } from '../../core/canvas';
-import { rr } from '../../core/math';
 import { room } from '../../net/room';
 import { Button, UI_SCENE } from '../../core/uiComponent';
 import type { UIScene } from '../../core/uiComponent';
+import { tickLocal, drawMask, drawGlassPanel, drawTitle, resetHover } from './primitives';
 
 /** 暂停菜单动画计时 */
-let _pauseT = 0;
-let _pauseLast = 0;
+const _pauseTime = { t: 0, last: 0 };
 
 interface PauseActions {
   onResume: () => void;
@@ -54,10 +53,7 @@ export function buildPauseScene(a: PauseActions): UIScene {
 
   // 场景绘制：面板 + 联机状态 + 玩家列表（组件之外的装饰）
   function drawPanel(t: number): void {
-    const nowMs = performance.now();
-    if (_pauseLast) _pauseT += Math.min(0.05, (nowMs - _pauseLast) / 1000);
-    _pauseLast = nowMs;
-    const tt = _pauseT;
+    const tt = tickLocal(_pauseTime);
     const en = _ease(tt / 0.3);
     if (en <= 0) return;
 
@@ -68,25 +64,12 @@ export function buildPauseScene(a: PauseActions): UIScene {
     ctx.globalAlpha = en;
 
     // 半透明遮罩
-    ctx.fillStyle = 'rgba(5,3,16,' + (0.7 * en) + ')';
-    ctx.fillRect(0, 0, VW, VH);
+    drawMask(0.7 * en);
 
-    ctx.shadowColor = 'rgba(80,60,200,.4)';
-    ctx.shadowBlur = 30;
-    rr(ctx, px, py, pw, ph, 16);
-    ctx.fillStyle = 'rgba(10,8,32,.85)';
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(130,160,255,.4)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    drawGlassPanel(px, py, pw, ph, 16, { shadowAlpha: 0.4, shadowBlur: 30, fill: 'rgba(10,8,32,.85)', stroke: 'rgba(130,160,255,.4)' });
 
     // 标题
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '700 28px "Segoe UI","Microsoft YaHei",Arial';
-    ctx.fillStyle = '#bfe9ff';
-    ctx.fillText('暂停', VW / 2, py + 52);
+    drawTitle('暂停', py + 52, 28);
 
     // 联机状态
     if (room.connected) {
@@ -122,12 +105,8 @@ export function buildPauseScene(a: PauseActions): UIScene {
     name: UI_SCENE.PAUSE,
     widgets: [btnResume, btnDisconnect, closeBtn, btnDev, btnMainMenu],
     draw: drawPanel,
-    onEnter: () => { _pauseT = 0; _pauseLast = 0; },
-    onExit: () => {
-      for (const w of [btnResume, btnDisconnect, closeBtn, btnDev, btnMainMenu]) w.hover = false;
-      const c = ctx.canvas;
-      if (c) c.style.cursor = 'default';
-    },
+    onEnter: () => { _pauseTime.t = 0; _pauseTime.last = 0; },
+    onExit: () => resetHover(btnResume, btnDisconnect, closeBtn, btnDev, btnMainMenu),
   };
 }
 

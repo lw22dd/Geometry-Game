@@ -7,7 +7,7 @@ import { PPM } from '../../core/canvas';
 import { Toggle, Button, UI_SCENE } from '../../core/uiComponent';
 import type { UIScene } from '../../core/uiComponent';
 import { playerController } from '../player';
-import { rr } from '../../core/math';
+import { drawMask, drawGlassPanel, drawTitle, resetHover } from './primitives';
 
 /* ==================== 状态 ==================== */
 
@@ -227,24 +227,11 @@ export function buildDevScene(a: DevActions): UIScene {
   function drawPanel(t: number): void {
     ctx.save();
     // 遮罩
-    ctx.fillStyle = 'rgba(5,3,16,.7)';
-    ctx.fillRect(0, 0, VW, VH);
+    drawMask(0.7);
 
-    ctx.shadowColor = 'rgba(80,60,200,.4)';
-    ctx.shadowBlur = 30;
-    rr(ctx, px, py, pw, ph, 16);
-    ctx.fillStyle = 'rgba(10,8,32,.88)';
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(130,160,255,.4)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    drawGlassPanel(px, py, pw, ph, 16, { shadowAlpha: 0.4, shadowBlur: 30, fill: 'rgba(10,8,32,.88)', stroke: 'rgba(130,160,255,.4)' });
 
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '700 24px "Segoe UI","Microsoft YaHei",Arial';
-    ctx.fillStyle = '#bfe9ff';
-    ctx.fillText('开发者设置', VW / 2, py + 46);
+    drawTitle('开发者设置', py + 46, 24);
 
     // 同步 toggle 状态（checked 可能被外部修改）
     toggleGrid.checked = dev.showGrid;
@@ -262,10 +249,6 @@ export function buildDevScene(a: DevActions): UIScene {
       toggleGrid.checked = dev.showGrid;
       toggleDebug.checked = dev.showDebug;
     },
-    onExit: () => {
-      for (const w of [toggleGrid, toggleDebug, btnBack]) w.hover = false;
-      const c = ctx.canvas;
-      if (c) c.style.cursor = 'default';
-    },
+    onExit: () => resetHover(toggleGrid, toggleDebug, btnBack),
   };
 }

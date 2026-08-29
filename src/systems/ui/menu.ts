@@ -3,9 +3,11 @@
  * 通过 UIManager 注册与切换；不依赖 game 循环。
  */
 import { ctx, VW, VH } from '../../core/canvas';
-import { rr } from '../../core/math';
 import { Button, UI_SCENE } from '../../core/uiComponent';
 import type { UIScene } from '../../core/uiComponent';
+import { drawBackdrop, drawHUDFrame, drawNeonTitle, drawDecoStar, ease } from '../uiAtmosphere';
+import { resetHover } from './primitives';
+import { drawOrbIcon } from './icons';
 import { openGallery } from './gallery';
 import { openInstructions } from './instructions';
 
@@ -14,32 +16,6 @@ import { openInstructions } from './instructions';
 /** 菜单本地计时（入场动画用，独立于游戏时间） */
 let _menuT = 0;
 let _menuLast = 0;
-
-/* ---------- 小工具 ---------- */
-const _lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-const _ease = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
-function _seed(a: number): () => number {
-  return () => {
-    a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-
-/** 四角星（描边） */
-function _drawStar(cx: number, cy: number, r: number, rot: number, col: string, lw: number, alpha: number): void {
-  ctx.save();
-  ctx.translate(cx, cy); ctx.rotate(rot);
-  ctx.globalAlpha *= alpha;
-  ctx.strokeStyle = col; ctx.lineWidth = lw;
-  const k = r * .22;
-  ctx.beginPath();
-  ctx.moveTo(0, -r); ctx.lineTo(k, -k); ctx.lineTo(r, 0); ctx.lineTo(k, k);
-  ctx.lineTo(0, r); ctx.lineTo(-k, k); ctx.lineTo(-r, 0); ctx.lineTo(-k, -k);
-  ctx.closePath(); ctx.stroke();
-  ctx.restore();
-}
 
 /** 实心 NOVA 星 */
 function _fillStar(cx: number, cy: number, r: number, rot: number, fill: string, glow: string): void {
@@ -52,161 +28,6 @@ function _fillStar(cx: number, cy: number, r: number, rot: number, fill: string,
   ctx.moveTo(0, -r); ctx.lineTo(k, -k); ctx.lineTo(r, 0); ctx.lineTo(k, k);
   ctx.lineTo(0, r); ctx.lineTo(-k, k); ctx.lineTo(-r, 0); ctx.lineTo(-k, -k);
   ctx.closePath(); ctx.fill();
-  ctx.restore();
-}
-
-/** 正多边形线框路径 */
-function _wireShape(n: number, r: number): void {
-  ctx.beginPath();
-  for (let i = 0; i <= n; i++) {
-    const a = i / n * 6.283 - 1.5708;
-    const x = Math.cos(a) * r, y = Math.sin(a) * r;
-    if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
-  }
-}
-
-/** 迷你光球图标（同游戏内光球样式） */
-function _miniOrb(px: number, py: number, t: number, r: number): void {
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  const g = ctx.createRadialGradient(px, py, 0, px, py, r * 2.4);
-  g.addColorStop(0, 'rgba(140,246,255,.5)');
-  g.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.arc(px, py, r * 2.4, 0, 6.283); ctx.fill();
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.fillStyle = '#eaffff';
-  ctx.shadowColor = '#8ff6ff'; ctx.shadowBlur = 10;
-  ctx.beginPath(); ctx.arc(px, py, r * .55, 0, 6.283); ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.translate(px, py); ctx.rotate(t * 1.8);
-  ctx.strokeStyle = 'rgba(160,250,255,.9)'; ctx.lineWidth = 1.4;
-  ctx.strokeRect(-r * .8, -r * .8, r * 1.6, r * 1.6);
-  ctx.restore();
-}
-
-/* ---------- 菜单装饰数据（种子随机，稳定不闪） ---------- */
-const _rng = _seed(97);
-const _MENU_AURA = [
-  { ax: 190, y: 140, r: 240, spd: .10, ph: 0,   c: '96,140,255' },
-  { ax: 330, y: 430, r: 300, spd: .13, ph: 2.1, c: '168,110,255' },
-  { ax: 250, y: 270, r: 190, spd: .17, ph: 4.2, c: '255,110,220' },
-];
-const _MENU_STARS: { x: number; y: number; r: number; spd: number; ph: number; a: number; c: string }[] = [];
-for (let i = 0; i < 34; i++) {
-  _MENU_STARS.push({
-    x: _rng() * VW, y: _rng() * VH,
-    r: .8 + _rng() * 1.8, spd: 6 + _rng() * 14,
-    ph: _rng() * 6.28, a: .3 + _rng() * .7,
-    c: _rng() < .6 ? '140,220,255' : '200,150,255',
-  });
-}
-const _MENU_SHAPES: { x: number; y: number; r: number; n: number; rot: number; dx: number; dy: number; ph: number; a: number; c: string }[] = [];
-for (let i = 0; i < 9; i++) {
-  _MENU_SHAPES.push({
-    x: 70 + _rng() * (VW - 140), y: 60 + _rng() * (VH - 120),
-    r: 14 + _rng() * 30, n: [3, 4, 6][(_rng() * 3) | 0],
-    rot: (_rng() - .5) * .8, dx: .08 + _rng() * .14, dy: .06 + _rng() * .1,
-    ph: _rng() * 6.28, a: .06 + _rng() * .08,
-    c: _rng() < .5 ? '150,190,255' : '190,140,255',
-  });
-}
-const _MENU_METEORS = [
-  { per: 6.5, x0: -60, x1: VW + 120, y0: 70, y1: 210 },
-  { per: 9.5, x0: VW + 80, x1: -120, y0: 110, y1: 260 },
-];
-
-/* ---------- 背景氛围层 ---------- */
-function _menuBackdrop(t: number): void {
-  ctx.save();
-  // 暗化 + 晕影
-  ctx.fillStyle = 'rgba(5,3,16,.68)';
-  ctx.fillRect(0, 0, VW, VH);
-  const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * .3, VW / 2, VH / 2, VH * .95);
-  vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(2,0,10,.6)');
-  ctx.fillStyle = vg;
-  ctx.fillRect(0, 0, VW, VH);
-
-  // 极光辉斑
-  ctx.globalCompositeOperation = 'lighter';
-  for (const a of _MENU_AURA) {
-    const px = VW / 2 + Math.cos(t * a.spd + a.ph) * a.ax;
-    const py = a.y + Math.sin(t * a.spd * 1.35 + a.ph) * 46;
-    const g = ctx.createRadialGradient(px, py, 0, px, py, a.r);
-    g.addColorStop(0, 'rgba(' + a.c + ',.09)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(px, py, a.r, 0, 6.283); ctx.fill();
-  }
-  // 上升微粒
-  for (const s of _MENU_STARS) {
-    let yy = (s.y - t * s.spd) % VH;
-    if (yy < 0) yy += VH;
-    const fl = .5 + .5 * Math.sin(t * 1.6 + s.ph);
-    ctx.fillStyle = 'rgba(' + s.c + ',' + (s.a * (.25 + .6 * fl)) + ')';
-    ctx.beginPath(); ctx.arc(s.x, yy, s.r, 0, 6.283); ctx.fill();
-  }
-  ctx.globalCompositeOperation = 'source-over';
-
-  // 漂浮线框几何
-  ctx.lineWidth = 1.2;
-  for (const g of _MENU_SHAPES) {
-    const px = g.x + Math.sin(t * g.dx + g.ph) * 34;
-    const py = g.y + Math.cos(t * g.dy + g.ph) * 22;
-    ctx.save();
-    ctx.translate(px, py);
-    ctx.rotate(t * g.rot + g.ph);
-    ctx.strokeStyle = 'rgba(' + g.c + ',' + g.a + ')';
-    _wireShape(g.n, g.r);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // 流星（周期性划过）
-  for (const m of _MENU_METEORS) {
-    const p = (t % m.per) / m.per;
-    if (p >= .08) continue;
-    const q = p / .08;
-    const x = _lerp(m.x0, m.x1, q), y = _lerp(m.y0, m.y1, q);
-    const dx = Math.sign(m.x1 - m.x0);
-    ctx.save();
-    ctx.strokeStyle = 'rgba(210,235,255,' + (.65 * (1 - q)) + ')';
-    ctx.lineWidth = 1.6;
-    ctx.lineCap = 'round';
-    ctx.shadowColor = 'rgba(160,220,255,.8)';
-    ctx.shadowBlur = 6;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x - dx * 66, y - 15);
-    ctx.stroke();
-    ctx.restore();
-  }
-  ctx.restore();
-}
-
-/* ---------- 四角 HUD 取景框 ---------- */
-function _menuFrame(a: number): void {
-  if (a <= 0) return;
-  const m = 26, L = 36;
-  ctx.save();
-  ctx.strokeStyle = 'rgba(140,170,255,' + (.42 * a) + ')';
-  ctx.lineWidth = 2;
-  ctx.shadowColor = 'rgba(120,150,255,.55)';
-  ctx.shadowBlur = 8;
-  const cs = [[m, m, 1, 1], [VW - m, m, -1, 1], [m, VH - m, 1, -1], [VW - m, VH - m, -1, -1]];
-  ctx.beginPath();
-  for (const c of cs) {
-    ctx.moveTo(c[0] + L * c[2], c[1]);
-    ctx.lineTo(c[0], c[1]);
-    ctx.lineTo(c[0], c[1] + L * c[3]);
-  }
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = 'rgba(140,246,255,' + (.6 * a) + ')';
-  for (const c of cs) {
-    ctx.beginPath(); ctx.arc(c[0] + 6 * c[2], c[1] + 6 * c[3], 2, 0, 6.283); ctx.fill();
-  }
   ctx.restore();
 }
 
@@ -241,43 +62,13 @@ function _menuTitle(t: number, en: number): void {
   ctx.translate(VW / 2, cy - 24 + dy);
   ctx.rotate(t * .15);
   ctx.globalAlpha = en * .10;
-  _drawStar(0, 0, 175, 0, '#9f8bff', 2, 1);
+  drawDecoStar(0, 0, 175, 0, '#9f8bff', 2, 1);
   ctx.rotate(Math.PI / 4);
-  _drawStar(0, 0, 120, 0, '#7de8ff', 1.5, 1);
+  drawDecoStar(0, 0, 120, 0, '#7de8ff', 1.5, 1);
   ctx.restore();
 
-  // 主标题：色差双层 + 渐变主体 + 紫晕
-  ctx.font = '900 italic 76px Arial';
-  const wob = Math.sin(t * 1.1) * 1.6;
-  ctx.fillStyle = 'rgba(0,229,255,.5)';
-  ctx.fillText('NEON ASCENT', VW / 2 - 3 - wob, cy + dy);
-  ctx.fillStyle = 'rgba(255,90,220,.5)';
-  ctx.fillText('NEON ASCENT', VW / 2 + 3 + wob, cy + dy);
-  ctx.shadowColor = 'rgba(125,107,255,.9)';
-  ctx.shadowBlur = 30;
-  const tg = ctx.createLinearGradient(0, cy + dy - 62, 0, cy + dy + 14);
-  tg.addColorStop(0, '#ffffff');
-  tg.addColorStop(.55, '#dff2ff');
-  tg.addColorStop(1, '#9fc6ff');
-  ctx.fillStyle = tg;
-  ctx.fillText('NEON ASCENT', VW / 2, cy + dy);
-
-  // 流光扫过（只作用于字形）
-  const cyc = 3.2, q = (t % cyc) / cyc;
-  if (q < .45) {
-    const u = q / .45;
-    const sx = VW / 2 - 420 + u * 840;
-    const sg = ctx.createLinearGradient(sx - 70, 0, sx + 70, 0);
-    sg.addColorStop(0, 'rgba(255,255,255,0)');
-    sg.addColorStop(.5, 'rgba(255,255,255,.9)');
-    sg.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = sg;
-    ctx.fillText('NEON ASCENT', VW / 2, cy + dy);
-    ctx.globalCompositeOperation = 'source-over';
-  }
-  ctx.shadowBlur = 0;
+  // 主标题：色差双层 + 渐变主体 + 紫晕 + 流光（内部自带 dy 入场位移）
+  drawNeonTitle(VW / 2, cy, 'NEON ASCENT', 76, t, en);
 
   // 副标题 + 两侧菱形星
   const subY = cy + 38 + dy;
@@ -285,7 +76,7 @@ function _menuTitle(t: number, en: number): void {
   ctx.fillStyle = '#b9c8ff';
   ctx.fillText('霓 虹 攀 升  ·  FEEL-TUNED EDITION', VW / 2, subY);
   for (const s of [-1, 1]) {
-    _drawStar(VW / 2 + s * 185, subY - 6, 5, t * .8 * s, 'rgba(140,246,255,.8)', 1, 1);
+    drawDecoStar(VW / 2 + s * 185, subY - 6, 5, t * .8 * s, 'rgba(140,246,255,.8)', 1, 1);
   }
   ctx.restore();
 }
@@ -311,7 +102,7 @@ function _menuGoal(t: number, en: number): void {
   const total = orbR * 2 + gap + wa + ws + wb + gap + starR * 2;
   let x = VW / 2 - total / 2;
 
-  _miniOrb(x + orbR, y + Math.sin(t * 2.6) * 2.5, t, orbR);
+  drawOrbIcon(x + orbR, y + Math.sin(t * 2.6) * 2.5, t, orbR);
   x += orbR * 2 + gap;
 
   ctx.textAlign = 'left';
@@ -365,10 +156,10 @@ function drawMenuScene(_t: number): void {
   _menuLast = nowMs;
   const t = _menuT;
 
-  _menuBackdrop(t);
-  _menuFrame(_ease(t / .5));
-  _menuTitle(t, _ease(t / .7));
-  _menuGoal(t, _ease((t - .45) / .6));
+  drawBackdrop(t);
+  drawHUDFrame(ease(t / .5));
+  _menuTitle(t, ease(t / .7));
+  _menuGoal(t, ease((t - .45) / .6));
   _menuHint(t);
   _menuFooter(t);
 }
@@ -413,13 +204,6 @@ export function buildMenuScene(onStart: () => void): UIScene {
     name: UI_SCENE.MENU,
     widgets: [menuBtn, galleryBtn, instrBtn],
     draw: drawMenuScene,
-    onExit: () => {
-      // 复位 hover 与光标（修复原 menuClosed 未被调用的问题）
-      menuBtn.hover = false;
-      galleryBtn.hover = false;
-      instrBtn.hover = false;
-      const c = ctx.canvas;
-      if (c) c.style.cursor = 'default';
-    },
+    onExit: () => resetHover(menuBtn, galleryBtn, instrBtn),
   };
 }

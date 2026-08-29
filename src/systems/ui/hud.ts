@@ -16,6 +16,7 @@ import { colliderWorldRect } from '../level';
 import { MAX_BACKPACK, type ItemId } from '../../types';
 import { HOOK_COOLDOWN } from '../../config';
 import { orbCount } from '../interactions';
+import { drawJumpTicketIcon, drawHookIcon, drawSpeedIcon, drawShieldIcon } from './icons';
 
 /* ==================== HUD ==================== */
 
@@ -73,18 +74,13 @@ export function drawHUD(): void {
       ctx.stroke();
       ctx.restore();
     } else {
-      // 道具图标（居中 28×28 区域）
+      // 道具图标（与图鉴拾取物同形，缩小版；scale 按原槽位视觉尺寸取值）
       const cx = x + SLOT / 2;
       const cy = y + SLOT / 2;
-      if (id === 'doubleJump') {
-        drawJumpTicketIcon(cx, cy);
-      } else if (id === 'shield') {
-        drawShieldIcon(cx, cy);
-      } else if (id === 'speed') {
-        drawSpeedIcon(cx, cy);
-      } else {
-        drawHookIcon(cx, cy);
-      }
+      if (id === 'doubleJump') drawJumpTicketIcon(cx, cy, 10);
+      else if (id === 'shield') drawShieldIcon(cx, cy - 1, 10);
+      else if (id === 'speed') drawSpeedIcon(cx, cy, 13);
+      else drawHookIcon(cx, cy, 10);
 
       // 钩锁冷却：弧形遮罩 + 进度指示
       if (id === 'hook' && p.hookCd > 0) {
@@ -109,114 +105,6 @@ export function drawHUD(): void {
     ctx.fillText(String(i + 1), x + 8, y + 8);
     ctx.restore();
   }
-}
-
-/** 二段跳票图标：绿色上箭头（与拾取物同形，缩小版） */
-function drawJumpTicketIcon(cx: number, cy: number): void {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.shadowColor = 'rgba(120,255,170,.8)';
-  ctx.shadowBlur = 6;
-  ctx.fillStyle = '#59ff8f';
-  ctx.beginPath();
-  ctx.moveTo(0, -11);
-  ctx.lineTo(5.5, -1.5);
-  ctx.lineTo(2.2, -1.5);
-  ctx.lineTo(2.2, 11);
-  ctx.lineTo(-2.2, 11);
-  ctx.lineTo(-2.2, -1.5);
-  ctx.lineTo(-5.5, -1.5);
-  ctx.closePath();
-  ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = 'rgba(230,255,240,.9)';
-  ctx.fillRect(-0.7, -9.5, 1.4, 7);
-  ctx.restore();
-}
-
-/** 钩锁图标：金色钩形（钩杆 + 弯钩 + 倒刺，缩小版） */
-function drawHookIcon(cx: number, cy: number): void {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.shadowColor = 'rgba(255,180,70,.85)';
-  ctx.shadowBlur = 6;
-  ctx.strokeStyle = '#ffc04d';
-  ctx.lineWidth = 3.6;
-  ctx.lineCap = 'round';
-  // 钩杆
-  ctx.beginPath();
-  ctx.moveTo(0, -10);
-  ctx.lineTo(0, 3);
-  ctx.stroke();
-  // 弯钩
-  ctx.beginPath();
-  ctx.arc(0, 3, 5.4, -Math.PI * 0.82, Math.PI * 1.02);
-  ctx.stroke();
-  // 倒刺
-  ctx.fillStyle = '#ffd27a';
-  ctx.beginPath();
-  ctx.moveTo(0, 2);
-  ctx.lineTo(-4.6, 0.6);
-  ctx.lineTo(0, -1.4);
-  ctx.closePath();
-  ctx.fill();
-  // 顶部圆头
-  ctx.fillStyle = '#ffe3ad';
-  ctx.beginPath(); ctx.arc(0, -10, 2, 0, 6.283); ctx.fill();
-  ctx.restore();
-}
-
-/** 加速图标：青色双箭头 》》（两个右向双箭头，随拾取物同形，缩小版） */
-function drawSpeedIcon(cx: number, cy: number): void {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.shadowColor = 'rgba(90,225,255,.85)';
-  ctx.shadowBlur = 6;
-  ctx.strokeStyle = '#5ae1ff';
-  ctx.lineWidth = 3.4;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  // 》》双箭头（右向双尖头，两条并列）
-  for (const ox of [-4, 4]) {
-    ctx.beginPath();
-    ctx.moveTo(ox - 5, -9);
-    ctx.lineTo(ox + 3, 0);
-    ctx.lineTo(ox - 5, 9);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(ox, -9);
-    ctx.lineTo(ox + 8, 0);
-    ctx.lineTo(ox, 9);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-/** 护盾图标：蓝紫盾形（上圆 + 收尖下底 + V 型高光，缩小版，与拾取物同形） */
-function drawShieldIcon(cx: number, cy: number): void {
-  ctx.save();
-  ctx.translate(cx, cy - 1);
-  ctx.shadowColor = 'rgba(150,140,255,.8)';
-  ctx.shadowBlur = 6;
-  ctx.fillStyle = '#b3c7ff';
-  ctx.beginPath();
-  ctx.arc(0, 0, 6.75, Math.PI, 0);
-  ctx.lineTo(6.75, 4);
-  ctx.lineTo(0, 8.5);
-  ctx.lineTo(-6.75, 4);
-  ctx.closePath();
-  ctx.fill();
-  ctx.shadowBlur = 0;
-  // V 型高光
-  ctx.strokeStyle = 'rgba(235,240,255,.9)';
-  ctx.lineWidth = 1.4;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(-2.7, -1.8);
-  ctx.lineTo(0, 2.3);
-  ctx.lineTo(2.7, -1.8);
-  ctx.stroke();
-  ctx.restore();
 }
 
 /* ==================== 小地图 ==================== */

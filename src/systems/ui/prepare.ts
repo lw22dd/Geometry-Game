@@ -14,6 +14,7 @@ import type { MapDefinition } from '../../types';
 import { Button, UI_SCENE, ui } from '../../core/uiComponent';
 import type { UIWidget, UIScene } from '../../core/uiComponent';
 import { drawBackdrop, drawHUDFrame, drawNeonTitle, drawDecoStar, ease } from '../uiAtmosphere';
+import { tickLocal, drawGlassPanel, makeBackButton, resetHover } from './primitives';
 
 /* ==================== 准备流程状态 ==================== */
 
@@ -32,7 +33,7 @@ function selectedChar(): CharacterStyle {
 }
 
 /* ---------- 本地计时（独立于游戏时间，用于入场动画） ---------- */
-let _prepT = 0, _prepLast = 0;
+const _prepTime = { t: 0, last: 0 };
 
 /* ==================== 卡片组件 ==================== */
 
@@ -314,16 +315,10 @@ export function buildPrepareScene(a: PrepareActions): UIScene {
     id: 'prepare_join', label: '加入房间', variant: 'plain',
     x: VW / 2 + 15, y: py + 500, w: 250, h: 44, onClick: a.onJoinRoom, enterDelay: 0.75,
   });
-  const btnBack = new Button({
-    id: 'prepare_back', label: '← 返回主菜单', variant: 'plain',
-    x: px + 22, y: py + 16, w: 160, h: 34, onClick: a.onBack,
-  });
+  const btnBack = makeBackButton('prepare_back', a.onBack, { label: '← 返回主菜单', x: px + 22, y: py + 16, w: 160, h: 34 });
 
   function draw(_t: number): void {
-    const nowMs = performance.now();
-    if (_prepLast) _prepT += Math.min(.05, (nowMs - _prepLast) / 1000);
-    _prepLast = nowMs;
-    const tt = _prepT;
+    const tt = tickLocal(_prepTime);
 
     // 1) 氛围层 + HUD
     drawBackdrop(tt);
@@ -335,11 +330,7 @@ export function buildPrepareScene(a: PrepareActions): UIScene {
     ctx.translate(0, (1 - pe) * 22);
 
     // 面板底
-    ctx.shadowColor = 'rgba(80,60,200,.45)'; ctx.shadowBlur = 34;
-    rr(ctx, px, py, pw, ph, 18);
-    ctx.fillStyle = 'rgba(10,8,32,.92)'; ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(130,160,255,.45)'; ctx.lineWidth = 1.5; ctx.stroke();
+    drawGlassPanel(px, py, pw, ph, 18);
 
     // 色差标题
     drawNeonTitle(VW / 2, py + 70, '准备 · PREPARE', 32, tt, ease((tt - .1) / .55), 1.4);
@@ -362,12 +353,8 @@ export function buildPrepareScene(a: PrepareActions): UIScene {
     name: UI_SCENE.PREPARE,
     widgets: [cardMap, cardChar, btnStart, btnCreate, btnJoin, btnBack],
     draw,
-    onEnter: () => { _prepT = 0; _prepLast = 0; },
-    onExit: () => {
-      cardMap.hover = false; cardChar.hover = false;
-      for (const b of [btnStart, btnCreate, btnJoin, btnBack]) b.hover = false;
-      const c = ctx.canvas; if (c) c.style.cursor = 'default';
-    },
+    onEnter: () => { _prepTime.t = 0; _prepTime.last = 0; },
+    onExit: () => resetHover(cardMap, cardChar, btnStart, btnCreate, btnJoin, btnBack),
   };
 }
 
@@ -470,17 +457,11 @@ function buildSelectScene(kind: 'maps' | 'chars', onBack: () => void): UIScene {
   arrowDown.y = gridY + gridH - 16 - 36;
   widgets.push(arrowUp, arrowDown);
 
-  const btnBack = new Button({
-    id: kind + '_back', label: '← 返回', variant: 'plain',
-    x: px + 22, y: py + 16, w: 130, h: 34, onClick: onBack,
-  });
+  const btnBack = makeBackButton(kind + '_back', onBack, { x: px + 22, y: py + 16, w: 130, h: 34 });
   widgets.push(btnBack);
 
   function draw(_t: number): void {
-    const nowMs = performance.now();
-    if (_prepLast) _prepT += Math.min(.05, (nowMs - _prepLast) / 1000);
-    _prepLast = nowMs;
-    const tt = _prepT;
+    const tt = tickLocal(_prepTime);
 
     // 1) 氛围层 + HUD
     drawBackdrop(tt);
@@ -491,11 +472,7 @@ function buildSelectScene(kind: 'maps' | 'chars', onBack: () => void): UIScene {
     ctx.globalAlpha = pe;
     ctx.translate(0, (1 - pe) * 22);
 
-    ctx.shadowColor = 'rgba(80,60,200,.4)'; ctx.shadowBlur = 30;
-    rr(ctx, px, py, pw, ph, 18);
-    ctx.fillStyle = 'rgba(10,8,32,.92)'; ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(130,160,255,.45)'; ctx.lineWidth = 1.5; ctx.stroke();
+    drawGlassPanel(px, py, pw, ph, 18, { shadowAlpha: 0.4, shadowBlur: 30 });
 
     // 色差标题
     drawNeonTitle(VW / 2, py + 80, title, 36, tt, ease((tt - .1) / .55), 1.4);
@@ -535,14 +512,8 @@ function buildSelectScene(kind: 'maps' | 'chars', onBack: () => void): UIScene {
       const step = Math.max(24, Math.min(120, Math.abs(dy))) * Math.sign(dy);
       return scrollBy(step);
     },
-    onEnter: () => { _prepT = 0; _prepLast = 0; },
-    onExit: () => {
-      for (const c of cards) c.hover = false;
-      btnBack.hover = false;
-      arrowUp.hover = false; arrowDown.hover = false;
-      const cv = ctx.canvas;
-      if (cv) cv.style.cursor = 'default';
-    },
+    onEnter: () => { _prepTime.t = 0; _prepTime.last = 0; },
+    onExit: () => resetHover(btnBack, arrowUp, arrowDown, ...cards),
   };
 }
 

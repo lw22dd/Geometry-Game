@@ -8,6 +8,7 @@ import { rr } from '../../core/math';
 import { Button, UI_SCENE, ui } from '../../core/uiComponent';
 import type { UIScene } from '../../core/uiComponent';
 import { drawBackdrop, drawHUDFrame, drawNeonTitle, drawDecoStar, ease } from '../uiAtmosphere';
+import { tickLocal, drawGlassPanel, makeBackButton, resetHover } from './primitives';
 
 /* ==================== 弹窗状态（问题 3：开关由叠层栈承担） ==================== */
 
@@ -17,8 +18,7 @@ export function openInstructions(): void { ui.pushOverlay('instructions'); }
 export function closeInstructions(): void { ui.popOverlay(); }
 
 /* ---------- 弹窗动画计时 ---------- */
-let _instrT = 0;
-let _instrLast = 0;
+const _instrTime = { t: 0, last: 0 };
 
 /* ==================== 键帽绘制（与旧菜单卡片同款） ==================== */
 
@@ -82,13 +82,7 @@ interface InstructionsActions {
 
 /** 构建操作说明弹窗场景 */
 export function buildInstructionsScene(a: InstructionsActions): UIScene {
-  const btnBack = new Button({
-    id: 'instr_back',
-    label: '← 返回',
-    variant: 'plain',
-    x: VW / 2 - 130, y: 0, w: 260, h: 46,
-    onClick: a.onBack,
-  });
+  const btnBack = makeBackButton('instr_back', a.onBack, { x: VW / 2 - 130, y: 0, w: 260, h: 46 });
 
   // 全部按键防盗：弹窗打开时消费所有按键（避免误触菜单的"任意键开始"）
   btnBack.onKey = (e: KeyboardEvent): boolean => {
@@ -98,10 +92,7 @@ export function buildInstructionsScene(a: InstructionsActions): UIScene {
 
   function drawPanel(_t: number): void {
     // 本地动画计时（每次入场重播）
-    const nowMs = performance.now();
-    if (_instrLast) _instrT += Math.min(0.05, (nowMs - _instrLast) / 1000);
-    _instrLast = nowMs;
-    const tt = _instrT;
+    const tt = tickLocal(_instrTime);
 
     // 入场动画
     const en = ease(tt / 0.3);
@@ -117,21 +108,7 @@ export function buildInstructionsScene(a: InstructionsActions): UIScene {
     drawHUDFrame(ease(tt / .5));
 
     // 玻璃面板
-    ctx.shadowColor = 'rgba(80,60,200,.45)';
-    ctx.shadowBlur = 34;
-    rr(ctx, px, py, pw, ph, 16);
-    ctx.fillStyle = 'rgba(10,8,32,.9)';
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(130,160,255,.45)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    const hg = ctx.createLinearGradient(0, py, 0, py + 20);
-    hg.addColorStop(0, 'rgba(150,200,255,.12)');
-    hg.addColorStop(1, 'rgba(150,200,255,0)');
-    rr(ctx, px + 2, py + 2, pw - 4, 18, 14);
-    ctx.fillStyle = hg;
-    ctx.fill();
+    drawGlassPanel(px, py, pw, ph, 16, { highlight: true, fill: 'rgba(10,8,32,.9)' });
 
     // 左侧竖向荧光条
     ctx.fillStyle = 'rgba(140,246,255,.5)';
@@ -144,7 +121,7 @@ export function buildInstructionsScene(a: InstructionsActions): UIScene {
 
     // 键位行（逐行入场）
     ROWS.forEach((r, i) => {
-      const re = _ease((tt - 0.18 - i * 0.06) / 0.35);
+      const re = ease((tt - 0.18 - i * 0.06) / 0.35);
       if (re <= 0) return;
       const ry = py + 88 + i * 40;
       ctx.save();
@@ -177,15 +154,9 @@ export function buildInstructionsScene(a: InstructionsActions): UIScene {
     widgets: [btnBack],
     draw: drawPanel,
     onEnter: () => {
-      _instrT = 0;
-      _instrLast = 0;
+      _instrTime.t = 0;
+      _instrTime.last = 0;
     },
-    onExit: () => {
-      btnBack.hover = false;
-      const c = ctx.canvas;
-      if (c) c.style.cursor = 'default';
-    },
+    onExit: () => resetHover(btnBack),
   };
 }
-
-const _ease = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);

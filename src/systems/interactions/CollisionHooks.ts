@@ -186,101 +186,30 @@ export function initCollisionHooks(): void {
       return;
     }
 
-    // ── 二段跳票（背包被动道具）──
-    if (hasComponent(world, b, JumpBoost)) {
+    // ── 道具拾取（背包道具：二段跳票/钩锁/护盾/加速；问题 12：规则表驱动）──
+    for (const rule of PICKUP_RULES) {
+      if (!hasComponent(world, b, rule.tag)) continue;
       const s = targetState();
-      // 背包：入被动栏（满/已有则拾取不生效，实体保持未拾取可再次尝试）
-      if (!addItem(s.backpack, 'doubleJump')) {
+      // 守卫（护盾/加速：已有激活能力时拾取只刷新计时，不重复占格）+ 背包放入
+      // （满/已有则拾取不生效，实体保持未拾取可再次尝试）
+      if ((rule.guard ? rule.guard(s) : true) && !addItem(s.backpack, rule.item)) {
         if (!isRemote()) { gs.toast = '背包已满！'; gs.toastT = 2; }
         return;
       }
       Collectible.collected[b] = 1;
-      // 被动效果经道具 onPickup → 契约层（GrantJumpCharges），不直写 extraJumpsMax
-      ITEMS['doubleJump'].onPickup?.(s);
+      // 效果经道具 onPickup → 契约层（GrantJumpCharges / ApplyModifier 限时 buff），不直写字段
+      ITEMS[rule.item].onPickup?.(s);
 
       if (!isRemote()) {
         const pos = { x: Position.x[b], y: Position.y[b] };
         spawnParticles(FX.sparkle, pos.x, pos.y);
-        spawnParticles(FX.arrowBoost, pos.x, pos.y, 8);
-        sfx.orb();
-        netBus.emit({ type: 'game:jumpboost' });
-        gs.toast = '二段跳票已装备！';
-        gs.toastT = 2;
+        rule.fx?.(pos.x, pos.y);
+        rule.sfx?.();
+        netBus.emit({ type: rule.event });
+        gs.toast = rule.toast;
+        gs.toastT = rule.toastT;
       }
-      if (signals) signals.jumpBoostPicked = true;
-      return;
-    }
-
-    // ── 钩锁（背包主动道具）──
-    if (hasComponent(world, b, Hook)) {
-      const s = targetState();
-      // 背包：入主动栏（满/已有则拾取不生效，实体保持未拾取可再次尝试）
-      if (!addItem(s.backpack, 'hook')) {
-        if (!isRemote()) { gs.toast = '背包已满！'; gs.toastT = 2; }
-        return;
-      }
-      Collectible.collected[b] = 1;
-      // 主动装备：拾取后自动选中该槽位（道具 onPickup 负责），便于立即使用
-      ITEMS['hook'].onPickup?.(s);
-
-      if (!isRemote()) {
-        const pos = { x: Position.x[b], y: Position.y[b] };
-        spawnParticles(FX.sparkle, pos.x, pos.y);
-        sfx.hookPickup();
-        netBus.emit({ type: 'game:hookpickup' });
-        gs.toast = '钩锁已装备！左键发射，长按锁定';
-        gs.toastT = 2.5;
-      }
-      if (signals) signals.hookPicked = true;
-      return;
-    }
-
-    // ── 护盾（背包被动道具 · 限时 buff）──
-    if (hasComponent(world, b, ShieldPickup)) {
-      const s = targetState();
-      // 未激活时才占背包格（已有盾 = 拾取只刷新计时，不重复占格）
-      if (s.shieldsMax === 0 && !addItem(s.backpack, 'shield')) {
-        if (!isRemote()) { gs.toast = '背包已满！'; gs.toastT = 2; }
-        return;
-      }
-      Collectible.collected[b] = 1;
-      // 被动效果经道具 onPickup → 契约层（ApplyModifier shields 限时 buff），不直写 shieldsMax
-      ITEMS['shield'].onPickup?.(s);
-
-      if (!isRemote()) {
-        const pos = { x: Position.x[b], y: Position.y[b] };
-        spawnParticles(FX.sparkle, pos.x, pos.y);
-        sfx.shieldPickup();
-        netBus.emit({ type: 'game:shieldpickup' });
-        gs.toast = '护盾已装备！危险物命中将格挡一次';
-        gs.toastT = 2.5;
-      }
-      if (signals) signals.shieldPicked = true;
-      return;
-    }
-
-    // ── 加速（背包被动道具 · 限时 buff · 速度 ×2）──
-    if (hasComponent(world, b, SpeedPickup)) {
-      const s = targetState();
-      // 未激活时才占背包格（已有加速 = 拾取只刷新计时，不重复占格）
-      if (s.speedMult <= 1 && !addItem(s.backpack, 'speed')) {
-        if (!isRemote()) { gs.toast = '背包已满！'; gs.toastT = 2; }
-        return;
-      }
-      Collectible.collected[b] = 1;
-      // 被动效果经道具 onPickup → 契约层（ApplyModifier moveSpeed 限时 buff），不直写 speedMult
-      ITEMS['speed'].onPickup?.(s);
-
-      if (!isRemote()) {
-        const pos = { x: Position.x[b], y: Position.y[b] };
-        spawnParticles(FX.sparkle, pos.x, pos.y);
-        spawnParticles(FX.speedBoost, pos.x, pos.y, 6);
-        sfx.speedPickup();
-        netBus.emit({ type: 'game:speedpickup' });
-        gs.toast = '极速冲刺！移速 ×2';
-        gs.toastT = 2.5;
-      }
-      if (signals) signals.speedPicked = true;
+      if (signals) signals[rule.signal] = true;
       return;
     }
   });

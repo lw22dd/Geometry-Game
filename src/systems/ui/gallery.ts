@@ -7,6 +7,8 @@ import { rr } from '../../core/math';
 import { Button, UI_SCENE, ui } from '../../core/uiComponent';
 import type { UIScene, UIWidget } from '../../core/uiComponent';
 import { drawBackdrop, drawHUDFrame, drawNeonTitle, drawDecoStar, ease } from '../uiAtmosphere';
+import { drawOrbIcon, drawJumpTicketIcon, drawHookIcon, drawShieldIcon, drawSpeedIcon } from './icons';
+import { tickLocal, drawGlassPanel, makeBackButton, resetHover } from './primitives';
 
 /* ==================== 图鉴状态（问题 3：开关由叠层栈承担，此处仅保留内容状态） ==================== */
 
@@ -15,7 +17,7 @@ export function openGallery(): void { gallery.cat = 0; gallery.page = 0; ui.push
 export function closeGallery(): void { ui.popOverlay(); }
 
 /* ---------- 本地计时（与 menu 同款独立时钟） ---------- */
-let _gT = 0, _gLast = 0;
+const _gTime = { t: 0, last: 0 };
 
 /* ==================== 图鉴数据 ==================== */
 
@@ -34,6 +36,31 @@ interface GalleryCategory {
   icon: string;
   title: string;
   items: GalleryItem[];
+}
+
+/** 拾取物特效：bob 浮动 + 径向光晕 + 摇摆 + 图标本体（问题 13：四个道具共用一份样板） */
+function drawPickup(
+  cx: number, cy: number, t: number, r: number,
+  glow: string, ph: number, dy: number, rotPh: number,
+  icon: () => void,
+): void {
+  ctx.save();
+  const bob = Math.sin(t * 1.5 + ph) * 0.06 * r;
+  const cy2 = cy + bob;
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(cx, cy2, r * 0.2, cx, cy2, r * 2.4);
+  g.addColorStop(0, glow);
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx, cy2, r * 2.4, 0, 6.283);
+  ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.save();
+  ctx.translate(cx, cy2 + r * dy);
+  ctx.rotate(Math.sin(t * 2 + rotPh) * 0.18);
+  icon();
+  ctx.restore();
+  ctx.restore();
 }
 
 const CATEGORIES: GalleryCategory[] = [
@@ -126,31 +153,7 @@ const CATEGORIES: GalleryCategory[] = [
       {
         id: 'orb',
         name: '光球',
-        draw: (cx, cy, t, r) => {
-          ctx.save();
-          ctx.globalCompositeOperation = 'lighter';
-          const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 2.6);
-          g.addColorStop(0, 'rgba(140,246,255,.5)');
-          g.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = g;
-          ctx.beginPath(); ctx.arc(cx, cy, r * 2.6, 0, 6.283);
-          ctx.fill();
-          ctx.globalCompositeOperation = 'source-over';
-          ctx.shadowColor = '#8ff6ff';
-          ctx.shadowBlur = 12;
-          ctx.fillStyle = '#eaffff';
-          ctx.beginPath(); ctx.arc(cx, cy, r * 0.55, 0, 6.283);
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          ctx.save();
-          ctx.translate(cx, cy);
-          ctx.rotate(t * 1.8);
-          ctx.strokeStyle = 'rgba(160,250,255,.85)';
-          ctx.lineWidth = 1.6;
-          ctx.strokeRect(-r * 0.8, -r * 0.8, r * 1.6, r * 1.6);
-          ctx.restore();
-          ctx.restore();
-        },
+        draw: (cx, cy, t, r) => drawOrbIcon(cx, cy, t, r),
       },
       {
         id: 'nova',
@@ -198,167 +201,22 @@ const CATEGORIES: GalleryCategory[] = [
       {
         id: 'jumpBoost',
         name: '双跳光球',
-        draw: (cx, cy, t, r) => {
-          ctx.save();
-          const bob = Math.sin(t * 1.5) * 0.06 * r;
-          const cy2 = cy + bob;
-          ctx.globalCompositeOperation = 'lighter';
-          const g = ctx.createRadialGradient(cx, cy2, r * 0.2, cx, cy2, r * 2.4);
-          g.addColorStop(0, 'rgba(120,255,170,.28)');
-          g.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = g;
-          ctx.beginPath(); ctx.arc(cx, cy2, r * 2.4, 0, 6.283);
-          ctx.fill();
-          ctx.globalCompositeOperation = 'source-over';
-          ctx.save();
-          ctx.translate(cx, cy2 + r * 0.1);
-          ctx.rotate(Math.sin(t * 2) * 0.18);
-          ctx.shadowColor = 'rgba(120,255,170,.9)';
-          ctx.shadowBlur = 10;
-          ctx.fillStyle = '#59ff8f';
-          ctx.beginPath();
-          ctx.moveTo(0, -r * 1.15);
-          ctx.lineTo(r * 0.62, -r * 0.15);
-          ctx.lineTo(r * 0.24, -r * 0.15);
-          ctx.lineTo(r * 0.24, r);
-          ctx.lineTo(-r * 0.24, r);
-          ctx.lineTo(-r * 0.24, -r * 0.15);
-          ctx.lineTo(-r * 0.62, -r * 0.15);
-          ctx.closePath();
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          ctx.fillStyle = 'rgba(230,255,240,.9)';
-          ctx.fillRect(-r * 0.08, -r * 1.02, r * 0.16, r * 0.88);
-          ctx.restore();
-          ctx.restore();
-        },
+        draw: (cx, cy, t, r) => drawPickup(cx, cy, t, r, 'rgba(120,255,170,.28)', 0, 0.1, 0, () => drawJumpTicketIcon(0, 0, r)),
       },
       {
         id: 'hookPickup',
         name: '钩锁道具',
-        draw: (cx, cy, t, r) => {
-          ctx.save();
-          const bob = Math.sin(t * 1.5 + 0.7) * 0.06 * r;
-          const cy2 = cy + bob;
-          ctx.globalCompositeOperation = 'lighter';
-          const g = ctx.createRadialGradient(cx, cy2, r * 0.2, cx, cy2, r * 2.4);
-          g.addColorStop(0, 'rgba(255,190,90,.30)');
-          g.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = g;
-          ctx.beginPath(); ctx.arc(cx, cy2, r * 2.4, 0, 6.283);
-          ctx.fill();
-          ctx.globalCompositeOperation = 'source-over';
-          ctx.save();
-          ctx.translate(cx, cy2 + r * 0.2);
-          ctx.rotate(Math.sin(t * 2 + 0.4) * 0.18);
-          ctx.shadowColor = 'rgba(255,180,70,.9)';
-          ctx.shadowBlur = 10;
-          ctx.strokeStyle = '#ffc04d';
-          ctx.lineWidth = r * 0.36;
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.moveTo(0, -r * 1.15);
-          ctx.lineTo(0, r * 0.35);
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.arc(0, r * 0.35, r * 0.6, -Math.PI * 0.82, Math.PI * 1.02);
-          ctx.stroke();
-          ctx.fillStyle = '#ffd27a';
-          ctx.beginPath();
-          ctx.moveTo(0, r * 0.28);
-          ctx.lineTo(-r * 0.5, r * 0.1);
-          ctx.lineTo(0, -r * 0.05);
-          ctx.closePath();
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          ctx.fillStyle = '#ffe3ad';
-          ctx.beginPath(); ctx.arc(0, -r * 1.15, r * 0.2, 0, 6.283); ctx.fill();
-          ctx.restore();
-          ctx.restore();
-        },
+        draw: (cx, cy, t, r) => drawPickup(cx, cy, t, r, 'rgba(255,190,90,.30)', 0.7, 0.2, 0.4, () => drawHookIcon(0, 0, r)),
       },
       {
         id: 'shieldPickup',
         name: '护盾道具',
-        draw: (cx, cy, t, r) => {
-          ctx.save();
-          const bob = Math.sin(t * 1.5 + 1.1) * 0.06 * r;
-          const cy2 = cy + bob;
-          ctx.globalCompositeOperation = 'lighter';
-          const g = ctx.createRadialGradient(cx, cy2, r * 0.2, cx, cy2, r * 2.4);
-          g.addColorStop(0, 'rgba(150,140,255,.32)');
-          g.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = g;
-          ctx.beginPath(); ctx.arc(cx, cy2, r * 2.4, 0, 6.283);
-          ctx.fill();
-          ctx.globalCompositeOperation = 'source-over';
-          ctx.save();
-          ctx.translate(cx, cy2 + r * 0.1);
-          ctx.rotate(Math.sin(t * 2 + 1.2) * 0.18);
-          ctx.shadowColor = 'rgba(150,140,255,.9)';
-          ctx.shadowBlur = 12;
-          ctx.fillStyle = '#b3c7ff';
-          ctx.beginPath();
-          ctx.arc(0, 0, r * 0.75, Math.PI, 0);
-          ctx.lineTo(r * 0.75, r * 0.45);
-          ctx.lineTo(0, r * 0.95);
-          ctx.lineTo(-r * 0.75, r * 0.45);
-          ctx.closePath();
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          ctx.strokeStyle = 'rgba(235,240,255,.9)';
-          ctx.lineWidth = r * 0.16;
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.moveTo(-r * 0.3, -r * 0.2);
-          ctx.lineTo(0, r * 0.25);
-          ctx.lineTo(r * 0.3, -r * 0.2);
-          ctx.stroke();
-          ctx.restore();
-          ctx.restore();
-        },
+        draw: (cx, cy, t, r) => drawPickup(cx, cy, t, r, 'rgba(150,140,255,.32)', 1.1, 0.1, 1.2, () => drawShieldIcon(0, 0, r)),
       },
       {
         id: 'speedPickup',
         name: '加速道具',
-        draw: (cx, cy, t, r) => {
-          ctx.save();
-          const bob = Math.sin(t * 1.5 + 1.7) * 0.06 * r;
-          const cy2 = cy + bob;
-          ctx.globalCompositeOperation = 'lighter';
-          const g = ctx.createRadialGradient(cx, cy2, r * 0.2, cx, cy2, r * 2.4);
-          g.addColorStop(0, 'rgba(140,246,255,.32)');
-          g.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = g;
-          ctx.beginPath(); ctx.arc(cx, cy2, r * 2.4, 0, 6.283);
-          ctx.fill();
-          ctx.globalCompositeOperation = 'source-over';
-          ctx.save();
-          ctx.translate(cx, cy2 + r * 0.1);
-          ctx.rotate(Math.sin(t * 2 + 1.8) * 0.18);
-          ctx.shadowColor = 'rgba(120,230,255,.9)';
-          ctx.shadowBlur = 10;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          // 后箭头（左小）
-          ctx.strokeStyle = '#8ff6ff';
-          ctx.lineWidth = r * 0.34;
-          ctx.beginPath();
-          ctx.moveTo(-r * 0.82, -r * 0.78);
-          ctx.lineTo(-r * 0.05, 0);
-          ctx.lineTo(-r * 0.82, r * 0.78);
-          ctx.stroke();
-          // 前箭头（右大）
-          ctx.strokeStyle = '#eaffff';
-          ctx.beginPath();
-          ctx.moveTo(-r * 0.18, -r * 0.78);
-          ctx.lineTo(r * 0.6, 0);
-          ctx.lineTo(-r * 0.18, r * 0.78);
-          ctx.stroke();
-          ctx.shadowBlur = 0;
-          ctx.restore();
-          ctx.restore();
-        },
+        draw: (cx, cy, t, r) => drawPickup(cx, cy, t, r, 'rgba(140,246,255,.32)', 1.7, 0.1, 1.8, () => drawSpeedIcon(0, 0, r)),
       },
       {
         id: 'checkpoint',
@@ -898,9 +756,7 @@ class TabPill implements UIWidget {
 
 /** 构建预制体图鉴场景 */
 export function buildGalleryScene(a: GalleryActions): UIScene {
-  const btnBack = new Button({
-    id: 'gallery_back', label: '← 返回', variant: 'plain', x: 24, y: 20, w: 100, h: 36, onClick: a.onBack,
-  });
+  const btnBack = makeBackButton('gallery_back', a.onBack);
 
   const tabBtns: TabPill[] = [];
   for (let i = 0; i < CATEGORIES.length; i++) {
@@ -944,10 +800,7 @@ export function buildGalleryScene(a: GalleryActions): UIScene {
   }
 
   function drawPanel(_t: number): void {
-    const nowMs = performance.now();
-    if (_gLast) _gT += Math.min(.05, (nowMs - _gLast) / 1000);
-    _gLast = nowMs;
-    const t = _gT;
+    const t = tickLocal(_gTime);
 
     layout();
 
@@ -979,11 +832,9 @@ export function buildGalleryScene(a: GalleryActions): UIScene {
     const pw = 1130, ph = 600;
     const px = (VW - pw) / 2, py = 60 + (1 - pe) * 26;
     ctx.globalAlpha = pe;
-    ctx.shadowColor = 'rgba(80,60,200,.35)'; ctx.shadowBlur = 36;
-    rr(ctx, px, py, pw, ph, 18);
-    ctx.fillStyle = 'rgba(10,8,34,.92)'; ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(130,160,255,.3)'; ctx.lineWidth = 1.5; ctx.stroke();
+    drawGlassPanel(px, py, pw, ph, 18, {
+      shadowAlpha: 0.35, shadowBlur: 36, fill: 'rgba(10,8,34,.92)', stroke: 'rgba(130,160,255,.3)',
+    });
 
     // 4) 色差标题 + 流光
     drawNeonTitle(VW / 2, 92, '预制体图鉴', 36, t, ease(t / .55));
@@ -1075,10 +926,7 @@ export function buildGalleryScene(a: GalleryActions): UIScene {
     name: UI_SCENE.GALLERY,
     widgets: [btnBack, ...tabBtns, btnPrev, btnNext],
     draw: drawPanel,
-    onEnter: () => { gallery.cat = 0; gallery.page = 0; _gT = 0; _gLast = 0; },
-    onExit: () => {
-      for (const w of [btnBack, ...tabBtns, btnPrev, btnNext]) w.hover = false;
-      const c = ctx.canvas; if (c) c.style.cursor = 'default';
-    },
+    onEnter: () => { gallery.cat = 0; gallery.page = 0; _gTime.t = 0; _gTime.last = 0; },
+    onExit: () => resetHover(btnBack, ...tabBtns, btnPrev, btnNext),
   };
 }

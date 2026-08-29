@@ -16,6 +16,7 @@ import { CHARACTERS, getCharacterById, setSelectedCharacter } from '../../Prefab
 import type { CharacterStyle } from '../../Prefabs/Player';
 import { Button, TextInput, UI_SCENE, ui } from '../../core/uiComponent';
 import type { UIWidget, UIScene } from '../../core/uiComponent';
+import { tickLocal, ease, drawMask, drawGlassPanel, drawTitle, resetHover } from './primitives';
 
 type LobbyMode = 'none' | 'create' | 'join';
 
@@ -33,10 +34,8 @@ export const lobby = {
 };
 
 /* ---------- 大厅动画计时 ---------- */
-let _lobbyT = 0;
-let _lobbyLast = 0;
+const _lobbyTime = { t: 0, last: 0 };
 
-const _ease = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
 const DEFAULT_NAME = '玩家' + Math.floor(Math.random() * 900 + 100);
 
 interface LobbyActions {
@@ -297,11 +296,8 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
 
   // ---- 背景绘制 ----
   function drawPanel(t: number): void {
-    const nowMs = performance.now();
-    if (_lobbyLast) _lobbyT += Math.min(0.05, (nowMs - _lobbyLast) / 1000);
-    _lobbyLast = nowMs;
-    const tt = _lobbyT;
-    const en = _ease(tt / 0.3);
+    const tt = tickLocal(_lobbyTime);
+    const en = ease(tt / 0.3);
     if (en <= 0) return;
 
     if (lobby.inRoom) {
@@ -318,25 +314,12 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     ctx.globalAlpha = en;
 
     // 半透明遮罩
-    ctx.fillStyle = 'rgba(5,3,16,' + (0.8 * en) + ')';
-    ctx.fillRect(0, 0, VW, VH);
+    drawMask(0.8 * en);
 
-    ctx.shadowColor = 'rgba(80,60,200,.45)';
-    ctx.shadowBlur = 34;
-    rr(ctx, px, py, pw, ph, 16);
-    ctx.fillStyle = 'rgba(10,8,32,.88)';
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(130,160,255,.45)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    drawGlassPanel(px, py, pw, ph, 16, { fill: 'rgba(10,8,32,.88)' });
 
     // 标题
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '700 26px "Segoe UI","Microsoft YaHei",Arial';
-    ctx.fillStyle = '#bfe9ff';
-    ctx.fillText(lobby.mode === 'create' ? '🏠 创建房间' : '🔗 加入房间', VW / 2, py + 48);
+    drawTitle(lobby.mode === 'create' ? '🏠 创建房间' : '🔗 加入房间', py + 48, 26);
 
     // 状态行
     const btnH = 46;
@@ -369,25 +352,12 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     ctx.save();
     ctx.globalAlpha = en;
 
-    ctx.fillStyle = 'rgba(5,3,16,' + (0.82 * en) + ')';
-    ctx.fillRect(0, 0, VW, VH);
+    drawMask(0.82 * en);
 
-    ctx.shadowColor = 'rgba(80,60,200,.45)';
-    ctx.shadowBlur = 34;
-    rr(ctx, px, py, pw, ph, 18);
-    ctx.fillStyle = 'rgba(10,8,32,.92)';
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(130,160,255,.45)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    drawGlassPanel(px, py, pw, ph, 18);
 
     // 标题
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '700 26px "Segoe UI","Microsoft YaHei",Arial';
-    ctx.fillStyle = '#bfe9ff';
-    ctx.fillText(room.role === 'host' ? '🏠 我的房间' : '🔗 已加入房间', VW / 2, py + 48);
+    drawTitle(room.role === 'host' ? '🏠 我的房间' : '🔗 已加入房间', py + 48, 26);
     ctx.font = '500 12px "Segoe UI","Microsoft YaHei",Arial';
     ctx.fillStyle = 'rgba(150,180,255,.55)';
     ctx.fillText('房间中的玩家选择角色，点击「准备」；全部准备后房主可开始', VW / 2, py + 84);
@@ -471,7 +441,7 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     ],
     draw: drawPanel,
     onEnter: () => {
-      _lobbyT = 0; _lobbyLast = 0;
+      _lobbyTime.t = 0; _lobbyTime.last = 0;
       lobby.status = '';
       if (lobby.inRoom) {
         // 房间阶段：初始化本地选择状态
@@ -489,14 +459,7 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     },
     onExit: () => {
       for (const f of Object.values(fields)) f.focused = false;
-      btnConnect.hover = false;
-      btnBack.hover = false;
-      btnReady.hover = false;
-      btnStart.hover = false;
-      btnLeave.hover = false;
-      for (const c of charCards) c.hover = false;
-      const c = ctx.canvas;
-      if (c) c.style.cursor = 'default';
+      resetHover(btnConnect, btnBack, btnReady, btnStart, btnLeave, ...charCards);
     },
   };
 }

@@ -93,6 +93,16 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   },
 };
 
+/**
+ * 按来源取道具定义（Modifier source 为自由键：道具 id / 机制名）。
+ * 问题 12：ITEMS 索引的类型安全边界 —— 未知来源返回 undefined，
+ * 消除调用方的 `as ItemId` 断言（既有修饰到期回调按来源分发时使用）。
+ */
+export function itemDefBySource(source: string): ItemDef | undefined {
+  // 运行时先 `in` 判定再取键：越界来源（机制名）不会真的索引越界
+  return source in ITEMS ? ITEMS[source as ItemId] : undefined;
+}
+
 /** 背包已满 */
 export function isFull(backpack: ItemId[]): boolean {
   return backpack.length >= MAX_BACKPACK;
