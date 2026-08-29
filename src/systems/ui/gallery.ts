@@ -7,7 +7,7 @@ import { rr } from '../../core/math';
 import { Button, UI_SCENE, ui } from '../../core/uiComponent';
 import type { UIScene, UIWidget } from '../../core/uiComponent';
 import { drawBackdrop, drawHUDFrame, drawNeonTitle, drawDecoStar, ease } from '../uiAtmosphere';
-import { drawOrbIcon, drawJumpTicketIcon, drawHookIcon, drawShieldIcon, drawSpeedIcon } from './icons';
+import { drawOrbIcon, drawJumpTicketIcon, drawHookIcon, drawShieldIcon, drawSpeedIcon, drawMagnetIcon } from './icons';
 import { tickLocal, drawGlassPanel, makeBackButton, resetHover } from './primitives';
 
 /* ==================== 图鉴状态（问题 3：开关由叠层栈承担，此处仅保留内容状态） ==================== */
@@ -217,6 +217,11 @@ const CATEGORIES: GalleryCategory[] = [
         id: 'speedPickup',
         name: '加速道具',
         draw: (cx, cy, t, r) => drawPickup(cx, cy, t, r, 'rgba(140,246,255,.32)', 1.7, 0.1, 1.8, () => drawSpeedIcon(0, 0, r)),
+      },
+      {
+        id: 'magnetPickup',
+        name: '磁铁道具',
+        draw: (cx, cy, t, r) => drawPickup(cx, cy, t, r, 'rgba(255,110,140,.32)', 2.3, 0.1, 2.4, () => drawMagnetIcon(0, 0, r)),
       },
       {
         id: 'checkpoint',

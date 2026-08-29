@@ -19,17 +19,10 @@ netBus.on(e => {
     case 'game:orb':
       net.sendHostEvent('orb', { count: e.count, total: e.total });
       break;
-    case 'game:jumpboost':
-      net.sendHostEvent('jumpboost', {});
-      break;
-    case 'game:hookpickup':
-      net.sendHostEvent('hookpickup', {});
-      break;
-    case 'game:shieldpickup':
-      net.sendHostEvent('shieldpickup', {});
-      break;
-    case 'game:speedpickup':
-      net.sendHostEvent('speedpickup', {});
+    // ── 道具拾取：网络事件名由 ITEMS 条目派生（wire 名 = 'item:' + item）──
+    // 加道具只写 ITEMS 一行，此处与客机 handler 均不新增分支
+    case 'game:itemPicked':
+      net.sendHostEvent('item:' + e.item, {});
       break;
     case 'game:death':
       net.sendHostEvent('death', { deaths: e.deaths });

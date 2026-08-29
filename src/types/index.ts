@@ -178,7 +178,7 @@ export interface TrackState {
 /* ==================== 背包/道具 ==================== */
 
 /** 道具 id */
-export type ItemId = 'doubleJump' | 'hook' | 'shield' | 'speed';
+export type ItemId = 'doubleJump' | 'hook' | 'shield' | 'speed' | 'magnet';
 
 /** 道具类别：主动（玩家触发）/ 被动（拾取即生效常驻） */
 export type ItemCategory = 'active' | 'passive';
@@ -301,14 +301,8 @@ export interface FrameSignals {
   goalReached?: boolean;
   /** 本帧撞墙（水平碰撞且速度较大） */
   wallBump?: boolean;
-  /** 本帧拾取了双跳光球 */
-  jumpBoostPicked?: boolean;
-  /** 本帧拾取了钩锁道具 */
-  hookPicked?: boolean;
-  /** 本帧拾取了护盾道具 */
-  shieldPicked?: boolean;
-  /** 本帧拾取了加速道具 */
-  speedPicked?: boolean;
+  /** 本帧拾取了道具（itemId；收敛字段 —— 加道具不再动本联合） */
+  picked?: ItemId;
   /** 本帧触发了弹簧平台 */
   spring?: boolean;
   /** 本帧使用了空中二段跳 */
@@ -386,6 +380,8 @@ export interface MapDefinition {
     shields?: [number, number][];
     /** 加速道具坐标（可选；限时加速：速度 ×2，超时自动失效） */
     speeds?: [number, number][];
+    /** 磁铁道具坐标（可选；被动：持有时吸引附近光球） */
+    magnets?: [number, number][];
     checkpoints: [number, number][];
     nova: { x: number; y: number };
     /** 冲刺轨道（可选；无轨道的地图省略） */
@@ -398,10 +394,8 @@ export type NetBusEvent =
   | { type: 'game:started' }
   | { type: 'game:checkpoint'; x: number; y: number }
   | { type: 'game:orb'; count: number; total: number }
-  | { type: 'game:jumpboost' }
-  | { type: 'game:hookpickup' }
-  | { type: 'game:shieldpickup' }
-  | { type: 'game:speedpickup' }
+  /** 道具拾取广播：网络事件名由 ITEMS 条目派生（wire 名 = 'item:' + item） */
+  | { type: 'game:itemPicked'; item: ItemId }
   | { type: 'game:death'; deaths: number }
   | { type: 'game:win'; time: number; orbs: number; total: number; x: number; y: number; playerId: number }
   // ── 特效同步：死亡/护盾破碎特效由房主广播（房主是判定权威）──
@@ -489,7 +483,7 @@ export interface NetPlayerState {
   trackExit: number;
   /** 路径段定义（客户端由此重建 TrackState） */
   trackSegments: PathSegment[];
-  /** 背包道具（数字编码：0=doubleJump, 1=hook, 2=shield, 3=speed） */
+  /** 背包道具（数字编码：单一事实源 = items/backpack ITEMS 条目的 code 字段） */
   backpack: number[];
 }
 

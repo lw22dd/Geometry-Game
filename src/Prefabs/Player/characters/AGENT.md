@@ -9,6 +9,7 @@
 ```
 Prefabs/Player/characters/
 ├── default.ts  # CharacterStyle 接口定义 + 默认角色「霓虹跑者」数据
+├── crimson.ts  # 绯红冲刺者（第二角色，纯数据，与 default 同流派）
 └── index.ts    # CHARACTERS 角色数组 + DEFAULT_CHARACTER 默认角色 + re-export CharacterStyle
 ```
 

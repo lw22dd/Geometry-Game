@@ -77,6 +77,7 @@ export const JumpBoost = {};
 export const Hook = {};
 export const ShieldPickup = {};
 export const SpeedPickup = {};
+export const MagnetPickup = {};
 
 /** 检查点 */
 export const RespawnPoint = { active: [] as number[], nearby: [] as number[] };
@@ -171,7 +172,7 @@ export const PlayerInput = {
   aimY: [] as number[],
 };
 
-/** 背包（AoS）：每玩家一项道具编码数组（0=doubleJump，1=hook；最多 5 格） */
+/** 背包（AoS）：每玩家一项道具编码数组（编码唯一事实源 = items/backpack ITEMS 条目的 code；最多 5 格） */
 export const Backpack = [] as ItemId[][];
 
 /** 玩家在轨状态（AoS 侧表，key = 玩家实体 eid）：完整 TrackState 或 null */
@@ -197,12 +198,6 @@ export const CONTROL_MODE_ZIPLINE = 2;
 export const CONTROL_MODE_DEAD = 3;
 /** 约束类控制权（眩晕/定身等，扩展位）：仲裁表插入更高优先级谓词后启用 */
 export const CONTROL_MODE_CONSTRAINT = 4;
-
-/** 道具编码常量（Backpack 数组元素） */
-export const ITEM_DOUBLE_JUMP = 0;
-export const ITEM_HOOK = 1;
-export const ITEM_SHIELD = 2;
-export const ITEM_SPEED = 3;
 
 /* ==================== 注册表（供 query/observe 使用） ==================== */
 

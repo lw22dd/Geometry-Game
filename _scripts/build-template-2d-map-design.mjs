@@ -50,7 +50,7 @@ const movers = [...extractKey('movers').matchAll(/\{ x0: ([\d.]+), y: ([\d.]+), 
     const yr = tail.match(/yRange: ([\d.]+)/); if (yr) o.yRange = +yr[1];
     return o;
   });
-// 弹簧：支持显式字段 或 ...VERTICAL_SPRING 展开（与 src/config/springs.ts 默认值一致）
+// 弹簧：支持显式字段 或 ...VERTICAL_SPRING 展开（与 src/Prefabs/Scenes/springPresets.ts 默认值一致）
 const SPRING_DEFAULTS = {
   VERTICAL_SPRING: { w: 2.5, h: 2, force: { x: 0, y: 96 }, duration: 0.3 },
   HORIZONTAL_SPRING: { w: 2, h: 2.5, force: { x: 96, y: 10 }, duration: 0.3 },

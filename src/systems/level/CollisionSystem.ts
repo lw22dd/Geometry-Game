@@ -15,7 +15,8 @@ import { world, Position as Pos, Collider as Col } from '../../core/ecs';
 import { colliderWorldRect, aabbOverlap } from './OverlapUtils';
 import { collisionBus } from '../../core/collisionBus';
 
-type Signals = Record<string, boolean>;
+/** 帧信号：布尔事件位 + signals.picked（ItemId 字符串），与 collisionBus 契约一致 */
+type Signals = Record<string, unknown>;
 
 /** 上一帧碰撞状态缓存（key = 实体 eid） */
 let lastFrame = new Map<number, boolean>();

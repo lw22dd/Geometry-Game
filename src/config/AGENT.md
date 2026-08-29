@@ -9,8 +9,9 @@
 ```
 config/
 ├── index.ts  # barrel 导出
-├── physics.ts  # 双物理模式（tuned / classic）、RUN/SPRINT/JUMP_H/MAP_W/MAP_H
-├── level.ts  # 多地图描述符 maps[]/currentMap/loadMap/initECSFromLevel：静态几何 + 实体生成描述
+├── physics.ts  # 物理手感调参：双物理模式（tuned/classic）、RUN/SPRINT/JUMP_H、轨道/钩锁参数（跨模块集中调参表）
+├── visuals.ts  # 视觉调参：TLIFE 曳光轨迹寿命（particles/atmosphere 共享）
+├── level.ts  # 多地图描述符 maps[]/currentMap/loadMap/initECSFromLevel：静态几何 + 实体生成描述（经 sceneFactory 装配 bitECS 实体；弹簧预设见 Prefabs/Scenes/springPresets）
 ├── background.ts  # 视差背景：farShapes 光斑 + midShapes 旋转形状（mulberry 种子生成）
 └── AGENT.md
 ```

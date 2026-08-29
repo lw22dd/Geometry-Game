@@ -17,8 +17,11 @@ export interface CollisionEvent {
   a: EntityId;
   /** 碰撞客体（危险物/光球/检查点/终点） */
   b: EntityId;
-  /** 可选帧信号（供动画 FSM 消费，由调用方传入） */
-  signals?: Record<string, boolean>;
+  /**
+   * 可选帧信号（供动画 FSM 消费，由调用方传入）。
+   * 值为 unknown：既有布尔位外，signals.picked 承载 ItemId（字符串）——加道具不再动事件字面量。
+   */
+  signals?: Record<string, unknown>;
 }
 
 type Handler = (ev: CollisionEvent) => void;

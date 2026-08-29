@@ -10,18 +10,20 @@
 systems/
 ├── animation/  # 统一实体动画系统：stepAnimation 遍历（Position+Animator）实体，步进各控制器 FSM
 ├── game/  # 调度中枢：gameState（gs）+ gameMode（物理模式）/ 主循环 step/render/frame
-├── player/  # 玩家控制：PlayerController 生命周期 + 物理引擎（stepPlayerGeneric）+ remote 联机
-├── level/  # 关卡级系统：路径运动（MotionSystem）、激光计时（LaserTimerSystem）、碰撞箱工具（OverlapUtils）
-├── interactions/  # 玩法交互触发系统：Collect（光球）/ RespawnPoint（检查点）/ Goal（登顶）
-│     # 三个系统通过 level/OverlapUtils 的 pointInCollider 检测触发，支持传目标坐标供远程玩家复用
+├── player/  # 玩家控制：PlayerController + 物理引擎（stepPlayerGeneric）+ 玩家 ECS 实体（playerEntity）+ 统一 tick 管线（tick.ts）+ 控制权仲裁（controlArbiter）+ remote 联机
+├── level/  # 关卡级系统：路径运动（MotionSystem）、弹簧平台（SpringSystem）、激光计时（LaserTimerSystem）、碰撞检测（CollisionSystem）、光环场（AuraSystem）、碰撞箱工具（OverlapUtils）
+├── interactions/  # 玩法交互触发系统：CollisionHooks（碰撞事件订阅）+ 坐标版 Collect / RespawnPoint / Goal / 拾取物（ItemPickupSystem）/ 危险检测（hazard.ts）
+│     # 坐标版系统供远程玩家（host 模拟）复用；危险/拾取均走 level/OverlapUtils 检测
+├── effects/  # 契约层：影响来源 → PlayerRequest → applyEffect 结算 → verbs 写入玩家（另含 TriggerSystem 触发注册表）
 ├── particles.ts  # 粒子运行时系统：池 / trail / part() / stepParticles()
-├── ui/  # 界面：HUD / 小地图 / 菜单 / 暂停 / 大厅
+├── postfx.ts  # 后期特效管线：Bloom / 色散 / 暗角 / 扫描线 / 颗粒（主场景画完后调用）
+├── ui/  # 界面：菜单 / 准备 / 暂停 / 大厅 / HUD / 小地图 / 图鉴 / 操作说明 + 共享图元/图标/主题
 │   └── styles/  # 空目录
 ├── combat/  # 战斗系统（预留）
 ├── enemy/  # 敌人 AI / 生成（预留）
 ├── quest/  # 任务系统（预留）
 ├── AGENT.md
-├── items/  # 物品系统：backpack（背包运行时 + 道具注册表）+ hook（钩锁发射/滑索/瞄准）
+├── items/  # 物品系统：backpack（背包运行时 + 道具注册表）+ hook（钩锁发射/滑索/瞄准）+ activeItem（S7 主动道具槽位）
 └── uiAtmosphere.ts  # 氛围 UI 运行时：AtmoTheme 构建 + 发光粒子 + 主循环渲染
 ```
 

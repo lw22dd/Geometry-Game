@@ -20,8 +20,8 @@ src/
 │   └── weapons/  # 空目录
 ├── core/ecs/  # ECS 全部组件集中定义：core/ecs/components.ts（SoA 数值组件 + 标签组件 + AoS 侧表）
 ├── config/  # 纯数据 + 注册表：物理参数、关卡布局、背景装饰、cpPoint 复活点
-├── core/  # 无业务逻辑的底座：画布、输入、音效、相机、数学工具、netBus、ECS、UI
-│   ├── ecs/  # ECS 底座：world.ts（世界/注册/清空）+ queries.ts（语义查询）
+├── core/  # 无业务逻辑的底座：画布、输入、鼠标、音效、相机、数学、路径几何、轨道编解码、netBus、ECS、UI
+│   ├── ecs/  # bitECS 底座：world.ts（世界/注册/清空）+ components.ts（全部 SoA/AoS 组件）+ queries.ts（语义查询）
 │   └── uiComponent/  # UI 框架：UIManager + Button / Toggle / TextInput 组件
 ├── net/  # 网络层：NetClient（WebSocket）+ session 状态机 + room 房间状态
 ├── Prefabs/  # 预制体：实体工厂 / 角色 / 场景道具 / 特效的绘制建模
@@ -32,20 +32,21 @@ src/
 │   │   ├── characters/  # 角色样式注册表（纯数据）
 │   │   └── default/  # 默认角色「霓虹跑者」：FSM（states/animation）+ 纯绘制（render）+ 组合（defaultPrefab）
 │   ├── Animations/  # 实体动画控制器注册表：registry + 通用输出辅助 getAnimOutput
-│   ├── Scenes/  # 场景道具建模：platforms / hazards / items / atmosphere + itemsAnimators（动画控制器）
+│   ├── Scenes/  # 场景道具建模：platforms / hazards / items / atmosphere / tracks + sceneFactory（统一实体工厂）+ itemsAnimators（动画控制器）+ theme（风格令牌）
 │   └── WeaponVis/  # 规划中（尚未创建）
-├── systems/  # 玩法逻辑：game / player / level / ui / animation / interactions / combat / enemy / quest + 粒子运行时
+├── systems/  # 玩法逻辑：game / player / level / ui / animation / interactions / effects / items + 粒子/后效运行时
 │   ├── animation/  # 统一实体动画系统：stepAnimation(dt) 遍历 Animator 实体步进 FSM
 │   ├── combat/  # 规划中（尚未创建）
+│   ├── effects/  # 契约层：影响来源 → PlayerRequest → applyEffect 结算 → verbs 写入玩家状态
 │   ├── enemy/  # 规划中（尚未创建）
 │   ├── game/  # 调度中枢：gameState（gs）+ gameMode（物理模式）/ 主循环 step/render/frame + 联机事件绑定
-│   ├── interactions/  # 玩法交互触发系统：CollisionHooks（碰撞事件订阅）+ 坐标版 Collect / RespawnPoint / Goal
-│   ├── level/  # 关卡级系统：MotionSystem（移动平台）/ LaserTimerSystem（激光）/ CollisionSystem（碰撞检测）/ OverlapUtils
-│   ├── player/  # 玩家控制：PlayerController 生命周期 + 物理引擎（stepPlayerGeneric）+ remote 联机 + createPlayerState 工厂
+│   ├── interactions/  # 玩法交互触发系统：CollisionHooks（碰撞事件订阅）+ 坐标版 Collect / RespawnPoint / Goal / 拾取物 / 危险检测
+│   ├── level/  # 关卡级系统：MotionSystem / SpringSystem / LaserTimerSystem / CollisionSystem / AuraSystem / OverlapUtils
+│   ├── player/  # 玩家控制：PlayerController + 物理引擎（stepPlayerGeneric）+ 玩家 ECS 实体（playerEntity）+ 统一 tick 管线 + remote 联机
 │   ├── quest/  # 规划中（尚未创建）
-│   ├── ui/  # 界面：菜单 / 大厅 / 暂停 / 开发者 / 图鉴 / 操作说明 + HUD + 小地图
+│   ├── ui/  # 界面：菜单 / 准备 / 大厅 / 暂停 / 开发者 / 图鉴 / 操作说明 + HUD + 小地图 + 共享图元/图标/主题
 │   │   └── styles/  # 规划中（尚未创建）
-│   └── items/  # 物品系统（背包、钩爪）
+│   └── items/  # 物品系统（背包、钩锁、主动道具槽位）
 └── types/  # 共享类型定义（PlayerState / InputKeys / FrameSignals / NetPlayerState / ...）
 ```
 
@@ -66,14 +67,17 @@ Vite 构建环境 + 浏览器 DOM API。`index.html` 挂载 canvas，`main.ts` �
 
 构建产物写入 `dist/` 目录，供浏览器加载运行。游戏循环通过 canvas 2D context 实时渲染，音效经 Web Audio API 播放，联机数据经 WebSocket 与房主/客机同步。
 
-# 架构决策记录（2025-06 · 玩家 ECS 接线前，已定案）
+# 架构决策记录（2025-06 · 玩家 ECS 接线后，已落地）
 
 1. **玩家实体跨 clearWorld 存活**：切图重建（`setupLevel` → `clearWorld`）只清场景实体；
-   玩家实体生命周期独立（接线后：`resetToSpawn` 清字段、不清实体），保证 `qLocalPlayer` 跨图可用。
+   玩家实体生命周期独立（`systems/player/playerEntity.ts` 的 `ensurePlayerEntity` 在 `setupLevel`
+   之后重建，远端实体由 `removeAllRemotePlayerEntities` 清表），保证 `qLocalPlayer` 跨图可用。
 2. **阶段一冻结 NetPlayerState 协议**：玩家 ECS 接线只是**内部存储层**改造；
    广播仍走现有 JSON 字段协议，协议变更与重构永不同时做。
-3. **玩家物理目标挂载点**：`PlayerControl/PlayerInput/PlayerTrack/Backpack` SoA 组件已定义
-   （`core/ecs/components.ts`），`qLocalPlayer` 查询已就绪，但**尚无实体挂载**（接线工作项）。
+3. **玩家实体 = 玩家状态唯一权威存储（A 路线：物理真源）**：物理引擎走 eid 入口——
+   `loadPlayerComponents`（ECS → scratch）→ 纯函数物理引擎 → `storePlayerComponents`
+   （scratch → ECS），每实体每物理步恰好一次装载/写回，跨帧影子状态与双写消失。
+   远程玩家同样拥有实体（`ensureRemotePlayerEntity`），混合范式消失。
 4. **玩家实体生命周期内写者收敛**：PlayerState 写者清单见 `docs/player-state-writers.md`；
    系统管道顺序见 `docs/system-execution-order.md`。
 5. **测试护栏**：`src/__smoke__/physics.golden.test.ts`（node 可跑，冻结 stepPlayerGeneric

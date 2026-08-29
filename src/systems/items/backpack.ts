@@ -4,7 +4,7 @@
  * 背包即玩家状态上的 backpack: ItemId[]（最长 5 格，顺序即槽位）。
  * 本模块只提供纯函数 + 道具注册表，不持有全局状态：
  *  - addItem / hasItem / isFull：槽位操作
- *  - itemToNet / netToItem：网络数字编码（0=doubleJump, 1=hook, 2=shield, 3=speed）
+ *  - itemToNet / netToItem：网络数字编码（单一事实源 = ITEMS 条目的 code 字段）
  *  - ITEMS：道具元数据（名称 / 类别：主动·被动）
  *
  * 类别语义：
@@ -14,7 +14,6 @@
 import type { ItemCategory, ItemId, PlayerState } from '../../types';
 import { MAX_BACKPACK } from '../../types';
 import { applyEffect, removeModifier } from '../effects';
-import { ITEM_DOUBLE_JUMP, ITEM_HOOK, ITEM_SHIELD, ITEM_SPEED } from '../../core/ecs';
 
 /** 主动道具触发上下文（S7 槽位 ActiveItemSystem 传入） */
 export interface ActiveItemContext {
@@ -30,6 +29,8 @@ export interface ActiveItemContext {
 /** 道具元数据 */
 export interface ItemDef {
   id: ItemId;
+  /** 网络数字编码（联机背包序列化；单一事实源 —— 编码转换一律由 itemToNet/netToItem 从本字段派生） */
+  code: number;
   name: string;
   category: ItemCategory;
   /** 拾取生效（被动道具挂载能力，经契约层） */
@@ -50,6 +51,7 @@ export const SPEED_TIME = 10;
 export const ITEMS: Record<ItemId, ItemDef> = {
   doubleJump: {
     id: 'doubleJump',
+    code: 0,
     name: '二段跳票',
     category: 'passive',
     // 被动效果：经契约层 + Modifier 管道授予一次空中跳充能（不直写 extraJumpsMax）
@@ -60,6 +62,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   },
   hook: {
     id: 'hook',
+    code: 1,
     name: '钩锁',
     category: 'active',
     // 主动装备：拾取后自动选中该槽位，便于立即使用
@@ -69,6 +72,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   },
   shield: {
     id: 'shield',
+    code: 2,
     name: '护盾',
     category: 'passive',
     // 被动效果：经契约层 + Modifier 管道授予 1 格护盾（限时 buff：dur 到期由
@@ -81,6 +85,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   },
   speed: {
     id: 'speed',
+    code: 3,
     name: '加速',
     category: 'passive',
     // 被动效果：经契约层 + Modifier 管道授予水平移速 ×2（限时 buff：dur 到期由
@@ -90,6 +95,14 @@ export const ITEMS: Record<ItemId, ItemDef> = {
       mod: { stat: 'moveSpeed', op: 'set', value: 2, source: 'speed', dur: SPEED_TIME, t: SPEED_TIME },
     }),
     // 到期表现由 game 层按 stepBuffTimers 到期列表处理（toast/粒子）；此处保持纯。
+  },
+  magnet: {
+    id: 'magnet',
+    code: 4,
+    name: '磁铁',
+    category: 'passive',
+    // 被动效果：持续吸引附近光球（由 systems/items/magnet 读取背包持有；
+    // 非常驻 Modifier、无时限 —— 不需要 onPickup 直写任何字段）
   },
 };
 
@@ -123,24 +136,20 @@ export function addItem(backpack: ItemId[], id: ItemId): boolean {
   return true;
 }
 
-/** 道具 id → 网络数字编码（0=doubleJump，1=hook，2=shield，3=speed；问题 11：复用 ITEM_* 常量） */
+/**
+ * 道具 id → 网络数字编码（单一事实源 = ITEMS 条目的 code 字段；
+ * 编码转换不再有第二份手写 —— 加道具只改 ITEMS 一行）。
+ */
 export function itemToNet(id: ItemId): number {
-  switch (id) {
-    case 'hook': return ITEM_HOOK;
-    case 'shield': return ITEM_SHIELD;
-    case 'speed': return ITEM_SPEED;
-    default: return ITEM_DOUBLE_JUMP;
-  }
+  return ITEMS[id].code;
 }
 
-/** 网络数字编码 → 道具 id（未知编码视为二段跳票，防御） */
+/** 网络数字编码 → 道具 id（未知编码回退二段跳票，防御） */
 export function netToItem(n: number): ItemId {
-  switch (n) {
-    case ITEM_HOOK: return 'hook';
-    case ITEM_SHIELD: return 'shield';
-    case ITEM_SPEED: return 'speed';
-    default: return 'doubleJump';
+  for (const id of Object.keys(ITEMS) as ItemId[]) {
+    if (ITEMS[id].code === n) return id;
   }
+  return 'doubleJump';
 }
 
 /**

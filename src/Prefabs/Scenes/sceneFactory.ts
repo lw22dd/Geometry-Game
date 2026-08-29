@@ -14,14 +14,15 @@ import { world } from '../../core/ecs';
 import {
   Position, Velocity, Collider, PathMotion, SpringPad, Timer, Hazard,
   Collectible, RespawnPoint, Goal, Track, Aura, Renderable, Animator, TrackGeom,
-  Hookable, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, renderStyles,
+  Hookable, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, MagnetPickup, renderStyles,
 } from '../../core/ecs';
 import type { PathSegment } from '../../types';
 import type { LaserSpawnData, MoverSpawnData, SpringPadSpawnData } from '../../types';
-import { DEFAULT_SPRING, HORIZONTAL_SPRING, VERTICAL_SPRING } from '../../config/springs';
-import { TRACK_MIN_SPEED } from '../../config';
+import { DEFAULT_SPRING } from './springPresets';
+import { TRACK_MIN_SPEED } from '../../config/physics';
 import { buildCumulativeLengths, pathPosition, pathTotalLength } from '../../core/path';
 import { createOrbAnimState, createHoverAnimState } from './itemsAnimators';
+import { createMagnetAnimState } from '../Animations/magnet';
 
 /* ==================== 渲染样式调色板（styleId → renderStyles） ==================== */
 
@@ -32,6 +33,7 @@ export const STYLE_CHECKPOINT = 3;
 export const STYLE_NOVA = 4;
 export const STYLE_SHIELD = 5;
 export const STYLE_SPEED = 6;
+export const STYLE_MAGNET = 7;
 
 /** 写入手写样式表（renderStyles 为 src/ecs 注册表；幂等） */
 function ensureStyles(): void {
@@ -44,6 +46,7 @@ function ensureStyles(): void {
     { bodyGrad: ['#f2e4ff', '#e3ccff', '#c07dff'], glow: '#c07dff' },                    // 4 nova
     { bodyGrad: ['#e8f0ff', '#b3c7ff', '#7d6bff'], glow: 'rgba(150,140,255,.85)' },      // 5 shield
     { bodyGrad: ['#eaffff', '#8ff6ff', '#59d4ff'], glow: 'rgba(120,230,255,.85)' },      // 6 speed
+    { bodyGrad: ['#ffe3e8', '#ff8fa0', '#ff3f60'], glow: 'rgba(255,110,140,.85)' },      // 7 magnet
   );
 }
 
@@ -142,6 +145,19 @@ export function createSpeedPickup(x: number, y: number, phase: number): number {
   setRenderable(e, 0.45, STYLE_SPEED);
   // 复用 hover 动画控制器（浮动/摇摆），绘制层按 speed 样式画「》》」双箭头
   setAnimator(e, 'jumpBoost', createHoverAnimState({ phase }));
+  return e;
+}
+
+/** 磁铁道具（被动：持有时吸引附近光球，MagnetSystem 读取背包持有） */
+export function createMagnetPickup(x: number, y: number, phase: number): number {
+  ensureStyles();
+  const e = addEntity(world);
+  setPosition(e, x, y);
+  setCollider(e, 1.2, 1.2, 0);
+  addComponent(world, e, Collectible); Collectible.collected[e] = 0;
+  addComponent(world, e, MagnetPickup);
+  setRenderable(e, 0.45, STYLE_MAGNET);
+  setAnimator(e, 'magnet', createMagnetAnimState({ phase }));
   return e;
 }
 
@@ -284,14 +300,4 @@ export function createAura(x: number, y: number, radius: number, tick = 0): numb
   Aura.tick[e] = tick;
   Aura.tickT[e] = 0;
   return e;
-}
-
-/** 便捷：垂直弹簧（默认数值 W2.5×H2，垂直弹跳力 96） */
-export function createVerticalSpring(x: number, y: number): number {
-  return createSpringPad({ x, y, ...VERTICAL_SPRING });
-}
-
-/** 便捷：水平弹簧（默认数值 W2×H2.5，水平弹射力 96） */
-export function createHorizontalSpring(x: number, y: number): number {
-  return createSpringPad({ x, y, ...HORIZONTAL_SPRING });
 }

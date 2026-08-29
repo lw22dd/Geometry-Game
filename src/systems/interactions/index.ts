@@ -2,12 +2,12 @@
  * systems/interactions —— 玩法交互触发系统 barrel。
  *
  * 本地玩家的碰撞交互已事件化（CollisionHooks 订阅 collisionBus）。
- * 远程玩家（host 模拟，无 ECS 实体）仍使用坐标版交互系统：
- *   updateCollectSystem(tx, ty) / updateItemPickupSystem(tx, ty, kind) / updateRespawnPointSystem() / updateGoalSystem()
+ * 远程玩家（host 模拟）同样走碰撞路由（setCollisionSim → CollisionSystem → CollisionHooks），
+ * ItemPickupSystem 坐标版检测链已删除（无调用点），仅保留 orbCount 计数。
  */
 export { initCollisionHooks, resetCollisionHooks, tryInteractCheckpoint, setCollisionSim } from './CollisionHooks';
 export { updateCollectSystem } from './CollectSystem';
-export { updateItemPickupSystem, orbCount } from './ItemPickupSystem';
+export { orbCount } from './ItemPickupSystem';
 export { updateRespawnPointSystem } from './RespawnPointSystem';
 export { updateGoalSystem } from './GoalSystem';
 export { checkHazardOverlap } from './hazard';

@@ -15,9 +15,9 @@ import type { MapInstance, InstanceType } from './mapTypes';
 import {
   createSpike, createOrb, createJumpBoost, createCheckpoint, createNova,
   createHookPickup, createShieldPickup, createSpeedPickup, createLoopTrack, createMovingPlatform, createLaser, createSpringPad,
-} from '@game/Prefabs/Scene/sceneFactory';
+} from '@game/Prefabs/Scenes/sceneFactory';
 // 弹簧默认数值与游戏侧单一数据源（垂直/水平预设）
-import { VERTICAL_SPRING, HORIZONTAL_SPRING } from '@game/config/springs';
+import { VERTICAL_SPRING, HORIZONTAL_SPRING } from '@game/Prefabs/Scenes/springPresets';
 
 /** 字段定义（inspector 动态表单） */
 export interface FieldDef {

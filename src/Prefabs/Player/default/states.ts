@@ -37,7 +37,7 @@ export const ANIM_TRANSITIONS: Record<AnimState, AnimTransition[]> = {
   idle: [
     { to: 'dead', when: (c) => c.died },
     { to: 'celebrate', when: (c) => !!c.signals?.goalReached },
-    { to: 'collectPulse', when: (c) => !!(c.signals?.collected || c.signals?.checkpointHit) },
+    { to: 'collectPulse', when: (c) => !!(c.signals?.collected || c.signals?.checkpointHit || c.signals?.picked) },
     { to: 'bump', when: (c) => !!c.signals?.wallBump },
     { to: 'dash', when: (c) => c.dashStarted },
     { to: 'jumpRise', when: (c) => c.jumped },
@@ -46,7 +46,7 @@ export const ANIM_TRANSITIONS: Record<AnimState, AnimTransition[]> = {
   run: [
     { to: 'dead', when: (c) => c.died },
     { to: 'celebrate', when: (c) => !!c.signals?.goalReached },
-    { to: 'collectPulse', when: (c) => !!(c.signals?.collected || c.signals?.checkpointHit) },
+    { to: 'collectPulse', when: (c) => !!(c.signals?.collected || c.signals?.checkpointHit || c.signals?.picked) },
     { to: 'bump', when: (c) => !!c.signals?.wallBump },
     { to: 'dash', when: (c) => c.dashStarted },
     { to: 'jumpRise', when: (c) => c.jumped },
@@ -55,7 +55,7 @@ export const ANIM_TRANSITIONS: Record<AnimState, AnimTransition[]> = {
   jumpRise: [
     { to: 'dead', when: (c) => c.died },
     { to: 'celebrate', when: (c) => !!c.signals?.goalReached },
-    { to: 'collectPulse', when: (c) => !!(c.signals?.collected || c.signals?.checkpointHit) },
+    { to: 'collectPulse', when: (c) => !!(c.signals?.collected || c.signals?.checkpointHit || c.signals?.picked) },
     { to: 'bump', when: (c) => !!c.signals?.wallBump },
     { to: 'land', when: (c) => c.landed },
     { to: 'jumpFall', when: (c) => c.player.velocity.y <= 0 },
@@ -63,14 +63,14 @@ export const ANIM_TRANSITIONS: Record<AnimState, AnimTransition[]> = {
   jumpFall: [
     { to: 'dead', when: (c) => c.died },
     { to: 'celebrate', when: (c) => !!c.signals?.goalReached },
-    { to: 'collectPulse', when: (c) => !!(c.signals?.collected || c.signals?.checkpointHit) },
+    { to: 'collectPulse', when: (c) => !!(c.signals?.collected || c.signals?.checkpointHit || c.signals?.picked) },
     { to: 'bump', when: (c) => !!c.signals?.wallBump },
     { to: 'land', when: (c) => c.landed },
   ],
   land: [
     { to: 'dead', when: (c) => c.died },
     { to: 'celebrate', when: (c) => !!c.signals?.goalReached },
-    { to: 'collectPulse', when: (c) => !!(c.signals?.collected || c.signals?.checkpointHit) },
+    { to: 'collectPulse', when: (c) => !!(c.signals?.collected || c.signals?.checkpointHit || c.signals?.picked) },
     { to: 'bump', when: (c) => !!c.signals?.wallBump },
     {
       to: 'run',
@@ -85,7 +85,7 @@ export const ANIM_TRANSITIONS: Record<AnimState, AnimTransition[]> = {
   dash: [
     { to: 'dead', when: (c) => c.died },
     { to: 'celebrate', when: (c) => !!c.signals?.goalReached },
-    { to: 'collectPulse', when: (c) => !!(c.signals?.collected || c.signals?.checkpointHit) },
+    { to: 'collectPulse', when: (c) => !!(c.signals?.collected || c.signals?.checkpointHit || c.signals?.picked) },
     { to: 'bump', when: (c) => !!c.signals?.wallBump },
     {
       to: 'run',

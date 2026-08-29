@@ -10,7 +10,7 @@
  *   enter:player:goal        → 终点登顶
  */
 import { hasComponent } from 'bitecs';
-import { world, Position, Collider, Timer, Hazard, Collectible, RespawnPoint, Goal, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, qCheckpoints } from '../../core/ecs';
+import { world, Position, Collider, Timer, Hazard, Collectible, RespawnPoint, Goal, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, MagnetPickup, qCheckpoints } from '../../core/ecs';
 import { collisionBus } from '../../core/collisionBus';
 import { gs } from '../game/gameState';
 import { playerController } from '../player';
@@ -30,63 +30,63 @@ import type { ItemId, PlayerState } from '../../types';
 interface PickupRule {
   /** ECS tag 组件（判定拾取物类型） */
   tag: typeof Orb;
-  /** 背包道具 id（入背包 + ITEMS 注册表索引） */
+  /** 背包道具 id（入背包 + ITEMS 注册表索引；广播/信号/网络事件名均由 item 派生） */
   item: ItemId;
-  /** 拾取帧信号位 */
-  signal: 'jumpBoostPicked' | 'hookPicked' | 'shieldPicked' | 'speedPicked';
   /** 额外守卫：返回 true 才尝试占背包格（已有激活能力时拾取只刷新计时，不重复占格） */
   guard?: (s: PlayerState) => boolean;
   /** 本地专属额外粒子（通用 sparkle 之外的差异化特效） */
   fx?: (x: number, y: number) => void;
   /** 本地音效 */
   sfx?: () => void;
-  /** 广播事件类型 */
-  event: 'game:jumpboost' | 'game:hookpickup' | 'game:shieldpickup' | 'game:speedpickup';
   /** 本地提示文案 */
   toast: string;
   toastT: number;
 }
 
-/** 道具拾取规则表 —— 新增道具只需在此加一行 */
+/**
+ * 道具拾取规则表 —— 新增道具只需在此加一行。
+ * 不重复抄写：帧信号 = signals.picked(item)，广播 = game:itemPicked{item}，
+ * 网络事件名由 netBridge 派生（'item:' + item，经 ITEMS 找到名称），不再有第二份字面量。
+ */
 const PICKUP_RULES: PickupRule[] = [
   {
     tag: JumpBoost,
     item: 'doubleJump',
-    signal: 'jumpBoostPicked',
     fx: (x, y) => spawnParticles(FX.arrowBoost, x, y, 8),
     sfx: () => sfx.orb(),
-    event: 'game:jumpboost',
     toast: '二段跳票已装备！',
     toastT: 2,
   },
   {
     tag: Hook,
     item: 'hook',
-    signal: 'hookPicked',
     sfx: () => sfx.hookPickup(),
-    event: 'game:hookpickup',
     toast: '钩锁已装备！左键发射，长按锁定',
     toastT: 2.5,
   },
   {
     tag: ShieldPickup,
     item: 'shield',
-    signal: 'shieldPicked',
     guard: (s) => s.shieldsMax === 0,
     sfx: () => sfx.shieldPickup(),
-    event: 'game:shieldpickup',
     toast: '护盾已装备！危险物命中将格挡一次',
     toastT: 2.5,
   },
   {
     tag: SpeedPickup,
     item: 'speed',
-    signal: 'speedPicked',
     guard: (s) => s.speedMult <= 1,
     fx: (x, y) => spawnParticles(FX.speedBoost, x, y, 6),
     sfx: () => sfx.speedPickup(),
-    event: 'game:speedpickup',
     toast: '极速冲刺！移速 ×2',
+    toastT: 2.5,
+  },
+  {
+    tag: MagnetPickup,
+    item: 'magnet',
+    fx: (x, y) => spawnParticles(FX.magnetBurst, x, y),
+    sfx: () => sfx.magnet(),
+    toast: '磁铁已装备！自动吸引附近光球',
     toastT: 2.5,
   },
 ];
@@ -205,11 +205,12 @@ export function initCollisionHooks(): void {
         spawnParticles(FX.sparkle, pos.x, pos.y);
         rule.fx?.(pos.x, pos.y);
         rule.sfx?.();
-        netBus.emit({ type: rule.event });
+        netBus.emit({ type: 'game:itemPicked', item: rule.item });
         gs.toast = rule.toast;
         gs.toastT = rule.toastT;
       }
-      if (signals) signals[rule.signal] = true;
+      // 帧信号收敛字段：picked = itemId（加道具不再动 FrameSignals 联合）
+      if (signals) signals.picked = rule.item;
       return;
     }
   });

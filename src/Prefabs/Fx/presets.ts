@@ -132,6 +132,17 @@ export const FX: Record<string, FxPreset> = {
     colors: ['#8ff6ff', '#ffffff', '#59d4ff'],
   },
 
+  /** 磁铁拾取：红粉碎片略微飘散（磁力感） */
+  magnetBurst: {
+    count: 14,
+    kind: 'dot',
+    vel: { mode: 'radial', uniform: false, speed: [2, 7], vyBias: 1.5 },
+    gravity: 6,
+    life: [0.5, 0.8],
+    size: [0.08, 0.14],
+    colors: ['#ff6a85', '#ffd9e0', '#ffffff'],
+  },
+
   /** 光球环境光尘：单颗缓慢上浮，青白（emitItemAmbient 每 0.5s 发 1 颗） */
   orbAmbient: {
     count: 1,

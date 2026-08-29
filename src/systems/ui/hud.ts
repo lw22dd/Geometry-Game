@@ -16,7 +16,7 @@ import { colliderWorldRect } from '../level';
 import { MAX_BACKPACK, type ItemId } from '../../types';
 import { HOOK_COOLDOWN } from '../../config';
 import { orbCount } from '../interactions';
-import { drawJumpTicketIcon, drawHookIcon, drawSpeedIcon, drawShieldIcon } from './icons';
+import { drawJumpTicketIcon, drawHookIcon, drawSpeedIcon, drawShieldIcon, drawMagnetIcon } from './icons';
 
 /* ==================== HUD ==================== */
 
@@ -44,6 +44,7 @@ export function drawHUD(): void {
     const hue = id === null ? 'rgba(150,170,255,.25)'
       : active ? 'rgba(255,190,90,.9)'
       : id === 'speed' ? 'rgba(90,225,255,.95)'
+      : id === 'magnet' ? 'rgba(255,110,140,.95)'
       : 'rgba(120,255,170,.9)';
 
     // 选中态发光底板
@@ -80,6 +81,7 @@ export function drawHUD(): void {
       if (id === 'doubleJump') drawJumpTicketIcon(cx, cy, 10);
       else if (id === 'shield') drawShieldIcon(cx, cy - 1, 10);
       else if (id === 'speed') drawSpeedIcon(cx, cy, 13);
+      else if (id === 'magnet') drawMagnetIcon(cx, cy, 10);
       else drawHookIcon(cx, cy, 10);
 
       // 钩锁冷却：弧形遮罩 + 进度指示

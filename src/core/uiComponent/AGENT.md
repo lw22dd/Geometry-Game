@@ -1,16 +1,17 @@
 # UiComponent 文件夹 — UI 框架（core 层）
 
 <details>
-<summary>core/uiComponent — UIManager 场景管理 + Button / TextInput 组件</summary>
+<summary>core/uiComponent — UIManager 场景管理 + Button / Toggle / TextInput 组件</summary>
 
-本目录存放无业务逻辑的 UI 框架底座：`UIManager`（单例场景管理 + 事件统一分发）、基础交互组件 `Button` / `TextInput` 与类型定义。场景构建器位于 `systems/ui/`（业务层），经 `ui.register()` 注册到 UIManager。core/uiComponent 不依赖任何 systems 或 config。
+本目录存放无业务逻辑的 UI 框架底座：`UIManager`（单例场景管理 + 事件统一分发）、基础交互组件 `Button` / `Toggle` / `TextInput` 与类型定义。场景构建器位于 `systems/ui/`（业务层），经 `ui.register()` 注册到 UIManager。core/uiComponent 不依赖任何 systems 或 config。
 </details>
 
 ```
 core/uiComponent/
-├── index.ts       # barrel 导出：UI_SCENE / Button / TextInput / ui / UIManager
+├── index.ts       # barrel 导出：UI_SCENE / Button / Toggle / TextInput / ui / UIManager
 ├── manager.ts     # UIManager 单例：register / show / handleClick / handleMove / handleKey / draw
 ├── Button.ts      # Button 组件（label / variant / onClick / hover）
+├── Toggle.ts      # Toggle 开关组件（定位 / 开关状态 / 点击回调）
 ├── TextInput.ts   # TextInput 组件（label / value / focus / 文本编辑）
 └── types.ts       # UIWidget / UIScene / UISceneName 接口定义
 ```

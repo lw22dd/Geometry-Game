@@ -4,11 +4,11 @@
  * 只依赖 types（及 physics 的 MAP 常量）。
  */
 import type { Rect, Spike, MapDefinition } from '../types';
-import { VERTICAL_SPRING, HORIZONTAL_SPRING } from './springs';
+import { VERTICAL_SPRING, HORIZONTAL_SPRING } from '../Prefabs/Scenes/springPresets';
 import { initEcs, clearWorld } from '../core/ecs';
 import {
   createOrb, createJumpBoost, createCheckpoint, createNova, createMovingPlatform,
-  createSpringPad, createLaser, createSpike, createLoopTrack, createHookPickup, createShieldPickup, createSpeedPickup,
+  createSpringPad, createLaser, createSpike, createLoopTrack, createHookPickup, createShieldPickup, createSpeedPickup, createMagnetPickup,
 } from '../Prefabs/Scenes/sceneFactory';
 
 const R = (x: number, y: number, w: number, h: number, hookable = true): Rect => ({ x, y, w, h, top: y + h, hookable });
@@ -177,6 +177,12 @@ export const maps: MapDefinition[] = [
       speeds: [
         [50, 6.8],     // 平原 → 弹簧/阶梯前，助力冲过
         [137, 31.4],   // 节奏平台区
+      ],
+      // 磁铁道具（被动：持有时自动吸引半径 6 内光球）
+      magnets: [
+        [48, 6.4],     // 平原后段 · 光球密集区
+        [110, 15.2],   // 冲刺走廊 · 高空光球排
+        [137, 33],     // 节奏平台上空
       ],
       // 检查点坐标（复活点激活位置）
       checkpoints: [
@@ -372,6 +378,12 @@ export const maps: MapDefinition[] = [
       speeds: [
         [90, 33],    // 下层桥（空中走廊前）
         [90, 57.5],  // 上层走廊
+      ],
+      // 磁铁道具（被动：持有时自动吸引半径 6 内光球）
+      magnets: [
+        [50, 33.5],    // 下层桥光球带
+        [130, 46],     // 中层桥光球带
+        [90, 66],      // 水晶花园中心
       ],
       checkpoints: [
         [85, 6], [10, 50], [170, 50], [50, 56], [130, 56], [90, 62], [90, 78],
@@ -745,6 +757,11 @@ export const maps: MapDefinition[] = [
           [94, 20.5],
           [8, 23.8],
         ],
+        // 磁铁道具（被动：持有时自动吸引半径 6 内光球）
+        magnets: [
+          [46, 23.8],   // 石柱之巅光球区
+          [86, 20.5],   // 上层回廊光球带
+        ],
         // 检查点
         checkpoints: [
           [60, 19.5],
@@ -879,6 +896,10 @@ export function initECSFromLevel(): void {
   // 加速道具（地图数据驱动；无 speeds 字段的地图自然不带加速）
   for (const [x, y] of s.speeds ?? []) {
     createSpeedPickup(x, y, 0);
+  }
+  // 磁铁道具（地图数据驱动；无 magnets 字段的地图自然不带磁铁）
+  for (const [x, y] of s.magnets ?? []) {
+    createMagnetPickup(x, y, 0);
   }
   for (const [x, y] of s.checkpoints) {
     createCheckpoint(x, y);

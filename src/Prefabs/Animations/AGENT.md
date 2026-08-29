@@ -13,8 +13,9 @@
 
 ```
 Animations/
-├── registry.ts  # 注册表：registerAnimator/getAnimator（同 Player/registry 模式）
+├── registry.ts  # 注册表：registerAnimator/getAnimator/getAllAnimators（同 Player/registry 模式）
 ├── index.ts     # barrel 导出 + getAnimOutput(e) 绘制层辅助函数
+├── types.ts     # 实体动画契约：AnimatorController 接口 + AnimatorData + AnimOutput 类型
 └── AGENT.md     # 本文件
 ```
 
@@ -22,7 +23,7 @@ Animations/
 
 1. 依赖：流入的方向和原因
 
-`core/ecs`（world / EntityId）、`components/render/Animator`（Animator 组件 + AnimatorController 接口 + AnimOutput 类型）。需要这些来读取实体组件、查询控制器、合成输出参数。
+`core/ecs`（world / EntityId / Animator 组件，AoS：`{ prefab, state }`）。`types.ts` 定义 AnimatorController 契约与 AnimOutput 输出包。需要这些来读取实体组件、查询控制器、合成输出参数。
 
 2. 本模块：经过 Prefabs/Animations 做了什么
 

@@ -18,7 +18,7 @@ systems/animation/
 
 1. 依赖：流入的方向和原因
 
-`core/ecs`（world 查询实体）、`components/render/Animator`（Animator 组件）、`Prefabs/Animations`（控制器注册表 getAnimator）。需要这些来查询实体、读取控制器、步进 FSM。
+`core/ecs`（world 查询实体 + Animator 组件，AoS：`{ prefab, state }`）、`Prefabs/Animations`（控制器注册表 getAnimator 与 AnimatorController 契约）。需要这些来查询实体、读取控制器、步进 FSM。
 
 2. 本模块：经过 systems/animation 做了什么
 

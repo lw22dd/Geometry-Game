@@ -7,8 +7,8 @@ import { defaultPrefab } from './default/defaultPrefab';
 
 const registry = new Map<string, PlayerPrefab>();
 
-/** 注册预制体（重复 id 覆盖） */
-function registerPrefab(prefab: PlayerPrefab): void {
+/** 注册预制体（重复 id 覆盖）—— 与 Animations/registry 的 registerAnimator 同一约定，供外部角色包接线 */
+export function registerPrefab(prefab: PlayerPrefab): void {
   registry.set(prefab.id, prefab);
 }
 
@@ -18,7 +18,7 @@ export function getPrefab(id?: string): PlayerPrefab {
 }
 
 /** 列出全部已注册预制体 */
-function getAllPrefabs(): PlayerPrefab[] {
+export function getAllPrefabs(): PlayerPrefab[] {
   return [...registry.values()];
 }
 

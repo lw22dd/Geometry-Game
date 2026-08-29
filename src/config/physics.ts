@@ -1,15 +1,16 @@
 /**
- * 物理参数注册表 —— 双物理模式（P 键切换，致敬 NEON DASH）。
- * 只依赖 types。
+ * 物理参数注册表 —— 物理手感调参的单一来源。
+ * 双物理模式（P 键切换，致敬 NEON DASH）。
+ * 集中调参表：TRACK_* / HOOK_* 各只有一个主消费者系统（player 轨道 / items/hook），
+ * 但 sceneFactory 用 TRACK_MIN_SPEED 作工厂默认值、hud 用 HOOK_COOLDOWN 画 UI，
+ * 属跨模块引用，故集中于此统一调手感。只依赖 types。
+ * 视觉参数（如 TLIFE 曳光寿命）见 ./visuals.ts。
  */
 import type { PhysicsMode } from '../types';
 
 export const RUN = 7; // 常规移速 m/s
 export const SPRINT = 12; // SHIFT 冲刺移速 m/s
 export const JUMP_H = 3.2; // 长按跳高（格）
-export const TLIFE = 0.5; // 曳光轨迹寿命（秒）
-export const MAP_W = 240; // 地图宽（格）
-export const MAP_H = 72; // 地图高（格）
 
 // ── 轨道运动参数 ──
 /** 轨道捕获半径（玩家中心距入口点的欧氏距离阈值，格） */

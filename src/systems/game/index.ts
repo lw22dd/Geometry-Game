@@ -19,7 +19,7 @@ import { updateMotion, updateLaserTimer, updateSpringPads, updateCollisionSystem
 import { stepAnimation } from '../animation';
 import {
   drawParallax, drawGrid, drawBorder, drawDecos, drawSolids, drawFloor, drawMovers, drawSpringPads,
-  drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawJumpBoosts, drawHookPickups, drawShieldPickups, drawSpeedPickups, drawNOVA,
+  drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawJumpBoosts, drawHookPickups, drawShieldPickups, drawSpeedPickups, drawMagnets, drawNOVA,
   drawTrail, drawParticles, drawHints, drawTracks,
   drawMotes, stepMotes, drawFog, emitItemAmbient,
 } from '../../Prefabs/Scenes';
@@ -51,7 +51,8 @@ import {
 import { packTrack, unpackTrack } from '../../core/trackCodec';
 import { mouse } from '../../core/mouse';
 import { drawHookAim, drawHookRope, mouseAimDir, defaultAimDir } from '../items/hook';
-import { itemToNet, netToItem, reconcileShield, reconcileSpeed } from '../items/backpack';
+import { itemToNet, netToItem, reconcileShield, reconcileSpeed, ITEMS } from '../items/backpack';
+import { stepMagnetAttraction } from '../items/magnet';
 import { wireTriggerSystem } from '../effects/TriggerSystem';
 import { stepAuraSystem, resetAuraState } from '../level/AuraSystem';
 
@@ -196,6 +197,9 @@ function step(dt: number): void {
   }
   stepAuraSystem(dt, auraPlayers);
 
+  // 2.6 磁铁吸引（持磁铁玩家拉近光球；须早于玩家碰撞检测 → 放在步进玩家前）
+  stepMagnetAttraction(dt);
+
   // 3. 实体动画 FSM 步进（场景道具 / 未来敌人 / NPC；输出在渲染帧由绘制层实时求值）
   stepAnimation(dt);
 
@@ -242,7 +246,7 @@ function step(dt: number): void {
     spawnY: cpPoint.y,
     interactions: (p, _input, sig) => {
       // 本地碰撞系统：危险/收集/检查点/终点经 collisionBus → CollisionHooks（作用于本地视图）
-      updateCollisionSystem(p, sig as Record<string, boolean>);
+      updateCollisionSystem(p, sig as Record<string, unknown>);
     },
     onDiedEdge: () => {
       playerController.emitEvent({ type: 'player:died', deaths: playerController.registerDeath() });
@@ -320,7 +324,7 @@ function stepRemoteClients(dt: number): void {
       interactions: (p, _inp, sig) => {
         // 碰撞版交互：远端同样走 collisionBus，钩子经 sim 上下文路由到 rp（危险/收集/道具）
         setCollisionSim({ p, remoteId: id });
-        updateCollisionSystem(p, sig as Record<string, boolean>);
+        updateCollisionSystem(p, sig as Record<string, unknown>);
         setCollisionSim(null);
         // 检查点激活（远端：坐标 + interact 按下沿；碰撞仅标记附近，不激活）
         const interactNow = input?.interact ?? false;
@@ -427,6 +431,12 @@ function getLocalInputKeys(): InputKeys {
 
 /* ==================== 客机网络事件绑定 ==================== */
 
+/** 客机 toast 提示（统一出口：net 'event' 各分支共用，不再逐个手写 gs.toast） */
+function toast(text: string, t = 2): void {
+  gs.toast = text;
+  gs.toastT = t;
+}
+
 // 注册网络事件处理器（首次导入时执行）
 let _netWired = false;
 function wireNetEvents(): void {
@@ -514,6 +524,15 @@ function wireNetEvents(): void {
     if (room.role !== 'client') return;
     // 客机只处理事件，不重复触发逻辑
     const d = data as any;
+
+    // ── 道具拾取：事件名由 ITEMS 条目派生（wire 名 = 'item:' + itemId）→ 单一 handler ──
+    if (kind.startsWith('item:')) {
+      const itemId = kind.slice('item:'.length) as ItemId;
+      const def = ITEMS[itemId];
+      if (def) toast('队友拾取了' + def.name);
+      return;
+    }
+
     switch (kind) {
       case 'level': {
         // 房主选择的关卡：重建本地世界（仅本地玩家）→ 进入游戏
@@ -531,33 +550,14 @@ function wireNetEvents(): void {
         break;
       }
       case 'orb':
-        gs.toast = '光球 ' + d.count + ' / ' + d.total;
-        gs.toastT = 2;
+        toast('光球 ' + d.count + ' / ' + d.total);
         break;
       case 'death':
         gs.deaths = d.deaths;
-        gs.toast = '坠落 x' + gs.deaths;
-        gs.toastT = 2;
+        toast('坠落 x' + gs.deaths);
         break;
       case 'checkpoint':
-        gs.toast = '◆ 检查点';
-        gs.toastT = 1.5;
-        break;
-      case 'jumpboost':
-        gs.toast = '双跳激活！';
-        gs.toastT = 2;
-        break;
-      case 'hookpickup':
-        gs.toast = '队友拾取了钩锁';
-        gs.toastT = 2;
-        break;
-      case 'shieldpickup':
-        gs.toast = '队友拾取了护盾';
-        gs.toastT = 2;
-        break;
-      case 'speedpickup':
-        gs.toast = '队友拾取了加速';
-        gs.toastT = 2;
+        toast('◆ 检查点', 1.5);
         break;
       case 'win':
         gs.win = true;
@@ -715,6 +715,7 @@ function renderGame(dt: number): void {
   drawHookPickups();
   drawShieldPickups();
   drawSpeedPickups();
+  drawMagnets();
   drawNOVA(pulse);
   drawTrail();
   drawParticles();

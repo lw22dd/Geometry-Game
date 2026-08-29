@@ -9,9 +9,10 @@
 
 ```
 effects/
-├── effects.ts   # PlayerRequest 联合类型 + applyEffect 结算入口
-├── verbs.ts     # 玩家动词：外力队列/跳充能/致死等通用写操作
-└── index.ts     # barrel
+├── effects.ts       # PlayerRequest 联合类型 + applyEffect 结算入口
+├── verbs.ts         # 玩家动词：外力队列/跳充能/致死等通用写操作
+├── TriggerSystem.ts # 触发系统（扩展占位）：事件/条件 → 投递 PlayerRequest 的统一注册表
+└── index.ts         # barrel
 ```
 
 # 数据流

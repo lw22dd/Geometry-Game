@@ -8,7 +8,8 @@
 
 ```
 types/
-└── index.ts    # 全部共享类型：Rect/Mover/Spike/Laser/Orb/Checkpoint/Particle/PlayerState/CameraState/GameState/NetBusEvent
+├── index.ts    # 全部共享类型：Rect/Mover/Spike/Laser/Orb/Checkpoint/Particle/PlayerState/CameraState/GameState/NetBusEvent
+└── path.ts     # 路径段类型 PathSegment（line/arc，t∈[0,1] 归一化参数化，供 core/path 与轨道/钩锁复用）
 ```
 
 # 数据流
