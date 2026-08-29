@@ -756,13 +756,13 @@ class TabPill implements UIWidget {
 
 /** 构建预制体图鉴场景 */
 export function buildGalleryScene(a: GalleryActions): UIScene {
-  const btnBack = makeBackButton('gallery_back', a.onBack);
+  const btnBack = makeBackButton('gallery_back', a.onBack, { x: 0, y: 0 });
 
   const tabBtns: TabPill[] = [];
   for (let i = 0; i < CATEGORIES.length; i++) {
     const cat = CATEGORIES[i]; const idx = i;
     tabBtns.push(new TabPill(
-      'gallery_tab_' + cat.id, cat.icon, cat.title, 180, 36,
+      'gallery_tab_' + cat.id, cat.icon, cat.title, 178, 36,
       () => gallery.cat === idx,
       () => { gallery.cat = idx; gallery.page = 0; },
       0.25 + i * 0.07, // 错峰入场
@@ -788,11 +788,12 @@ export function buildGalleryScene(a: GalleryActions): UIScene {
   };
 
   function layout(): void {
-    const totalW = CATEGORIES.length * 180 + (CATEGORIES.length - 1) * 12;
+    // 6 标签 × 178 + 5 × 8 = 1108，面板 1130 → 首尾各留 11px（不再溢出）
+    const totalW = CATEGORIES.length * 178 + (CATEGORIES.length - 1) * 8;
     let x0 = (VW - totalW) / 2;
-    for (let i = 0; i < tabBtns.length; i++) { tabBtns[i].x = x0; tabBtns[i].y = 84; x0 += 192; }
-    btnPrev.x = VW / 2 - 90; btnPrev.y = 562;
-    btnNext.x = VW / 2 + 10; btnNext.y = 562;
+    for (let i = 0; i < tabBtns.length; i++) { tabBtns[i].x = x0; tabBtns[i].y = 120; x0 += 186; }
+    btnPrev.x = VW / 2 - 90; btnPrev.y = 590;
+    btnNext.x = VW / 2 + 10; btnNext.y = 590;
     const total = CATEGORIES[gallery.cat].items.length;
     const maxPage = Math.ceil(total / ITEMS_PER_PAGE) - 1;
     btnPrev.visible = gallery.page > 0;
@@ -836,21 +837,24 @@ export function buildGalleryScene(a: GalleryActions): UIScene {
       shadowAlpha: 0.35, shadowBlur: 36, fill: 'rgba(10,8,34,.92)', stroke: 'rgba(130,160,255,.3)',
     });
 
-    // 4) 色差标题 + 流光
-    drawNeonTitle(VW / 2, 92, '预制体图鉴', 36, t, ease(t / .55));
+    // 返回按钮放进面板顶部内边距（不再浮在屏角取景框上）
+    btnBack.x = px + 22; btnBack.y = py + 16;
+
+    // 4) 色差标题 + 流光（上移至标签之上，避免压住「机关」「平台」标签）
+    drawNeonTitle(VW / 2, 62, '预制体图鉴', 36, t, ease(t / .55));
 
     // 副标题 + 两侧装饰星
     ctx.font = '500 13px "Segoe UI","Microsoft YaHei",Arial';
     ctx.fillStyle = 'rgba(150,180,255,.6)';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('· GALLERY · 预制体图鉴 ·', VW / 2, 120);
-    drawDecoStar(VW / 2 - 100, 120, 5, t * .8, 'rgba(140,246,255,.7)', 1, ease((t - .3) / .4));
-    drawDecoStar(VW / 2 + 100, 120, 5, -t * .8, 'rgba(255,160,220,.7)', 1, ease((t - .3) / .4));
+    ctx.fillText('· GALLERY · 预制体图鉴 ·', VW / 2, 96);
+    drawDecoStar(VW / 2 - 100, 96, 5, t * .8, 'rgba(140,246,255,.7)', 1, ease((t - .3) / .4));
+    drawDecoStar(VW / 2 + 100, 96, 5, -t * .8, 'rgba(255,160,220,.7)', 1, ease((t - .3) / .4));
 
     // 5) 卡片网格（错峰入场）
     const cardW = 340, cardH = 190, gapX = 24, gapY = 18;
     const gridW = COLS * cardW + (COLS - 1) * gapX;
-    const gridX0 = (VW - gridW) / 2; const gridY0 = 148;
+    const gridX0 = (VW - gridW) / 2; const gridY0 = 170;
 
     for (let i = 0; i < pageItems.length; i++) {
       const item = pageItems[i];
@@ -874,12 +878,12 @@ export function buildGalleryScene(a: GalleryActions): UIScene {
       hg.addColorStop(0, 'rgba(150,200,255,.08)'); hg.addColorStop(1, 'rgba(150,200,255,0)');
       rr(ctx, cardX + 2, cardY + 2, cardW - 4, 14, 10); ctx.fillStyle = hg; ctx.fill();
 
-      item.draw(cx, cardY + 60, t, 40);
+      item.draw(cx, cardY + 54, t, 40);
 
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '700 17px "Segoe UI","Microsoft YaHei",Arial';
       ctx.fillStyle = '#d0e8ff';
-      ctx.fillText(item.name, cx, cardY + 120);
+      ctx.fillText(item.name, cx, cardY + 132);
 
       ctx.strokeStyle = 'rgba(130,160,255,.08)'; ctx.lineWidth = 1;
       ctx.beginPath();
@@ -905,19 +909,19 @@ export function buildGalleryScene(a: GalleryActions): UIScene {
       }
     }
 
-    // 页数指示
+    // 页数指示（随网格下移）
     if (totalPages > 1) {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '500 14px "Segoe UI","Microsoft YaHei",Arial';
       ctx.fillStyle = 'rgba(160,180,255,.6)';
-      ctx.fillText((page + 1) + ' / ' + totalPages, VW / 2, 555);
+      ctx.fillText((page + 1) + ' / ' + totalPages, VW / 2, 578);
     }
 
     // 底部呼吸提示
     ctx.textAlign = 'center';
     ctx.font = '500 12px "Segoe UI","Microsoft YaHei",Arial';
     ctx.fillStyle = 'rgba(150,180,255,' + (.35 + .2 * Math.sin(t * 3.2)) + ')';
-    ctx.fillText('点击分类标签切换 · 按 ESC 或「返回」关闭', VW / 2, 628);
+    ctx.fillText('点击分类标签切换 · 按 ESC 或「返回」关闭', VW / 2, 636);
 
     ctx.restore();
   }

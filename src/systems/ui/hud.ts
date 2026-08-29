@@ -25,7 +25,7 @@ const SLOT = 46;
 const SLOT_GAP = 8;
 const BAR_W = 5 * SLOT + 4 * SLOT_GAP;
 const BAR_X = (VW - BAR_W) / 2;
-const BAR_Y = VH - 46;
+const BAR_Y = VH - 50; // 底部留 4px，选中态发光 ±3px 不再越出屏幕
 
 /** 背包栏（玩家自带 5 格装备栏，屏幕最下方居中）；
  *  占用格显示道具图标：二段跳票 = 绿色上箭头（被动），钩锁 = 金色钩形（主动），护盾 = 蓝紫盾形（被动），加速 = 青色 》》双箭头（被动）。

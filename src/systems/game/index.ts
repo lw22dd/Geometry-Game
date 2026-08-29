@@ -689,9 +689,10 @@ function render(dt: number): void {
   ctx.fillStyle = gr;
   ctx.fillRect(0, 0, VW, VH);
 
-  // 菜单 / 准备流程 / 大厅 / 图鉴 / 操作说明：全屏 UI 场景，直接绘制（不渲染游戏）
+  // 菜单 / 准备流程 / 大厅 / 图鉴 / 操作说明 / 设置：全屏 UI 场景，直接绘制（不渲染游戏）
   if (ui.currentName === 'menu' || ui.currentName === 'lobby'
       || ui.currentName === 'gallery' || ui.currentName === 'instructions'
+      || ui.currentName === 'settings'
       || ui.currentName === 'prepare' || ui.currentName === 'mapSelect' || ui.currentName === 'charSelect') {
     ui.draw(uiTime);
     return;

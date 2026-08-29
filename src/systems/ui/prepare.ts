@@ -120,13 +120,13 @@ class Card implements UIWidget {
     if (this.kind === 'map') this.drawMap(ctx, this.getData() as MapDefinition);
     else this.drawChar(ctx, this.getData() as CharacterStyle);
 
-    // 选中角标
+    // 选中角标（右下角，避免与卡片底部居中的 id 叠字）
     if (sel) {
-      ctx.textAlign = 'center';
+      ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
       ctx.font = '600 13px "Segoe UI","Microsoft YaHei",Arial';
       ctx.fillStyle = '#7df9ff';
-      ctx.fillText('✓ 当前选择', this.x + this.w / 2, this.y + this.h - 20);
+      ctx.fillText('✓ 当前选择', this.x + this.w - 16, this.y + this.h - 14);
     }
     ctx.restore();
   }
@@ -340,7 +340,7 @@ export function buildPrepareScene(a: PrepareActions): UIScene {
     ctx.font = '500 13px "Segoe UI","Microsoft YaHei",Arial';
     ctx.fillStyle = 'rgba(150,180,255,.6)';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('点击卡片进入选择界面，选择后自动返回', VW / 2, py + 110);
+    ctx.fillText('点击卡片进入选择界面，选择后自动返回', VW / 2, py + 96);
 
     ctx.font = '500 12px "Segoe UI","Microsoft YaHei",Arial';
     ctx.fillStyle = 'rgba(160,180,255,.45)';

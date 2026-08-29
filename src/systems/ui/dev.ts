@@ -193,7 +193,7 @@ interface DevActions {
 
 /** 构建开发者设置场景 */
 export function buildDevScene(a: DevActions): UIScene {
-  const pw = 420, ph = 220;
+  const pw = 420, ph = 270;
   const px = VW / 2 - pw / 2, py = VH / 2 - ph / 2;
   const rowX = px + 32;
   let rowY = py + 80;

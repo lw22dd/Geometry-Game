@@ -241,24 +241,29 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     onKey: (e): boolean => (e.code === 'Escape' || e.code === 'Enter') ? (leaveRoom(), true) : false,
   });
 
-  // ---- 布局：每次绘制前计算位置 ----
-  function layoutConnect(): void {
-    const pw = 460, ph = 400;
-    const px = VW / 2 - pw / 2, py = VH / 2 - ph / 2;
+  // ---- 布局：每次绘制前计算位置（off = 面板入场位移，让组件与面板同步上滑） ----
+  function layoutConnect(off = 0): void {
+    const pw = 460, ph = 440;
+    const px = VW / 2 - pw / 2, py = VH / 2 - ph / 2 + off;
     const labelX = px + 40;
-    let iy = py + 88;
+    let iy = py + 84;
 
-    fields.name.x = labelX; fields.name.y = iy; iy += 64;
-    fields.ip.x = labelX; fields.ip.y = iy; iy += 64;
-    fields.port.x = labelX; fields.port.y = iy; iy += 64;
+    fields.name.x = labelX; fields.name.y = iy; iy += 60;
+    fields.ip.x = labelX; fields.ip.y = iy; iy += 60;
+    fields.port.x = labelX; fields.port.y = iy;
 
-    // 状态行 + 按钮
-    iy += 34;
-    btnConnect.x = VW / 2 - 130; btnConnect.y = iy;
-    btnBack.x = VW / 2 - 130; btnBack.y = iy + 66;
+    // 按钮列：输入框底部下方（状态行夹在中间），按钮间距 50px 防溢出面板
+    btnConnect.x = VW / 2 - 130; btnConnect.y = iy + 96;
+    btnBack.x = VW / 2 - 130; btnBack.y = iy + 146;
 
     // 创建模式隐藏 IP 字段
     fields.ip.visible = lobby.mode === 'join';
+
+    // 连接阶段：隐藏房间阶段的角色卡与按钮（否则按默认 (0,0) 叠在屏幕左上角）
+    for (const c of charCards) c.visible = false;
+    btnReady.visible = false;
+    btnStart.visible = false;
+    btnLeave.visible = false;
   }
 
   function layoutRoom(): void {
@@ -291,7 +296,7 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     // 按钮文案
     const r = myReadyNow();
     btnReady.label = r ? '✓ 已准备（点击取消）' : '准备';
-    btnStart.label = allReady() ? '▶ 开始游戏' : '▶ 开始游戏（等待全员准备）';
+    btnStart.label = allReady() ? '▶ 开始游戏' : '▶ 开始游戏（等待中）';
   }
 
   // ---- 背景绘制 ----
@@ -306,9 +311,10 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
       return;
     }
 
-    layoutConnect();
-    const pw = 460, ph = 400;
-    const px = VW / 2 - pw / 2, py = VH / 2 - ph / 2 + (1 - en) * 26;
+    const off = (1 - en) * 26;
+    layoutConnect(off);
+    const pw = 460, ph = 440;
+    const px = VW / 2 - pw / 2, py = VH / 2 - ph / 2 + off;
 
     ctx.save();
     ctx.globalAlpha = en;
@@ -362,14 +368,19 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     ctx.fillStyle = 'rgba(150,180,255,.55)';
     ctx.fillText('房间中的玩家选择角色，点击「准备」；全部准备后房主可开始', VW / 2, py + 84);
 
-    // 左：玩家列表
+    // 左：玩家列表（高度收缩，给底部状态提示留位；超出部分裁剪）
     const lx = px + 40, ly = py + 118;
-    rr(ctx, lx, ly, 360, 350, 12);
+    const listH = 320;
+    rr(ctx, lx, ly, 360, listH, 12);
     ctx.fillStyle = 'rgba(6,4,20,.6)';
     ctx.fill();
     ctx.strokeStyle = 'rgba(120,150,255,.25)';
     ctx.lineWidth = 1;
     ctx.stroke();
+
+    ctx.save();
+    rr(ctx, lx + 1, ly + 1, 358, listH - 2, 11);
+    ctx.clip();
 
     ctx.textAlign = 'left';
     ctx.font = '700 16px "Segoe UI","Microsoft YaHei",Arial';
@@ -407,6 +418,8 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
       ctx.fillText(p.ready ? '✓ 已准备' : '○ 未准备', lx + 336, ry + 2);
       ctx.textAlign = 'left';
     });
+
+    ctx.restore();
 
     // 右：选择角色
     ctx.font = '700 16px "Segoe UI","Microsoft YaHei",Arial';

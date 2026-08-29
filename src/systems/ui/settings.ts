@@ -136,34 +136,45 @@ export function buildSettingsScene(a: SettingsActions): UIScene {
     const tt = tickLocal(_setTime);
     const en = _ease(tt / 0.28);
     if (en <= 0) return;
+    const off = (1 - en) * 24;
+
+    // 同步组件坐标（随面板入场位移，避免"按钮先就位、面板后滑入"）
+    btnBack.y = py + 20 + off;
+    sMaster.y = py + 96 + off;
+    sSfx.y = py + 136 + off;
+    sBgm.y = py + 176 + off;
+    tMute.y = py + 216 + off;
+    tPost.y = py + 276 + off;
+    tierBtns.forEach((b, i) => { b.y = py + 322 + off; });
+    btnReset.y = py + ph - 68 + off;
 
     ctx.save();
     ctx.globalAlpha = en;
 
     drawMask(0.72 * en);
-    drawGlassPanel(px, py + (1 - en) * 24, pw, ph, 16, {
+    drawGlassPanel(px, py + off, pw, ph, 16, {
       shadowAlpha: 0.4, shadowBlur: 30,
       fill: 'rgba(10,8,32,.9)', stroke: 'rgba(130,160,255,.4)',
     });
-    drawTitle('设置', py + 54 + (1 - en) * 24, 28);
+    drawTitle('设置', py + 54 + off, 28);
 
     // 分区小标题
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.font = '600 14px ' + F.UI;
     ctx.fillStyle = 'rgba(125,249,255,.75)';
-    ctx.fillText('音频', rowX, py + 80 + (1 - en) * 24);
-    ctx.fillText('画面', rowX, py + 260 + (1 - en) * 24);
+    ctx.fillText('音频', rowX, py + 80 + off);
+    ctx.fillText('画面', rowX, py + 260 + off);
 
     // 当前档位说明
     const cur = TIERS.find(t => t.id === Settings.data.quality);
     ctx.font = '500 13px ' + F.UI;
     ctx.fillStyle = 'rgba(170,195,255,.7)';
-    ctx.fillText(cur ? cur.desc : '', rowX, py + 380 + (1 - en) * 24);
+    ctx.fillText(cur ? cur.desc : '', rowX, py + 380 + off);
 
     // 底部提示
     ctx.fillStyle = 'rgba(150,175,235,.5)';
-    ctx.fillText('设置自动保存在本机', rowX, py + ph - 46 + (1 - en) * 24);
+    ctx.fillText('设置自动保存在本机', rowX, py + ph - 46 + off);
 
     ctx.restore();
   }

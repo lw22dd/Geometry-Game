@@ -1,0 +1,180 @@
+
+══════════════════════════════════════════════════════════════════════════════
+■ 01-menu   面板=无
+
+══════════════════════════════════════════════════════════════════════════════
+■ 02-prepare   面板=[140, 60, 1000, 600]
+  ✗ 文字压组件  "点击卡片进入选择界面，选择后自动返回" (500 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 523..757  y 164..176  ↔  #prepare_map_card [x 210..610  y 170..430]  重叠 87×6px
+  ✗ 文字压组件  "点击卡片进入选择界面，选择后自动返回" (500 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 523..757  y 164..176  ↔  #prepare_char_card [x 670..1070  y 170..430]  重叠 87×6px
+  ✗ 文字压组件  "霓虹攀升" (bold 20px "Segoe UI", "Microsoft YaHei", Arial) @ x 232..312  y 190..210  ↔  #prepare_map_card [x 210..610  y 170..430]  重叠 80×20px
+  ✗ 文字压组件  "240 × 72  ·  光球 42 枚" (500 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 232..363  y 220..232  ↔  #prepare_map_card [x 210..610  y 170..430]  重叠 131×12px
+  ✗ 文字压组件  "✓ 当前选择" (600 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 377.344482421875..443  y 404..416  ↔  #prepare_map_card [x 210..610  y 170..430]  重叠 65×12px
+  ✗ 文字压组件  "霓虹跑者" (bold 22px "Segoe UI", "Microsoft YaHei", Arial) @ x 826..914  y 371..393  ↔  #prepare_char_card [x 670..1070  y 170..430]  重叠 88×22px
+  ✗ 文字压组件  "neon-runner" (500 12px "Segoe UI", Arial) @ x 835.6845703125..904  y 405..411  ↔  #prepare_char_card [x 670..1070  y 170..430]  重叠 69×6px
+  ✗ 文字压组件  "✓ 当前选择" (600 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 837.344482421875..903  y 404..416  ↔  #prepare_char_card [x 670..1070  y 170..430]  重叠 65×12px
+  ✗ 文字互相重叠  "neon-runner" (500 12px "Segoe UI", Arial) @ x 835.6845703125..904  y 405..411  ↔  "✓ 当前选择" (600 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 837.344482421875..903  y 404..416  重叠 65×6px
+
+══════════════════════════════════════════════════════════════════════════════
+■ 03-mapSelect   面板=[140, 10, 1000, 700]
+  ✗ 文字压组件  "霓虹攀升" (bold 20px "Segoe UI", "Microsoft YaHei", Arial) @ x 232.5..313  y 182..202  ↔  #maps_neon-ascent [x 210.5..480  y 162..377]  重叠 80×20px
+  ✗ 文字压组件  "240 × 72  ·  光球 42 枚" (500 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 232.5..363  y 212..224  ↔  #maps_neon-ascent [x 210.5..480  y 162..377]  重叠 131×12px
+  ✗ 文字压组件  "✓ 当前选择" (600 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 312.344482421875..378  y 351..363  ↔  #maps_neon-ascent [x 210.5..480  y 162..377]  重叠 65×12px
+  ✗ 文字压组件  "水晶洞窟 · 对称迷城" (bold 20px "Segoe UI", "Microsoft YaHei", Arial) @ x 527.5..704  y 182..202  ↔  #maps_crystal-caverns [x 505.5..775  y 162..377]  重叠 176×20px
+  ✗ 文字压组件  "180 × 100  ·  光球 46 枚" (500 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 527.5..661  y 212..224  ↔  #maps_crystal-caverns [x 505.5..775  y 162..377]  重叠 134×12px
+  ✗ 文字压组件  "未命名地图" (bold 20px "Segoe UI", "Microsoft YaHei", Arial) @ x 822.5..923  y 182..202  ↔  #maps_map_vrg5wrvjcd [x 800.5..1070  y 162..377]  重叠 100×20px
+  ✗ 文字压组件  "33 × 24  ·  光球 0 枚" (500 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 822.5..939  y 212..224  ↔  #maps_map_vrg5wrvjcd [x 800.5..1070  y 162..377]  重叠 116×12px
+  ✗ 文字压组件  "2D地图设计 · 底图" (bold 20px "Segoe UI", "Microsoft YaHei", Arial) @ x 232.5..395  y 423..443  ↔  #maps_mvmap-2d-map-design [x 210.5..480  y 403..618]  重叠 163×20px
+  ✗ 文字压组件  "122 × 40  ·  光球 74 枚" (500 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 232.5..361  y 453..465  ↔  #maps_mvmap-2d-map-design [x 210.5..480  y 403..618]  重叠 129×12px
+  ✗ 文字压组件  "2D地图设计2-1 平台树" (bold 20px "Segoe UI", "Microsoft YaHei", Arial) @ x 527.5..730  y 423..443  ↔  #maps_mvmap-platform-tree [x 505.5..775  y 403..618]  重叠 203×20px
+  ✗ 文字压组件  "18 × 6  ·  光球 0 枚" (500 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 527.5..634  y 453..465  ↔  #maps_mvmap-platform-tree [x 505.5..775  y 403..618]  重叠 107×12px
+
+══════════════════════════════════════════════════════════════════════════════
+■ 04-charSelect   面板=[140, 58, 1000, 604]
+  ✗ 文字压组件  "霓虹跑者" (bold 22px "Segoe UI", "Microsoft YaHei", Arial) @ x 374.5..463  y 511..533  ↔  #chars_neon-runner [x 210..627  y 210..570]  重叠 88×22px
+  ✗ 文字压组件  "neon-runner" (500 12px "Segoe UI", Arial) @ x 384.1845703125..453  y 545..551  ↔  #chars_neon-runner [x 210..627  y 210..570]  重叠 69×6px
+  ✗ 文字压组件  "✓ 当前选择" (600 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 385.844482421875..451  y 544..556  ↔  #chars_neon-runner [x 210..627  y 210..570]  重叠 65×12px
+  ✗ 文字压组件  "绯红冲刺者" (bold 22px "Segoe UI", "Microsoft YaHei", Arial) @ x 806.5..917  y 511..533  ↔  #chars_crimson-runner [x 653..1070  y 210..570]  重叠 110×22px
+  ✗ 文字压组件  "crimson-runner" (500 12px "Segoe UI", Arial) @ x 819.3623046875..904  y 543.5..553  ↔  #chars_crimson-runner [x 653..1070  y 210..570]  重叠 84×9px
+  ✗ 文字互相重叠  "neon-runner" (500 12px "Segoe UI", Arial) @ x 384.1845703125..453  y 545..551  ↔  "✓ 当前选择" (600 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 385.844482421875..451  y 544..556  重叠 65×6px
+
+══════════════════════════════════════════════════════════════════════════════
+■ 05-lobbyConnect   面板=[410, 160, 460, 400]
+  ✗ 文字压组件  "提示：输入房主的 IP 地址与端口（本机联机用 127.0.0.1）" (500 12px "Segoe UI", "Microsoft YaHei", Arial) @ x 487.416015625..793  y 530..542  ↔  #lobby_back [x 510..770  y 540..586]  重叠 260×2px
+  ✗ 文字压组件  "玩家554" (500 16px Consolas, "Courier New", monospace) @ x 464..522  y 241..257  ↔  #lobby_name [x 450..830  y 248..288]  重叠 58×9px
+  ✗ 文字压组件  "8810" (500 16px Consolas, "Courier New", monospace) @ x 464..499  y 372..382  ↔  #lobby_port [x 450..830  y 376..416]  重叠 35×6px
+  ✗ 文字压组件  "霓虹跑者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 70..130  y 109.5..123  ↔  #lobby_char_neon-runner [x 0..200  y 0..140]  重叠 60×13px
+  ✗ 文字压组件  "霓虹跑者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 70..130  y 109.5..123  ↔  #lobby_char_crimson-runner [x 0..200  y 0..140]  重叠 60×13px
+  ✗ 文字压组件  "绯红冲刺者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 62.5..138  y 109..123  ↔  #lobby_char_neon-runner [x 0..200  y 0..140]  重叠 75×14px
+  ✗ 文字压组件  "绯红冲刺者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 62.5..138  y 109..123  ↔  #lobby_char_crimson-runner [x 0..200  y 0..140]  重叠 75×14px
+  ✗ 文字压组件  "准备" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 97..133  y 16.5..36  ↔  #lobby_char_neon-runner [x 0..200  y 0..140]  重叠 36×19px
+  ✗ 文字压组件  "准备" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 97..133  y 16.5..36  ↔  #lobby_char_crimson-runner [x 0..200  y 0..140]  重叠 36×19px
+  ✗ 文字压组件  "准备" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 97..133  y 16.5..36  ↔  #lobby_start [x 0..260  y 0..50]  重叠 36×19px
+  ✗ 文字压组件  "▶ 开始游戏" (800 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 68.330078125..192  y 9..33  ↔  #lobby_char_neon-runner [x 0..200  y 0..140]  重叠 123×24px
+  ✗ 文字压组件  "▶ 开始游戏" (800 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 68.330078125..192  y 9..33  ↔  #lobby_char_crimson-runner [x 0..200  y 0..140]  重叠 123×24px
+  ✗ 文字压组件  "▶ 开始游戏" (800 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 68.330078125..192  y 9..33  ↔  #lobby_ready [x 0..230  y 0..50]  重叠 123×24px
+  ✗ 文字压组件  "▶ 开始游戏" (800 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 68.330078125..192  y 9..33  ↔  #lobby_leave [x 0..230  y 0..50]  重叠 123×24px
+  ✗ 文字压组件  "退出房间" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 79..151  y 17..35  ↔  #lobby_char_neon-runner [x 0..200  y 0..140]  重叠 72×18px
+  ✗ 文字压组件  "退出房间" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 79..151  y 17..35  ↔  #lobby_char_crimson-runner [x 0..200  y 0..140]  重叠 72×18px
+  ✗ 文字压组件  "退出房间" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 79..151  y 17..35  ↔  #lobby_start [x 0..260  y 0..50]  重叠 72×18px
+  ✗ 文字互相重叠  "霓虹跑者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 70..130  y 109.5..123  ↔  "绯红冲刺者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 62.5..138  y 109..123  重叠 60×13px
+  ✗ 文字互相重叠  "准备" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 97..133  y 16.5..36  ↔  "▶ 开始游戏" (800 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 68.330078125..192  y 9..33  重叠 36×17px
+  ✗ 文字互相重叠  "准备" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 97..133  y 16.5..36  ↔  "退出房间" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 79..151  y 17..35  重叠 36×18px
+  ✗ 文字互相重叠  "▶ 开始游戏" (800 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 68.330078125..192  y 9..33  ↔  "退出房间" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 79..151  y 17..35  重叠 72×16px
+  ✗ 组件溢出面板  #lobby_back [x 510..770  y 540..586]  面板 [x 410..870  y 160..560]
+  ✗ 组件溢出面板  #lobby_char_neon-runner [x 0..200  y 0..140]  面板 [x 410..870  y 160..560]
+  ✗ 组件溢出面板  #lobby_char_crimson-runner [x 0..200  y 0..140]  面板 [x 410..870  y 160..560]
+  ✗ 组件溢出面板  #lobby_ready [x 0..230  y 0..50]  面板 [x 410..870  y 160..560]
+  ✗ 组件溢出面板  #lobby_start [x 0..260  y 0..50]  面板 [x 410..870  y 160..560]
+  ✗ 组件溢出面板  #lobby_leave [x 0..230  y 0..50]  面板 [x 410..870  y 160..560]
+  ✗ 文字溢出面板  "← 返回" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 611.7607421875..668  y 555..573  面板 [x 410..870  y 160..560]
+  ✗ 文字溢出面板  "霓虹跑者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 70..130  y 109.5..123  面板 [x 410..870  y 160..560]
+  ✗ 文字溢出面板  "绯红冲刺者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 62.5..138  y 109..123  面板 [x 410..870  y 160..560]
+  ✗ 文字溢出面板  "准备" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 97..133  y 16.5..36  面板 [x 410..870  y 160..560]
+  ✗ 文字溢出面板  "▶ 开始游戏" (800 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 68.330078125..192  y 9..33  面板 [x 410..870  y 160..560]
+  ✗ 文字溢出面板  "退出房间" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 79..151  y 17..35  面板 [x 410..870  y 160..560]
+  ✗ 组件互相重叠  #lobby_char_neon-runner [x 0..200  y 0..140] ↔ #lobby_char_crimson-runner [x 0..200  y 0..140]
+  ✗ 组件互相重叠  #lobby_char_neon-runner [x 0..200  y 0..140] ↔ #lobby_ready [x 0..230  y 0..50]
+  ✗ 组件互相重叠  #lobby_char_neon-runner [x 0..200  y 0..140] ↔ #lobby_start [x 0..260  y 0..50]
+  ✗ 组件互相重叠  #lobby_char_neon-runner [x 0..200  y 0..140] ↔ #lobby_leave [x 0..230  y 0..50]
+  ✗ 组件互相重叠  #lobby_char_crimson-runner [x 0..200  y 0..140] ↔ #lobby_ready [x 0..230  y 0..50]
+  ✗ 组件互相重叠  #lobby_char_crimson-runner [x 0..200  y 0..140] ↔ #lobby_start [x 0..260  y 0..50]
+  ✗ 组件互相重叠  #lobby_char_crimson-runner [x 0..200  y 0..140] ↔ #lobby_leave [x 0..230  y 0..50]
+  ✗ 组件互相重叠  #lobby_ready [x 0..230  y 0..50] ↔ #lobby_start [x 0..260  y 0..50]
+  ✗ 组件互相重叠  #lobby_ready [x 0..230  y 0..50] ↔ #lobby_leave [x 0..230  y 0..50]
+  ✗ 组件互相重叠  #lobby_start [x 0..260  y 0..50] ↔ #lobby_leave [x 0..230  y 0..50]
+
+══════════════════════════════════════════════════════════════════════════════
+■ 06-lobbyRoom   面板=[160, 80, 960, 560]
+  ✗ 文字压组件  "提示：输入房主的 IP 地址与端口（本机联机用 127.0.0.1）" (500 12px "Segoe UI", "Microsoft YaHei", Arial) @ x 487.416015625..793  y 530..542  ↔  #lobby_back [x 510..770  y 540..586]  重叠 260×2px
+  ✗ 文字压组件  "玩家554▌" (500 16px Consolas, "Courier New", monospace) @ x 464..531  y 239.5..259  ↔  #lobby_name [x 450..830  y 248..288]  重叠 67×11px
+  ✗ 文字压组件  "8810" (500 16px Consolas, "Courier New", monospace) @ x 464..499  y 372..382  ↔  #lobby_port [x 450..830  y 376..416]  重叠 35×6px
+  ✗ 文字压组件  "霓虹跑者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 70..130  y 109.5..123  ↔  #lobby_char_neon-runner [x 0..200  y 0..140]  重叠 60×13px
+  ✗ 文字压组件  "霓虹跑者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 70..130  y 109.5..123  ↔  #lobby_char_crimson-runner [x 0..200  y 0..140]  重叠 60×13px
+  ✗ 文字压组件  "绯红冲刺者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 62.5..138  y 109..123  ↔  #lobby_char_neon-runner [x 0..200  y 0..140]  重叠 75×14px
+  ✗ 文字压组件  "绯红冲刺者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 62.5..138  y 109..123  ↔  #lobby_char_crimson-runner [x 0..200  y 0..140]  重叠 75×14px
+  ✗ 文字压组件  "准备" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 97..133  y 16.5..36  ↔  #lobby_char_neon-runner [x 0..200  y 0..140]  重叠 36×19px
+  ✗ 文字压组件  "准备" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 97..133  y 16.5..36  ↔  #lobby_char_crimson-runner [x 0..200  y 0..140]  重叠 36×19px
+  ✗ 文字压组件  "准备" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 97..133  y 16.5..36  ↔  #lobby_start [x 0..260  y 0..50]  重叠 36×19px
+  ✗ 文字压组件  "▶ 开始游戏" (800 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 68.330078125..192  y 9..33  ↔  #lobby_char_neon-runner [x 0..200  y 0..140]  重叠 123×24px
+  ✗ 文字压组件  "▶ 开始游戏" (800 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 68.330078125..192  y 9..33  ↔  #lobby_char_crimson-runner [x 0..200  y 0..140]  重叠 123×24px
+  ✗ 文字压组件  "▶ 开始游戏" (800 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 68.330078125..192  y 9..33  ↔  #lobby_ready [x 0..230  y 0..50]  重叠 123×24px
+  ✗ 文字压组件  "▶ 开始游戏" (800 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 68.330078125..192  y 9..33  ↔  #lobby_leave [x 0..230  y 0..50]  重叠 123×24px
+  ✗ 文字压组件  "退出房间" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 79..151  y 17..35  ↔  #lobby_char_neon-runner [x 0..200  y 0..140]  重叠 72×18px
+  ✗ 文字压组件  "退出房间" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 79..151  y 17..35  ↔  #lobby_char_crimson-runner [x 0..200  y 0..140]  重叠 72×18px
+  ✗ 文字压组件  "退出房间" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 79..151  y 17..35  ↔  #lobby_start [x 0..260  y 0..50]  重叠 72×18px
+  ✗ 文字互相重叠  "霓虹跑者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 70..130  y 109.5..123  ↔  "绯红冲刺者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 62.5..138  y 109..123  重叠 60×13px
+  ✗ 文字互相重叠  "准备" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 97..133  y 16.5..36  ↔  "▶ 开始游戏" (800 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 68.330078125..192  y 9..33  重叠 36×17px
+  ✗ 文字互相重叠  "准备" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 97..133  y 16.5..36  ↔  "退出房间" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 79..151  y 17..35  重叠 36×18px
+  ✗ 文字互相重叠  "▶ 开始游戏" (800 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 68.330078125..192  y 9..33  ↔  "退出房间" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 79..151  y 17..35  重叠 72×16px
+  ✗ 组件溢出面板  #lobby_char_neon-runner [x 0..200  y 0..140]  面板 [x 160..1120  y 80..640]
+  ✗ 组件溢出面板  #lobby_char_crimson-runner [x 0..200  y 0..140]  面板 [x 160..1120  y 80..640]
+  ✗ 组件溢出面板  #lobby_ready [x 0..230  y 0..50]  面板 [x 160..1120  y 80..640]
+  ✗ 组件溢出面板  #lobby_start [x 0..260  y 0..50]  面板 [x 160..1120  y 80..640]
+  ✗ 组件溢出面板  #lobby_leave [x 0..230  y 0..50]  面板 [x 160..1120  y 80..640]
+  ✗ 文字溢出面板  "霓虹跑者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 70..130  y 109.5..123  面板 [x 160..1120  y 80..640]
+  ✗ 文字溢出面板  "绯红冲刺者" (600 15px "Segoe UI", "Microsoft YaHei", Arial) @ x 62.5..138  y 109..123  面板 [x 160..1120  y 80..640]
+  ✗ 文字溢出面板  "准备" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 97..133  y 16.5..36  面板 [x 160..1120  y 80..640]
+  ✗ 文字溢出面板  "▶ 开始游戏" (800 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 68.330078125..192  y 9..33  面板 [x 160..1120  y 80..640]
+  ✗ 文字溢出面板  "退出房间" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 79..151  y 17..35  面板 [x 160..1120  y 80..640]
+  ✗ 组件互相重叠  #lobby_char_neon-runner [x 0..200  y 0..140] ↔ #lobby_char_crimson-runner [x 0..200  y 0..140]
+  ✗ 组件互相重叠  #lobby_char_neon-runner [x 0..200  y 0..140] ↔ #lobby_ready [x 0..230  y 0..50]
+  ✗ 组件互相重叠  #lobby_char_neon-runner [x 0..200  y 0..140] ↔ #lobby_start [x 0..260  y 0..50]
+  ✗ 组件互相重叠  #lobby_char_neon-runner [x 0..200  y 0..140] ↔ #lobby_leave [x 0..230  y 0..50]
+  ✗ 组件互相重叠  #lobby_char_crimson-runner [x 0..200  y 0..140] ↔ #lobby_ready [x 0..230  y 0..50]
+  ✗ 组件互相重叠  #lobby_char_crimson-runner [x 0..200  y 0..140] ↔ #lobby_start [x 0..260  y 0..50]
+  ✗ 组件互相重叠  #lobby_char_crimson-runner [x 0..200  y 0..140] ↔ #lobby_leave [x 0..230  y 0..50]
+  ✗ 组件互相重叠  #lobby_ready [x 0..230  y 0..50] ↔ #lobby_start [x 0..260  y 0..50]
+  ✗ 组件互相重叠  #lobby_ready [x 0..230  y 0..50] ↔ #lobby_leave [x 0..230  y 0..50]
+  ✗ 组件互相重叠  #lobby_start [x 0..260  y 0..50] ↔ #lobby_leave [x 0..230  y 0..50]
+
+══════════════════════════════════════════════════════════════════════════════
+■ 07-pause-offline   面板=[420, 190, 440, 340]
+  ✗ 文字溢出面板  "→ 出发" (600 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 346.34765625..422  y 400.79999999999995..425  面板 [x 420..860  y 190..530]
+  ✗ 文字溢出面板  "MAP · 240 × 72 · 6,5" (600 11px Arial) @ x 1006..1108  y 35..45  面板 [x 420..860  y 190..530]
+
+══════════════════════════════════════════════════════════════════════════════
+■ 08-pause-online   面板=[420, 190, 440, 340]
+  ✗ 文字压组件  "在线玩家 (3)" (500 14px "Segoe UI", "Microsoft YaHei", Arial) @ x 500..577  y 391.5..405  ↔  #pause_disconnect [x 500..780  y 350..398]  重叠 77×7px
+  ✗ 文字压组件  "● 玩家一" (500 14px "Segoe UI", "Microsoft YaHei", Arial) @ x 520..574  y 416..428  ↔  #pause_dev [x 500..780  y 410..458]  重叠 54×12px
+  ✗ 文字压组件  "○ 玩家二" (500 14px "Segoe UI", "Microsoft YaHei", Arial) @ x 520..578  y 438..450  ↔  #pause_dev [x 500..780  y 410..458]  重叠 58×12px
+  ✗ 文字压组件  "○ 玩家三" (500 14px "Segoe UI", "Microsoft YaHei", Arial) @ x 520..578  y 460..472  ↔  #pause_settings [x 500..780  y 470..518]  重叠 58×2px
+  ✗ 文字溢出面板  "→ 出发" (600 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 346.34765625..422  y 400.79999999999995..425  面板 [x 420..860  y 190..530]
+  ✗ 文字溢出面板  "MAP · 240 × 72 · 6,5" (600 11px Arial) @ x 1006..1108  y 35..45  面板 [x 420..860  y 190..530]
+
+══════════════════════════════════════════════════════════════════════════════
+■ 09-dev   面板=[430, 250, 420, 220]
+  ✗ 文字压组件  "显示坐标系" (600 17px "Segoe UI", "Microsoft YaHei", Arial) @ x 462..547  y 340..358  ↔  #dev_grid [x 462..822  y 330..366]  重叠 85×18px
+  ✗ 文字压组件  "显示调试信息（FPS / 坐标）" (600 17px "Segoe UI", "Microsoft YaHei", Arial) @ x 462..676  y 390..408  ↔  #dev_debug [x 462..822  y 380..416]  重叠 214×18px
+  ✗ 组件溢出面板  #dev_back [x 510..770  y 440..486]  面板 [x 430..850  y 250..470]
+  ✗ 文字溢出面板  "→ 出发" (600 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 346.34765625..422  y 400.79999999999995..425  面板 [x 430..850  y 250..470]
+  ✗ 文字溢出面板  "MAP · 240 × 72 · 6,5" (600 11px Arial) @ x 1006..1108  y 35..45  面板 [x 430..850  y 250..470]
+  ✗ 文字溢出面板  "← 返回" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 611.7607421875..668  y 455..473  面板 [x 430..850  y 250..470]
+
+══════════════════════════════════════════════════════════════════════════════
+■ 10-settings   面板=[360, 125, 560, 470]
+  ✗ 文字压组件  "→ 出发" (600 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 346.34765625..422  y 400.79999999999995..425  ↔  #set_postfx [x 400..880  y 401..435]  重叠 22×24px
+  ✗ 文字溢出面板  "→ 出发" (600 24px "Segoe UI", "Microsoft YaHei", Arial) @ x 346.34765625..422  y 400.79999999999995..425  面板 [x 360..920  y 125..595]
+  ✗ 文字溢出面板  "MAP · 240 × 72 · 6,5" (600 11px Arial) @ x 1006..1108  y 35..45  面板 [x 360..920  y 125..595]
+
+══════════════════════════════════════════════════════════════════════════════
+■ 11-gallery   面板=[75, 60, 1130, 600]
+  ✗ 文字压组件  "预制体图鉴" (italic 900 36px Arial) @ x 545.5745528705705..726  y 62..98  ↔  #gallery_tab_hazards [x 454..634  y 84..120]  重叠 88×14px
+  ✗ 文字压组件  "预制体图鉴" (italic 900 36px Arial) @ x 545.5745528705705..726  y 62..98  ↔  #gallery_tab_platforms [x 646..826  y 84..120]  重叠 80×14px
+  ✗ 文字压组件  "预制体图鉴" (italic 900 36px Arial) @ x 554.4254471294295..734  y 62..98  ↔  #gallery_tab_hazards [x 454..634  y 84..120]  重叠 80×14px
+  ✗ 文字压组件  "预制体图鉴" (italic 900 36px Arial) @ x 554.4254471294295..734  y 62..98  ↔  #gallery_tab_platforms [x 646..826  y 84..120]  重叠 88×14px
+  ✗ 文字压组件  "· GALLERY · 预制体图鉴 ·" (500 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 569.33154296875..711  y 114..126  ↔  #gallery_tab_hazards [x 454..634  y 84..120]  重叠 65×6px
+  ✗ 文字压组件  "· GALLERY · 预制体图鉴 ·" (500 13px "Segoe UI", "Microsoft YaHei", Arial) @ x 569.33154296875..711  y 114..126  ↔  #gallery_tab_platforms [x 646..826  y 84..120]  重叠 65×6px
+  ✗ 文字互相重叠  "预制体图鉴" (italic 900 36px Arial) @ x 545.5745528705705..726  y 62..98  ↔  "机关" (500 16px "Segoe UI", "Microsoft YaHei", Arial) @ x 528..560  y 95.5..111  重叠 14×3px
+  ✗ 文字互相重叠  "预制体图鉴" (italic 900 36px Arial) @ x 545.5745528705705..726  y 62..98  ↔  "平台" (500 16px "Segoe UI", "Microsoft YaHei", Arial) @ x 720..752  y 95.5..111  重叠 6×3px
+  ✗ 文字互相重叠  "预制体图鉴" (italic 900 36px Arial) @ x 554.4254471294295..734  y 62..98  ↔  "机关" (500 16px "Segoe UI", "Microsoft YaHei", Arial) @ x 528..560  y 95.5..111  重叠 6×3px
+  ✗ 文字互相重叠  "预制体图鉴" (italic 900 36px Arial) @ x 554.4254471294295..734  y 62..98  ↔  "平台" (500 16px "Segoe UI", "Microsoft YaHei", Arial) @ x 720..752  y 95.5..111  重叠 14×3px
+  ✗ 组件溢出面板  #gallery_back [x 24..124  y 20..56]  面板 [x 75..1205  y 60..660]
+  ✗ 组件溢出面板  #gallery_tab_characters [x 70..250  y 84..120]  面板 [x 75..1205  y 60..660]
+  ✗ 组件溢出面板  #gallery_tab_fx [x 1030..1210  y 84..120]  面板 [x 75..1205  y 60..660]
+  ✗ 文字溢出面板  "← 返回" (600 18px "Segoe UI", "Microsoft YaHei", Arial) @ x 45.7607421875..102  y 30..48  面板 [x 75..1205  y 60..660]
+
+══════════════════════════════════════════════════════════════════════════════
+■ 12-instructions   面板=[320, 125, 640, 470]
+
+══════════════════════════════════════════════════════════════════════════════
+DONE

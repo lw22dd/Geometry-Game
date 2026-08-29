@@ -85,7 +85,7 @@ function _menuTitle(t: number, en: number): void {
 /* ---------- 目标行（光球 + NOVA 实物图标） ---------- */
 function _menuGoal(t: number, en: number): void {
   if (en <= 0) return;
-  const y = VH / 2 + 150 + (1 - en) * 14;
+  const y = VH / 2 + 60 + (1 - en) * 14;
   ctx.save();
   ctx.globalAlpha = en;
   ctx.textBaseline = 'middle';
@@ -139,17 +139,6 @@ function _menuFooter(t: number): void {
   ctx.restore();
 }
 
-/* ---------- 按钮下方呼吸提示 ---------- */
-function _menuHint(t: number): void {
-  const by = VH / 2 + 178;
-  ctx.save();
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
-  ctx.font = '500 14px "Segoe UI","Microsoft YaHei",Arial';
-  ctx.fillStyle = 'rgba(140,246,255,' + (.5 + .35 * Math.sin(t * 3.2)) + ')';
-  ctx.restore();
-}
-
 /** 菜单背景绘制（场景 draw，不含按钮——按钮是独立组件） */
 function drawMenuScene(_t: number): void {
   const nowMs = performance.now();
@@ -161,7 +150,6 @@ function drawMenuScene(_t: number): void {
   drawHUDFrame(ease(t / .5));
   _menuTitle(t, ease(t / .7));
   _menuGoal(t, ease((t - .45) / .6));
-  _menuHint(t);
   _menuFooter(t);
 }
 
