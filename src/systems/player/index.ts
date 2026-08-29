@@ -35,6 +35,9 @@ import {
   buildCumulativeLengths, pathTotalLength,
 } from '../../core/path';
 import { PlayerController } from './PlayerController';
+import { loadPlayerComponents, storePlayerComponents } from './playerEntity';
+import { createPlayerState } from './createPlayerState';
+import { resolveControlMode } from './controlArbiter';
 import { applyEffect, consumeImpulses, decayImpulses } from '../effects';
 
 /* ==================== Controller 单例 ==================== */
@@ -174,6 +177,7 @@ export function stepPlayerByMode(
   dt: number,
   isLocal: boolean,
   outSignals?: FrameSignals,
+  solidsPrebuilt = false,
 ): void {
   if (mode === CONTROL_MODE_DEAD) return;
   if (mode === CONTROL_MODE_ZIPLINE || mode === CONTROL_MODE_TRACK) {
@@ -187,7 +191,46 @@ export function stepPlayerByMode(
     p.inv = Math.max(0, p.inv - dt);
     return;
   }
-  stepFreePhysics(p, input, dt, isLocal, outSignals);
+  stepFreePhysics(p, input, dt, isLocal, outSignals, solidsPrebuilt);
+}
+
+/* ==================== A 路线：ECS 真源物理入口 ==================== */
+
+/** 模块级复用工作副本（每个物理步装载/写回复用的 scratch，零分配） */
+const pScratch = createPlayerState(0, 0);
+
+/**
+ * ECS 真源物理入口（A 路线）：
+ *   loadPlayerComponents（组件 → scratch，非分配）→ 按 ControlMode 分派共享物理引擎
+ *   → 返回 scratch。调用方完成步后处理（buff / 主动道具 / 碰撞 / 动画）后必须
+ *   调用 storePlayer(eid) 一次性写回。每实体每物理步恰好一次装载 / 一次写回。
+ * 死亡实体物理冻结：仅推进死亡计时（deadT -= dt），复活由调用方在镜像视图后处理。
+ */
+export function stepPlayer(
+  eid: number,
+  input: InputKeys,
+  dt: number,
+  isLocal: boolean,
+  outSignals?: FrameSignals,
+  solidsPrebuilt = false,
+): PlayerState {
+  loadPlayerComponents(eid, pScratch);
+  if (pScratch.dead) {
+    pScratch.deadT -= dt;
+  } else {
+    stepPlayerByMode(pScratch, resolveControlMode(pScratch), input, dt, isLocal, outSignals, solidsPrebuilt);
+  }
+  return pScratch;
+}
+
+/** 当前物理步的 scratch 工作副本（步后处理直接在 scratch 上进行） */
+export function getPlayerScratch(): PlayerState {
+  return pScratch;
+}
+
+/** 写回 ECS（每物理步恰好一次；步外修改也走此统一出栈口） */
+export function storePlayer(eid: number, p: PlayerState = pScratch): void {
+  storePlayerComponents(eid, p);
 }
 
 /** 轨道/滑索运动分派（TRACK / ZIPLINE 档） */
@@ -211,8 +254,11 @@ function stepFreePhysics(
   dt: number,
   isLocal: boolean,
   outSignals?: FrameSignals,
+  solidsPrebuilt = false,
 ): void {
-  buildSolids();
+  // 问题 7：生产路径由 game step() 每物理步统一 buildSolids 一次（solidsPrebuilt=true 跳过）；
+  // 默认值 false 保留金测试与独立调用路径的原有重建行为（S1–S8 不变）
+  if (!solidsPrebuilt) buildSolids();
 
   // 移动平台携带（水平 + 垂直）
   if (p.plat) {

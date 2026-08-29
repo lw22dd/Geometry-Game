@@ -9,6 +9,27 @@ import { ctx, VW, VH } from '../canvas';
 import { rr } from '../math';
 import type { UIWidget } from './types';
 
+/* ==================== 问题 9：静态渐变缓存 ==================== */
+
+/** primary 变体主背景渐变 + 顶部高光（键 = 几何 y|h；仅 resize 按钮几何变化时重建） */
+const _primaryGradCache = new Map<string, { g: CanvasGradient; g2: CanvasGradient }>();
+function primaryGradients(y: number, h: number): { g: CanvasGradient; g2: CanvasGradient } {
+  const key = y + '|' + h;
+  let c = _primaryGradCache.get(key);
+  if (!c) {
+    const g = ctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, 'rgba(46,26,110,.95)');
+    g.addColorStop(.5, 'rgba(22,12,60,.95)');
+    g.addColorStop(1, 'rgba(14,8,40,.98)');
+    const g2 = ctx.createLinearGradient(0, y + 3, 0, y + 16);
+    g2.addColorStop(0, 'rgba(180,230,255,.28)');
+    g2.addColorStop(1, 'rgba(180,230,255,0)');
+    c = { g, g2 };
+    _primaryGradCache.set(key, c);
+  }
+  return c;
+}
+
 export interface ButtonOpts {
   id: string;
   label: string;
@@ -100,10 +121,8 @@ export class Button implements UIWidget {
 
     ctx2.shadowColor = hover ? 'rgba(140,230,255,.9)' : 'rgba(100,180,255,' + (0.3 + 0.5 * pulse) + ')';
     ctx2.shadowBlur = hover ? 36 : 22;
-    const g = ctx2.createLinearGradient(0, y, 0, y + h);
-    g.addColorStop(0, 'rgba(46,26,110,.95)');
-    g.addColorStop(.5, 'rgba(22,12,60,.95)');
-    g.addColorStop(1, 'rgba(14,8,40,.98)');
+    // 问题 9：主渐变按几何缓存（避免每帧 createLinearGradient 分配）
+    const { g, g2 } = primaryGradients(y, h);
     rr(ctx2, x, y, w, h, 14);
     ctx2.fillStyle = g;
     ctx2.fill();
@@ -116,9 +135,6 @@ export class Button implements UIWidget {
     ctx2.strokeStyle = 'rgba(160,220,255,.25)';
     ctx2.lineWidth = 1;
     ctx2.stroke();
-    const g2 = ctx2.createLinearGradient(0, y + 3, 0, y + 16);
-    g2.addColorStop(0, 'rgba(180,230,255,.28)');
-    g2.addColorStop(1, 'rgba(180,230,255,0)');
     rr(ctx2, x + 6, y + 4, w - 12, 12, 8);
     ctx2.fillStyle = g2;
     ctx2.fill();

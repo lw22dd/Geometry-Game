@@ -1,6 +1,10 @@
 /**
  * UI 场景组合根 —— 注册所有 UI 场景到 UIManager。
  * 不依赖 game 循环，通过回调注入防循环依赖。
+ *
+ * 问题 3：场景切换统一走唯一入口 ui.show(...)（内部写真源 gs.screen / gs.scene / 叠层栈）；
+ * ui.currentName 为派生只读（栈顶叠层 ?? gs.scene），不再有 syncUI 的 if 推导。
+ * gallery / instructions 弹窗为叠层（push/pop）；pause/dev 亦为叠层。
  */
 import { gs } from '../game/gameState';
 import { startGame, startMultiplayerGame } from '../game';
@@ -9,8 +13,8 @@ import { buildMenuScene } from './menu';
 import { buildPauseScene, syncPauseWidgets } from './pause';
 import { buildLobbyScene, lobby } from './lobby';
 import { buildDevScene } from './dev';
-import { buildGalleryScene, gallery, closeGallery } from './gallery';
-import { buildInstructionsScene, instructions, closeInstructions } from './instructions';
+import { buildGalleryScene } from './gallery';
+import { buildInstructionsScene } from './instructions';
 import { prepare, buildPrepareScene, buildMapSelectScene, buildCharSelectScene } from './prepare';
 import { net } from '../../net';
 import { resetRoom, room } from '../../net/room';
@@ -20,23 +24,23 @@ import { resetRemotes } from '../player/remote';
 export function registerUIScenes(): void {
   // ── 菜单场景（开始游戏 → 准备界面）──
   ui.register(buildMenuScene(() => {
-    gs.screen = 'prepare';
     prepare.mode = 'prepare';
+    ui.show('prepare');
   }));
 
-  // ── 暂停场景 ──
-  const _pauseScene = buildPauseScene({
+  // ── 暂停场景（叠层：覆盖 playing）──
+  ui.register(buildPauseScene({
     onResume: () => {
-      gs.screen = 'playing';
+      ui.show(null);
     },
     onDisconnect: () => {
       net.disconnect();
       resetRoom();
       resetRemotes();
-      gs.screen = 'playing';
+      ui.show(null);
     },
     onDevSettings: () => {
-      ui.show('dev');
+      ui.pushOverlay('dev');
     },
     onReturnToMenu: () => {
       // 联机中断开并复位房间
@@ -45,35 +49,32 @@ export function registerUIScenes(): void {
         resetRoom();
         resetRemotes();
       }
-      gs.screen = 'menu';
+      ui.show('menu');
     },
-  });
-  ui.register(_pauseScene);
+  }));
 
-  // ── 开发者设置场景 ──
+  // ── 开发者设置场景（叠层：覆盖 pause）──
   ui.register(buildDevScene({
     onBack: () => {
-      ui.show('pause');
+      ui.popOverlay();
     },
   }));
 
-  // ── 预制体图鉴场景 ──
+  // ── 预制体图鉴场景（叠层：覆盖当前基础场景）──
   ui.register(buildGalleryScene({
     onBack: () => {
-      closeGallery();
-      ui.show('menu');
+      ui.popOverlay();
     },
   }));
 
-  // ── 操作说明弹窗场景 ──
+  // ── 操作说明弹窗场景（叠层：覆盖当前基础场景）──
   ui.register(buildInstructionsScene({
     onBack: () => {
-      closeInstructions();
-      ui.show('menu');
+      ui.popOverlay();
     },
   }));
 
-  // ── 大厅场景 ──
+  // ── 大厅场景（基础场景：lobby）──
   ui.register(buildLobbyScene({
     onStartGame: () => {
       if (room.role === 'host') {
@@ -84,7 +85,7 @@ export function registerUIScenes(): void {
     },
     onBack: () => {
       lobby.mode = 'none';
-      ui.show('pause');
+      ui.show('prepare');
     },
   }));
 
@@ -102,57 +103,22 @@ export function registerUIScenes(): void {
       ui.show('lobby');
     },
     onBack: () => {
-      gs.screen = 'menu';
+      ui.show('menu');
     },
   }));
-  ui.register(buildMapSelectScene(() => { prepare.mode = 'prepare'; }));
-  ui.register(buildCharSelectScene(() => { prepare.mode = 'prepare'; }));
+  ui.register(buildMapSelectScene(() => { prepare.mode = 'prepare'; ui.show('prepare'); }));
+  ui.register(buildCharSelectScene(() => { prepare.mode = 'prepare'; ui.show('prepare'); }));
 
   // 初始场景：菜单
   ui.show('menu');
 }
 
 /**
- * UI 同步 —— 每帧在 render 顶部调用。
- * 根据 gs.screen + lobby 状态自动切换当前 UI 场景。
+ * UI 同步（缩减版）——场景切换已由 ui.show 唯一入口 + 派生 currentName 承担；
+ * 此处仅保留暂停场景的房间状态组件同步（连接/断开按钮可见性随房间状态实时更新）。
  */
 export function syncUI(): void {
-  // 图鉴 / 操作说明弹窗优先
-  if (gallery.open || instructions.open) {
-    const target = gallery.open ? 'gallery' : 'instructions';
-    if (ui.currentName !== target) ui.show(target);
-    return;
-  }
-
-  // 大厅模式（创建/加入/房间中）优先于 prepare 路由
-  if (lobby.mode !== 'none') {
-    if (ui.currentName !== 'lobby') ui.show('lobby');
-    return;
-  }
-
-  // 准备流程（选图/选人）路由
-  if (gs.screen === 'prepare') {
-    const target = prepare.mode === 'maps' ? 'mapSelect'
-      : prepare.mode === 'chars' ? 'charSelect'
-      : 'prepare';
-    if (ui.currentName !== target) ui.show(target);
-    return;
-  }
-  switch (gs.screen) {
-    case 'menu':
-      if (ui.currentName !== 'menu') ui.show('menu');
-      break;
-    case 'paused':
-      // pause / dev 都挂在暂停状态上
-      if (ui.currentName !== 'pause' && ui.currentName !== 'dev') ui.show('pause');
-      if (ui.currentName === 'pause') {
-        // 联机状态变化时同步按钮可见性
-        syncPauseWidgets(ui.currentScene!);
-      }
-      break;
-    default:
-      // playing / 其他 → 无 UI 覆盖
-      if (ui.currentName !== null) ui.show(null);
-      break;
+  if (gs.screen === 'paused' && ui.currentName === 'pause') {
+    syncPauseWidgets(ui.currentScene!);
   }
 }

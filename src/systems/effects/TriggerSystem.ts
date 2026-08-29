@@ -8,6 +8,8 @@
  */
 import { applyEffect, type PlayerRequest } from './index';
 import type { PlayerState } from '../../types';
+import { netBus } from '../../core/netBus';
+import { playerController } from '../player';
 
 /** 触发定义 */
 export interface TriggerDef {
@@ -44,4 +46,24 @@ export function fireTriggers(event: string, p: PlayerState, payload?: unknown): 
     const list = Array.isArray(fx) ? fx : [fx];
     for (const r of list) applyEffect(p, r);
   }
+}
+
+/* ==================== netBus 订阅（问题 4：TriggerSystem 只订阅单总线） ==================== */
+
+let _wired = false;
+
+/**
+ * 订阅玩家事件（netBus 'player:*'）→ 触发注册表 → 条件 → 投递请求。
+ * 取代原 wirePlayerEvents 内对 fireTriggers 的直接调用；PlayerController 不再持有
+ * onEvent 回调字段，事件统一经 netBus 派发。
+ * 注意：net.on 保持为网络通道（职责不同）不并入。
+ */
+export function wireTriggerSystem(): void {
+  if (_wired) return;
+  _wired = true;
+  netBus.on('player:*', (e) => {
+    // 'player:died' → 'died'（TriggerDef.event 与 PlayerEvent.type 对齐）
+    const evt = e.type.slice('player:'.length);
+    fireTriggers(evt, playerController.getState(), e);
+  });
 }

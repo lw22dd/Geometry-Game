@@ -4,15 +4,15 @@
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { rr } from '../../core/math';
-import { Button, UI_SCENE } from '../../core/uiComponent';
+import { Button, UI_SCENE, ui } from '../../core/uiComponent';
 import type { UIScene, UIWidget } from '../../core/uiComponent';
 import { drawBackdrop, drawHUDFrame, drawNeonTitle, drawDecoStar, ease } from '../uiAtmosphere';
 
-/* ==================== 图鉴状态 ==================== */
+/* ==================== 图鉴状态（问题 3：开关由叠层栈承担，此处仅保留内容状态） ==================== */
 
-export const gallery = { open: false, cat: 0, page: 0 };
-export function openGallery(): void { gallery.open = true; gallery.cat = 0; gallery.page = 0; }
-export function closeGallery(): void { gallery.open = false; }
+export const gallery = { cat: 0, page: 0 };
+export function openGallery(): void { gallery.cat = 0; gallery.page = 0; ui.pushOverlay('gallery'); }
+export function closeGallery(): void { ui.popOverlay(); }
 
 /* ---------- 本地计时（与 menu 同款独立时钟） ---------- */
 let _gT = 0, _gLast = 0;
@@ -24,6 +24,10 @@ interface GalleryItem {
   name: string;
   draw: (cx: number, cy: number, t: number, r: number) => void;
 }
+
+/* 问题 9：分页 slice 缓存（键 = cat:page:length；页切换时重算） */
+let _pageCacheKey = '';
+let _pageCacheItems: GalleryItem[] = [];
 
 interface GalleryCategory {
   id: string;
@@ -269,6 +273,89 @@ const CATEGORIES: GalleryCategory[] = [
           ctx.shadowBlur = 0;
           ctx.fillStyle = '#ffe3ad';
           ctx.beginPath(); ctx.arc(0, -r * 1.15, r * 0.2, 0, 6.283); ctx.fill();
+          ctx.restore();
+          ctx.restore();
+        },
+      },
+      {
+        id: 'shieldPickup',
+        name: '护盾道具',
+        draw: (cx, cy, t, r) => {
+          ctx.save();
+          const bob = Math.sin(t * 1.5 + 1.1) * 0.06 * r;
+          const cy2 = cy + bob;
+          ctx.globalCompositeOperation = 'lighter';
+          const g = ctx.createRadialGradient(cx, cy2, r * 0.2, cx, cy2, r * 2.4);
+          g.addColorStop(0, 'rgba(150,140,255,.32)');
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(cx, cy2, r * 2.4, 0, 6.283);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.save();
+          ctx.translate(cx, cy2 + r * 0.1);
+          ctx.rotate(Math.sin(t * 2 + 1.2) * 0.18);
+          ctx.shadowColor = 'rgba(150,140,255,.9)';
+          ctx.shadowBlur = 12;
+          ctx.fillStyle = '#b3c7ff';
+          ctx.beginPath();
+          ctx.arc(0, 0, r * 0.75, Math.PI, 0);
+          ctx.lineTo(r * 0.75, r * 0.45);
+          ctx.lineTo(0, r * 0.95);
+          ctx.lineTo(-r * 0.75, r * 0.45);
+          ctx.closePath();
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = 'rgba(235,240,255,.9)';
+          ctx.lineWidth = r * 0.16;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(-r * 0.3, -r * 0.2);
+          ctx.lineTo(0, r * 0.25);
+          ctx.lineTo(r * 0.3, -r * 0.2);
+          ctx.stroke();
+          ctx.restore();
+          ctx.restore();
+        },
+      },
+      {
+        id: 'speedPickup',
+        name: '加速道具',
+        draw: (cx, cy, t, r) => {
+          ctx.save();
+          const bob = Math.sin(t * 1.5 + 1.7) * 0.06 * r;
+          const cy2 = cy + bob;
+          ctx.globalCompositeOperation = 'lighter';
+          const g = ctx.createRadialGradient(cx, cy2, r * 0.2, cx, cy2, r * 2.4);
+          g.addColorStop(0, 'rgba(140,246,255,.32)');
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(cx, cy2, r * 2.4, 0, 6.283);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.save();
+          ctx.translate(cx, cy2 + r * 0.1);
+          ctx.rotate(Math.sin(t * 2 + 1.8) * 0.18);
+          ctx.shadowColor = 'rgba(120,230,255,.9)';
+          ctx.shadowBlur = 10;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          // 后箭头（左小）
+          ctx.strokeStyle = '#8ff6ff';
+          ctx.lineWidth = r * 0.34;
+          ctx.beginPath();
+          ctx.moveTo(-r * 0.82, -r * 0.78);
+          ctx.lineTo(-r * 0.05, 0);
+          ctx.lineTo(-r * 0.82, r * 0.78);
+          ctx.stroke();
+          // 前箭头（右大）
+          ctx.strokeStyle = '#eaffff';
+          ctx.beginPath();
+          ctx.moveTo(-r * 0.18, -r * 0.78);
+          ctx.lineTo(r * 0.6, 0);
+          ctx.lineTo(-r * 0.18, r * 0.78);
+          ctx.stroke();
+          ctx.shadowBlur = 0;
           ctx.restore();
           ctx.restore();
         },
@@ -874,7 +961,16 @@ export function buildGalleryScene(a: GalleryActions): UIScene {
     const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
     const page = Math.min(gallery.page, totalPages - 1);
     const startIdx = page * ITEMS_PER_PAGE;
-    const pageItems = items.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+    // 问题 9：分页 slice 缓存（仅页/分类/总数变化时重算，避免每帧 slice 分配）
+    const pageCacheKey = gallery.cat + ':' + page + ':' + items.length;
+    let pageItems: GalleryItem[];
+    if (_pageCacheKey === pageCacheKey) {
+      pageItems = _pageCacheItems;
+    } else {
+      _pageCacheKey = pageCacheKey;
+      _pageCacheItems = items.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+      pageItems = _pageCacheItems;
+    }
 
     ctx.save();
 

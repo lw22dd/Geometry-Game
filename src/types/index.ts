@@ -334,6 +334,12 @@ export interface GameState {
   started: boolean;
   /** 当前画面：'menu' 开始菜单 / 'prepare' 准备界面(选图/选人) / 'playing' 游戏中 / 'paused' 暂停 */
   screen: 'menu' | 'prepare' | 'playing' | 'paused';
+  /**
+   * 基础 UI 场景真源（问题 3：单一场景真源）。
+   * pause/dev/gallery/instructions 等叠层由 UIManager.overlays 栈管理；
+   * ui.currentName = 栈顶叠层 ?? gs.scene（派生只读）。
+   */
+  scene: 'menu' | 'prepare' | 'mapSelect' | 'charSelect' | 'lobby' | null;
   toast: string;
   toastT: number;
   flash: number;
@@ -406,7 +412,22 @@ export type NetBusEvent =
   | { type: 'net:playerJoined'; player: RemotePlayerInfo }
   | { type: 'net:playerLeft'; playerId: number }
   | { type: 'net:playerUpdated'; player: RemotePlayerInfo }
-  | { type: 'net:disconnected'; reason: string };
+  | { type: 'net:disconnected'; reason: string }
+  // ── 玩家事件（问题 4：PlayerController 事件并入 netBus 单一事件通道）──
+  | PlayerEvent;
+
+/**
+ * 玩家生命周期 / 反馈事件（PlayerController → netBus 统一通道；'player:*' 前缀）。
+ * TriggerSystem 与 wirePlayerEvents 均订阅 netBus 消费。
+ */
+export type PlayerEvent =
+  | { type: 'player:died'; deaths: number }
+  | { type: 'player:respawned' }
+  | { type: 'player:jumped' }
+  | { type: 'player:dashed' }
+  | { type: 'player:landed'; impact: number }
+  | { type: 'player:springed' }
+  | { type: 'player:doubleJumped' };
 
 /* ==================== 联机类型 ==================== */
 
@@ -491,4 +512,6 @@ export interface RemotePlayer extends PlayerState {
   /** 该玩家激活的检查点（房主记录） */
   cpX: number;
   cpY: number;
+  /** A 路线：远端玩家实体 eid（房主模拟用，未接线 = undefined） */
+  eid?: number;
 }

@@ -9,7 +9,7 @@ import { initEcs, clearWorld } from '../core/ecs';
 import {
   createOrb, createJumpBoost, createCheckpoint, createNova, createMovingPlatform,
   createSpringPad, createLaser, createSpike, createLoopTrack, createHookPickup, createShieldPickup, createSpeedPickup,
-} from '../Prefabs/Scene/sceneFactory';
+} from '../Prefabs/Scenes/sceneFactory';
 
 const R = (x: number, y: number, w: number, h: number, hookable = true): Rect => ({ x, y, w, h, top: y + h, hookable });
 

@@ -86,6 +86,9 @@ export function decompileMapDefinition(def: MapDefinition): MapData {
   for (const s of def.entitySpawners.shields ?? []) {
     data.layers.objects.push({ type: 'shieldPickup', x: s[0], y: s[1] });
   }
+  for (const s of def.entitySpawners.speeds ?? []) {
+    data.layers.objects.push({ type: 'speedPickup', x: s[0], y: s[1] });
+  }
   // 冲刺轨道：入口点 = 路径上 entryDist 处的世界坐标（编辑器锚点）
   for (const t of def.entitySpawners.tracks ?? []) {
     const cl = buildCumulativeLengths(t.segments);
@@ -153,6 +156,7 @@ export function compileMapData(data: MapData): {
   const checkpoints: [number, number][] = [];
   const hooks: [number, number][] = [];
   const shields: [number, number][] = [];
+  const speeds: [number, number][] = [];
   const tracks: TrackSpawnData[] = [];
   let nova: { x: number; y: number } = { x: 0, y: 0 };
 
@@ -183,6 +187,7 @@ export function compileMapData(data: MapData): {
       case 'checkpoint': checkpoints.push([inst.x, inst.y]); break;
       case 'hookPickup': hooks.push([inst.x, inst.y]); break;
       case 'shieldPickup': shields.push([inst.x, inst.y]); break;
+      case 'speedPickup': speeds.push([inst.x, inst.y]); break;
       case 'track': {
         const tr: TrackSpawnData = {
           segments: inst.segments,
@@ -216,6 +221,7 @@ export function compileMapData(data: MapData): {
       checkpoints,
       hooks: hooks.length > 0 ? hooks : undefined,
       shields: shields.length > 0 ? shields : undefined,
+      speeds: speeds.length > 0 ? speeds : undefined,
       tracks: tracks.length > 0 ? tracks : undefined,
       nova,
     },
@@ -274,6 +280,7 @@ export function verifyRoundTrip(def: MapDefinition): RoundTripReport {
   PUSH(diffs, 'checkpoints', def.entitySpawners.checkpoints, compiled.entitySpawners.checkpoints);
   PUSH(diffs, 'hooks', def.entitySpawners.hooks ?? [], compiled.entitySpawners.hooks ?? []);
   PUSH(diffs, 'shields', def.entitySpawners.shields ?? [], compiled.entitySpawners.shields ?? []);
+  PUSH(diffs, 'speeds', def.entitySpawners.speeds ?? [], compiled.entitySpawners.speeds ?? []);
   PUSH(diffs, 'tracks', def.entitySpawners.tracks ?? [], compiled.entitySpawners.tracks ?? []);
   PUSH(diffs, 'nova', def.entitySpawners.nova, compiled.entitySpawners.nova);
 

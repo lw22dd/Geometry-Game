@@ -23,9 +23,104 @@ import { addItem, ITEMS } from '../items/backpack';
 import { activateCheckpoint } from './RespawnPointSystem';
 import { orbCount } from './ItemPickupSystem';
 import { applyEffect } from '../effects';
+import type { ItemId, PlayerState } from '../../types';
+
+/* ==================== 道具拾取规则表（问题 12：四段同构拾取样板收敛） ==================== */
+
+interface PickupRule {
+  /** ECS tag 组件（判定拾取物类型） */
+  tag: typeof Orb;
+  /** 背包道具 id（入背包 + ITEMS 注册表索引） */
+  item: ItemId;
+  /** 拾取帧信号位 */
+  signal: 'jumpBoostPicked' | 'hookPicked' | 'shieldPicked' | 'speedPicked';
+  /** 额外守卫：返回 true 才尝试占背包格（已有激活能力时拾取只刷新计时，不重复占格） */
+  guard?: (s: PlayerState) => boolean;
+  /** 本地专属额外粒子（通用 sparkle 之外的差异化特效） */
+  fx?: (x: number, y: number) => void;
+  /** 本地音效 */
+  sfx?: () => void;
+  /** 广播事件类型 */
+  event: 'game:jumpboost' | 'game:hookpickup' | 'game:shieldpickup' | 'game:speedpickup';
+  /** 本地提示文案 */
+  toast: string;
+  toastT: number;
+}
+
+/** 道具拾取规则表 —— 新增道具只需在此加一行 */
+const PICKUP_RULES: PickupRule[] = [
+  {
+    tag: JumpBoost,
+    item: 'doubleJump',
+    signal: 'jumpBoostPicked',
+    fx: (x, y) => spawnParticles(FX.arrowBoost, x, y, 8),
+    sfx: () => sfx.orb(),
+    event: 'game:jumpboost',
+    toast: '二段跳票已装备！',
+    toastT: 2,
+  },
+  {
+    tag: Hook,
+    item: 'hook',
+    signal: 'hookPicked',
+    sfx: () => sfx.hookPickup(),
+    event: 'game:hookpickup',
+    toast: '钩锁已装备！左键发射，长按锁定',
+    toastT: 2.5,
+  },
+  {
+    tag: ShieldPickup,
+    item: 'shield',
+    signal: 'shieldPicked',
+    guard: (s) => s.shieldsMax === 0,
+    sfx: () => sfx.shieldPickup(),
+    event: 'game:shieldpickup',
+    toast: '护盾已装备！危险物命中将格挡一次',
+    toastT: 2.5,
+  },
+  {
+    tag: SpeedPickup,
+    item: 'speed',
+    signal: 'speedPicked',
+    guard: (s) => s.speedMult <= 1,
+    fx: (x, y) => spawnParticles(FX.speedBoost, x, y, 6),
+    sfx: () => sfx.speedPickup(),
+    event: 'game:speedpickup',
+    toast: '极速冲刺！移速 ×2',
+    toastT: 2.5,
+  },
+];
 
 /** 是否已初始化 */
 let _initialized = false;
+
+/* ==================== 碰撞模拟目标（问题 2：远程玩家碰撞化路由） ==================== */
+
+/**
+ * 碰撞事件针对的目标玩家。默认作用于本地玩家（playerController 视图）；
+ * 远程玩家步进时由 tick 管线注入 { p: rp, remoteId }，步进后置 null。
+ */
+export interface CollisionSimTarget {
+  p: PlayerState;
+  /** 远端玩家 id（本地=undefined） */
+  remoteId?: number;
+}
+let simTarget: CollisionSimTarget | null = null;
+
+/** 设置/清除碰撞模拟目标（远端玩家步进前后调用） */
+export function setCollisionSim(target: CollisionSimTarget | null): void {
+  simTarget = target;
+}
+
+/** 当前碰撞目标状态（远端=rp；本地=PlayerController 视图） */
+function targetState(): PlayerState {
+  return simTarget?.p ?? playerController.getState();
+}
+
+/** 是否处于远端模拟（副作用路由：远端不走本地 gs/sfx/toast） */
+function isRemote(): boolean {
+  return simTarget?.remoteId !== undefined;
+}
 
 /**
  * 注册所有碰撞事件处理器（幂等）。
@@ -42,17 +137,27 @@ export function initCollisionHooks(): void {
     if (hasComponent(world, b, Timer)) {
       if (!Timer.on[b]) return;
     }
-    const ps = playerController.getState();
+    const ps = targetState();
     applyEffect(ps, { kind: 'KillRequest' }, {
       onKill: () => {
         // 美术升级 6：激光命中火花（仅激光；尖刺保持现有死亡爆裂）
         if (hasComponent(world, b, Timer)) spawnParticles(FX.laserHit, ps.x, ps.y);
-        playerController.die();
+        if (isRemote()) {
+          // 远端死亡：房主权威直接置死（死亡特效/广播由 tick 死亡边沿处理）
+          ps.dead = true;
+          ps.deadT = 0.85;
+        } else {
+          playerController.die();
+        }
       },
-      // 护盾格挡：破盾特效/音效（本地玩家；联机房主对远端破盾由 stepRemoteClients 广播）
+      // 护盾格挡：破盾特效；本地补音效，远端广播给客机
       onShieldBlock: () => {
         spawnParticles(FX.shieldBreak, ps.x, ps.y);
-        sfx.shieldBreak();
+        if (isRemote()) {
+          if (simTarget) netBus.emit({ type: 'fx:shieldbreak', x: ps.x, y: ps.y, playerId: simTarget.remoteId as number });
+        } else {
+          sfx.shieldBreak();
+        }
       },
     });
   };
@@ -83,115 +188,120 @@ export function initCollisionHooks(): void {
 
     // ── 二段跳票（背包被动道具）──
     if (hasComponent(world, b, JumpBoost)) {
-      const s = playerController.getState();
+      const s = targetState();
       // 背包：入被动栏（满/已有则拾取不生效，实体保持未拾取可再次尝试）
       if (!addItem(s.backpack, 'doubleJump')) {
-        gs.toast = '背包已满！';
-        gs.toastT = 2;
+        if (!isRemote()) { gs.toast = '背包已满！'; gs.toastT = 2; }
         return;
       }
       Collectible.collected[b] = 1;
       // 被动效果经道具 onPickup → 契约层（GrantJumpCharges），不直写 extraJumpsMax
       ITEMS['doubleJump'].onPickup?.(s);
 
-      const pos = { x: Position.x[b], y: Position.y[b] };
-      spawnParticles(FX.sparkle, pos.x, pos.y);
-      spawnParticles(FX.arrowBoost, pos.x, pos.y, 8);
-      sfx.orb();
-      netBus.emit({ type: 'game:jumpboost' });
+      if (!isRemote()) {
+        const pos = { x: Position.x[b], y: Position.y[b] };
+        spawnParticles(FX.sparkle, pos.x, pos.y);
+        spawnParticles(FX.arrowBoost, pos.x, pos.y, 8);
+        sfx.orb();
+        netBus.emit({ type: 'game:jumpboost' });
+        gs.toast = '二段跳票已装备！';
+        gs.toastT = 2;
+      }
       if (signals) signals.jumpBoostPicked = true;
-
-      gs.toast = '二段跳票已装备！';
-      gs.toastT = 2;
       return;
     }
 
     // ── 钩锁（背包主动道具）──
     if (hasComponent(world, b, Hook)) {
-      const s = playerController.getState();
+      const s = targetState();
       // 背包：入主动栏（满/已有则拾取不生效，实体保持未拾取可再次尝试）
       if (!addItem(s.backpack, 'hook')) {
-        gs.toast = '背包已满！';
-        gs.toastT = 2;
+        if (!isRemote()) { gs.toast = '背包已满！'; gs.toastT = 2; }
         return;
       }
       Collectible.collected[b] = 1;
       // 主动装备：拾取后自动选中该槽位（道具 onPickup 负责），便于立即使用
       ITEMS['hook'].onPickup?.(s);
 
-      const pos = { x: Position.x[b], y: Position.y[b] };
-      spawnParticles(FX.sparkle, pos.x, pos.y);
-      sfx.hookPickup();
-      netBus.emit({ type: 'game:hookpickup' });
+      if (!isRemote()) {
+        const pos = { x: Position.x[b], y: Position.y[b] };
+        spawnParticles(FX.sparkle, pos.x, pos.y);
+        sfx.hookPickup();
+        netBus.emit({ type: 'game:hookpickup' });
+        gs.toast = '钩锁已装备！左键发射，长按锁定';
+        gs.toastT = 2.5;
+      }
       if (signals) signals.hookPicked = true;
-
-      gs.toast = '钩锁已装备！左键发射，长按锁定';
-      gs.toastT = 2.5;
       return;
     }
 
     // ── 护盾（背包被动道具 · 限时 buff）──
     if (hasComponent(world, b, ShieldPickup)) {
-      const s = playerController.getState();
+      const s = targetState();
       // 未激活时才占背包格（已有盾 = 拾取只刷新计时，不重复占格）
       if (s.shieldsMax === 0 && !addItem(s.backpack, 'shield')) {
-        gs.toast = '背包已满！';
-        gs.toastT = 2;
+        if (!isRemote()) { gs.toast = '背包已满！'; gs.toastT = 2; }
         return;
       }
       Collectible.collected[b] = 1;
       // 被动效果经道具 onPickup → 契约层（ApplyModifier shields 限时 buff），不直写 shieldsMax
       ITEMS['shield'].onPickup?.(s);
 
-      const pos = { x: Position.x[b], y: Position.y[b] };
-      spawnParticles(FX.sparkle, pos.x, pos.y);
-      sfx.shieldPickup();
-      netBus.emit({ type: 'game:shieldpickup' });
+      if (!isRemote()) {
+        const pos = { x: Position.x[b], y: Position.y[b] };
+        spawnParticles(FX.sparkle, pos.x, pos.y);
+        sfx.shieldPickup();
+        netBus.emit({ type: 'game:shieldpickup' });
+        gs.toast = '护盾已装备！危险物命中将格挡一次';
+        gs.toastT = 2.5;
+      }
       if (signals) signals.shieldPicked = true;
-
-      gs.toast = '护盾已装备！危险物命中将格挡一次';
-      gs.toastT = 2.5;
       return;
     }
 
     // ── 加速（背包被动道具 · 限时 buff · 速度 ×2）──
     if (hasComponent(world, b, SpeedPickup)) {
-      const s = playerController.getState();
+      const s = targetState();
       // 未激活时才占背包格（已有加速 = 拾取只刷新计时，不重复占格）
       if (s.speedMult <= 1 && !addItem(s.backpack, 'speed')) {
-        gs.toast = '背包已满！';
-        gs.toastT = 2;
+        if (!isRemote()) { gs.toast = '背包已满！'; gs.toastT = 2; }
         return;
       }
       Collectible.collected[b] = 1;
       // 被动效果经道具 onPickup → 契约层（ApplyModifier moveSpeed 限时 buff），不直写 speedMult
       ITEMS['speed'].onPickup?.(s);
 
-      const pos = { x: Position.x[b], y: Position.y[b] };
-      spawnParticles(FX.sparkle, pos.x, pos.y);
-      spawnParticles(FX.speedBoost, pos.x, pos.y, 6);
-      sfx.speedPickup();
-      netBus.emit({ type: 'game:speedpickup' });
+      if (!isRemote()) {
+        const pos = { x: Position.x[b], y: Position.y[b] };
+        spawnParticles(FX.sparkle, pos.x, pos.y);
+        spawnParticles(FX.speedBoost, pos.x, pos.y, 6);
+        sfx.speedPickup();
+        netBus.emit({ type: 'game:speedpickup' });
+        gs.toast = '极速冲刺！移速 ×2';
+        gs.toastT = 2.5;
+      }
       if (signals) signals.speedPicked = true;
-
-      gs.toast = '极速冲刺！移速 ×2';
-      gs.toastT = 2.5;
       return;
     }
   });
 
   // ── 检查点：进入触发区 → 可交互（nearby），按 E 激活 ──
+  // 远端玩家不标记 nearby（本地 E 交互不受远端站位影响）
   collisionBus.on('enter:player:respawn', ({ b }) => {
+    if (isRemote()) return;
     if (RespawnPoint.active[b]) return;
     RespawnPoint.nearby[b] = 1;
   });
 
   collisionBus.on('exit:player:respawn', ({ b }) => {
+    if (isRemote()) return;
     if (hasComponent(world, b, RespawnPoint)) RespawnPoint.nearby[b] = 0;
   });
 
   // ── 终点（NOVA）──
+  // 远端玩家不触发通关（仅本地玩家登顶判定胜利）
   collisionBus.on('enter:player:goal', ({ b, signals }) => {
+    if (isRemote()) return;
     if (Goal.triggered[b]) return;
 
     Goal.triggered[b] = 1;

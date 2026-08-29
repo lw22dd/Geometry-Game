@@ -6,16 +6,16 @@ import { ctx, VW, VH, DPR, PPM } from '../../core/canvas';
 import { updateCamera, sx, sy, view, cam } from '../../core/camera';
 import { musicTick, MUS, sfx, AU } from '../../core/audio';
 import { keys } from '../../core/input';
-import { currentMap, PHYS, setupLevel } from '../../config';
+import { currentMap, PHYS, setupLevel, cpPoint } from '../../config';
 import { gs } from './gameState';
 import { getMode, setMode } from './gameMode';
 import { prepare } from '../ui/prepare';
 import { lobby } from '../ui/lobby';
-import { playerController, stepControlArbiter } from '../player';
-import { stepPlayerByMode, resolveControlMode } from '../player';
+import { playerController, stepControlArbiter, stepPlayer, getPlayerScratch, buildSolids } from '../player';
+import { tickPlayer } from '../player/tick';
 import { FX } from '../../Prefabs/Fx';
-import { spawnParticles, stepParticles } from '../particles';
-import { updateMotion, updateLaserTimer, updateSpringPads } from '../level';
+import { spawnParticles, stepParticles, trail } from '../particles';
+import { updateMotion, updateLaserTimer, updateSpringPads, updateCollisionSystem, colliderWorldRect } from '../level';
 import { stepAnimation } from '../animation';
 import {
   drawParallax, drawGrid, drawBorder, drawDecos, drawSolids, drawFloor, drawMovers, drawSpringPads,
@@ -36,47 +36,26 @@ import {
   remotes, resetRemotes, registerRemote, removeRemote,
   setClientInput, getClientInput, applyNetPlayers, getSelfAuthority,
 } from '../player/remote';
-import { ensurePlayerEntity, syncToEcs, syncFromEcs, getPlayerEid } from '../player/playerEntity';
-import type { FrameSignals, InputKeys, NetPlayerState, NetOrbState, NetItemState, RemotePlayer, TrackState, PathSegment, ItemId } from '../../types';
+import {
+  ensurePlayerEntity, getPlayerEid,
+  storePlayerComponents, ensureRemotePlayerEntity, mirrorPlayerState,
+} from '../player/playerEntity';
+import type { FrameSignals, InputKeys, NetPlayerState, NetOrbState, NetItemState, RemotePlayer, ItemId } from '../../types';
 import { hasComponent } from 'bitecs';
-import { world, Position, Collectible, Orb, qOrbs, qCollectibles } from '../../core/ecs';
-import { initCollisionHooks, updateCollectSystem, updateRespawnPointSystem, updateItemPickupSystem, orbCount, tryInteractCheckpoint, checkHazardOverlap } from '../interactions';
-import { buildCumulativeLengths, pathTotalLength } from '../../core/path';
+import { world, Position, PathMotion, Collider, Collectible, Orb, qOrbs, qCollectibles } from '../../core/ecs';
+import { query } from 'bitecs';
+import { clamp } from '../../core/math';
+import {
+  initCollisionHooks, updateRespawnPointSystem, orbCount, tryInteractCheckpoint, setCollisionSim,
+} from '../interactions';
+import { packTrack, unpackTrack } from '../../core/trackCodec';
 import { mouse } from '../../core/mouse';
 import { drawHookAim, drawHookRope, mouseAimDir, defaultAimDir } from '../items/hook';
-import { addItem, ITEMS, itemToNet, netToItem, reconcileShield, reconcileSpeed } from '../items/backpack';
-import { stepActiveItem } from '../items/activeItem';
-import { applyEffect, stepBuffTimers } from '../effects';
-import { fireTriggers } from '../effects/TriggerSystem';
+import { itemToNet, netToItem, reconcileShield, reconcileSpeed } from '../items/backpack';
+import { wireTriggerSystem } from '../effects/TriggerSystem';
 import { stepAuraSystem, resetAuraState } from '../level/AuraSystem';
 
-/* ==================== 轨道状态序列化辅助 ==================== */
-
-/** 将 TrackState 转为 NetPlayerState 的平铺字段 */
-function packTrack(t: TrackState | null): {
-  trackOn: boolean; trackDist: number; trackSpeed: number;
-  trackEntry: number; trackExit: number; trackSegments: PathSegment[];
-  trackZipline: boolean;
-} {
-  if (!t) return { trackOn: false, trackDist: 0, trackSpeed: 0, trackEntry: 0, trackExit: 0, trackSegments: [], trackZipline: false };
-  return { trackOn: true, trackDist: t.dist, trackSpeed: t.speed, trackEntry: t.entryDist, trackExit: t.exitDist, trackSegments: t.segments, trackZipline: !!t.zipline };
-}
-
-/** 从平铺字段重建 TrackState（仅 trackOn 时返回非 null） */
-function unpackTrack(fields: ReturnType<typeof packTrack>): TrackState | null {
-  if (!fields.trackOn) return null;
-  const cl = buildCumulativeLengths(fields.trackSegments);
-  return {
-    segments: fields.trackSegments,
-    cumulative: cl,
-    dist: fields.trackDist,
-    speed: fields.trackSpeed,
-    totalLength: cl[cl.length - 1],
-    entryDist: fields.trackEntry,
-    exitDist: fields.trackExit,
-    zipline: fields.trackZipline,
-  };
-}
+/* ==================== 轨道状态序列化（问题 10：统一走 core/trackCodec） ==================== */
 
 /* ==================== 网络状态序号 ==================== */
 let _netSeq = 0;
@@ -108,7 +87,7 @@ export function applyLevel(mapId: string): void {
   playerController.resetToSpawn(sp.x, sp.y);
   // 玩家 ECS 实体：setupLevel 已 clearWorld + initEcs，这里重建并同步出生点
   ensurePlayerEntity(room.playerId);
-  syncToEcs(playerController.getState());
+  playerController.flush(); // 初始化写回（实体新建，全字段落位）
   // gs 计数/计时复位
   gs.gt = 0;
   gs.gotN = 0;
@@ -131,6 +110,7 @@ export function startGame(): void {
   prepare.mode = 'prepare';
   applyLevel(prepare.mapId);
   gs.screen = 'playing';
+  gs.scene = null; // 基础 UI 场景真源：游戏中无覆盖
   gs.started = true;
   if (isHost()) {
     // 房主模式下，重置远程玩家
@@ -151,6 +131,48 @@ export function startMultiplayerGame(): void {
 let last = performance.now();
 let acc = 0;
 const FDT = 1 / 120;
+
+/* ==================== 渲染 alpha 插值（问题 8） ==================== */
+
+/** 玩家上一物理批步前快照（渲染插值起点） */
+let prevPx = 0, prevPy = 0;
+/** 移动平台上一物理批步前世界位置快照（[x, top] × 实体数，模块级复用数组） */
+let prevMovers: number[] = [];
+/** 渲染插值视图（复用对象，避免每帧分配） */
+let interpView: import('../../types').PlayerState | null = null;
+
+/** 物理批步前快照：记录玩家与移动平台的世界位置（帧渲染插值用） */
+function snapshotRenderPrev(): void {
+  const ps = playerController.getState();
+  prevPx = ps.x;
+  prevPy = ps.y;
+  let mi = 0;
+  for (const e of query(world, [Position, Collider, PathMotion])) {
+    const r = colliderWorldRect(e);
+    if (mi + 2 > prevMovers.length) prevMovers.length = mi + 2;
+    prevMovers[mi++] = r.x;
+    prevMovers[mi++] = r.top;
+  }
+  prevMovers.length = mi;
+}
+
+/** 渲染插值系数：已用物理批步与帧间隔的比例（0..1） */
+function renderAlpha(): number {
+  return clamp(acc / FDT, 0, 1);
+}
+
+/** 插值绘制本地玩家（表现层；物理仍 120Hz 步进） */
+function drawLocalPlayerInterpolated(alpha: number): void {
+  const pS = playerController.getState();
+  if (alpha >= 1 || gs.screen !== 'playing') {
+    drawPlayer(pS, getSelectedCharacter());
+    return;
+  }
+  const rv = interpView ?? (interpView = { ...pS });
+  rv.x = prevPx + (pS.x - prevPx) * alpha;
+  rv.y = prevPy + (pS.y - prevPy) * alpha;
+  drawPlayer(rv, getSelectedCharacter());
+}
 
 /** 逐帧步进（固定时间步长 1/120s） */
 function step(dt: number): void {
@@ -188,70 +210,55 @@ function step(dt: number): void {
   // 6. 暂停/菜单/大厅中不执行游戏逻辑
   if (gs.screen !== 'playing') return;
 
-  // 7. 游戏计时
+  // 7. 游戏计时 & 7.5 碰撞几何（问题 7：每物理步仅重建一次；物理入口 solidsPrebuilt=true 跳过）
   gs.gt += dt;
+  buildSolids();
 
-  // 8. 组件真源 → 工作副本（阶段 B：物理前从玩家实体加载）
-  const view = syncFromEcs(getPlayerEid());
-  if (view) playerController.hydrateFrom(view);
-
-  // 9. 死亡计时 & 10. 玩家物理（PlayerController 管理）
-  const pState = playerController.getState();
-  if (pState.dead) {
-    if (inSession() && !isHost()) {
-      // 客机：死亡由房主权威裁决复活，本地保持死亡视觉等待
-      playerController.maintainDeathVisual();
-      syncToEcs(pState);
-      stepControlArbiter(pState, getPlayerEid()); // S3：死亡分支也写 ControlMode（=DEAD）
-      return;
-    }
-    // 房主/单机：控制器内部倒计时死亡并复活
-    playerController.step(dt, getMode(), true);
-    syncToEcs(pState);
-    stepControlArbiter(pState, getPlayerEid()); // S3：结算后控制权（可能已复活）
-    return;
-  }
-
-  // 注入输入（单机/房主/客机统一从本地 keys 表提取）
+  // 8-10. A 路线：ECS 组件真源 → scratch → 共享物理引擎 → 渲染只读视图 → 统一 tick 管线。
+  //      死亡实体物理冻结（stepPlayer 内部仅推进 deadT）；每物理步恰好一次装载/一次写回。
+  const signals: FrameSignals = {};
   const inputKeys = getLocalInputKeys();
-  playerController.setInput(inputKeys);
+  const pvPrev = playerController.getState(); // 上一帧镜像 = 上一帧步后状态（边沿检测基准）
+
+  stepPlayer(getPlayerEid(), inputKeys, dt, true, signals, true);
+  playerController.mirrorFrom(getPlayerScratch()); // scratch → 视图（零分配）
+  const pState = playerController.getState(); // 渲染只读视图 = tick 工作副本
 
   if (inSession() && !isHost()) {
     // 客机模式：发送输入 + 本地预测（随后被权威状态矫正）
     net.sendInput(inputKeys);
   }
 
-  // 物理 + 碰撞 + 动画（单机/房主/客机统一走 controller.step）
-  playerController.step(dt, getMode(), true);
-
-  // 限时 buff 计时（护盾/加速等）：到期自动失效（死亡分支已提前 return → 死亡期间计时暂停）
-  const expired = stepBuffTimers(pState, dt);
-  for (const ex of expired) {
-    ITEMS[ex.source as ItemId]?.onExpire?.(pState);
-    if (ex.source === 'shield') {
-      gs.toast = '护盾失效';
-      gs.toastT = 2;
-    }
-    if (ex.source === 'speed') {
-      gs.toast = '加速失效';
-      gs.toastT = 2;
-    }
-  }
-  // 护盾一致性：格挡消耗 / 超时两条失效路径统一收尾（背包自动退出）
-  reconcileShield(pState);
-  // 加速一致性：超时失效路径统一收尾（背包自动退出）
-  reconcileSpeed(pState);
-
-  // 7. 主动道具（S7 槽位 ActiveItemSystem）：按选中槽位派发（本地鼠标边沿/瞄准）
-  //    必须在 syncToEcs 之前：钩锁写 track/hookCd 到副本，随步末统一写回组件
-  stepActiveItem(pState, { dt, hookEdge, aim: { x: inputKeys.aimX, y: inputKeys.aimY }, sfx: true });
-
-  // 工作副本 → 组件（阶段 B：物理步后写回，组件是唯一权威存储）
-  syncToEcs(pState);
-
-  // S3 控制权仲裁：从本帧物理结果推导控制权写入 ControlMode 组件。
-  // 物理步之后调用 → mode 反映"结算后"状态；MovementSystem 未来在物理步内消费。
-  stepControlArbiter(pState, getPlayerEid());
+  // 统一玩家 tick 管线（死亡登记/倒计时/交互=碰撞系统/钩锁/buff/动画/曳光/写回/仲裁）
+  tickPlayer(pState, getPlayerEid(), inputKeys, signals, {
+    dt,
+    isLocal: true,
+    hookEdge,
+    aim: { x: inputKeys.aimX, y: inputKeys.aimY },
+    sfx: true,
+    prev: { dead: pvPrev.dead, vy: pvPrev.velocity.y, sprint: pvPrev.wasSpr, grounded: pvPrev.grounded },
+    deathMode: inSession() && !isHost() ? 'wait' : 'countdown',
+    spawnX: cpPoint.x,
+    spawnY: cpPoint.y,
+    interactions: (p, _input, sig) => {
+      // 本地碰撞系统：危险/收集/检查点/终点经 collisionBus → CollisionHooks（作用于本地视图）
+      updateCollisionSystem(p, sig as Record<string, boolean>);
+    },
+    onDiedEdge: () => {
+      playerController.emitEvent({ type: 'player:died', deaths: playerController.registerDeath() });
+    },
+    onRespawn: () => {
+      trail.length = 0;
+      playerController.emitEvent({ type: 'player:respawned' });
+    },
+    onBuffExpired: (source) => {
+      if (source === 'shield') { gs.toast = '护盾失效'; gs.toastT = 2; }
+      if (source === 'speed') { gs.toast = '加速失效'; gs.toastT = 2; }
+    },
+    onEvent: (e) => {
+      playerController.emitEvent(e);
+    },
+  });
 
   // 10. 房主模式：模拟所有客机物理 + 广播状态
   if (isHost()) {
@@ -282,108 +289,62 @@ function spawnBoostArrows(): void {
 /** 步进所有客机玩家（房主用） */
 function stepRemoteClients(dt: number): void {
   for (const [id, rp] of remotes) {
-    // 死亡计时
-    if (rp.dead) {
-      rp.deadT -= dt;
-      if (rp.deadT <= 0) {
-        // 复活
-        rp.dead = false;
-        rp.x = rp.cpX ?? 6;
-        rp.y = (rp.cpY ?? 4) + 1.2;
-        rp.velocity.x = 0;
-        rp.velocity.y = 0;
-        rp.inv = 1.2;
-        rp.plat = null;
-        rp.track = null;
-      }
-      continue;
-    }
+    // A 路线：远端玩家也拥有实体（混合范式消失），统一走 stepPlayer(eid) 入口
+    if (rp.eid == null) rp.eid = ensureRemotePlayerEntity(rp.id);
     const input = getClientInput(id);
     const signals: FrameSignals = {};
     const wasDead = rp.dead;
+    const prevVy = rp.velocity.y;
+    const prevSprint = rp.wasSpr;
+    const wasGrounded = rp.grounded;
     // 客户端未上报输入（null）→ 兜底为空输入（静止），物理不依赖本机键盘
-    // S3 消费：与本地共用控制权仲裁 + 消费入口（远端同样走 stepPlayerByMode）
-    stepPlayerByMode(rp, resolveControlMode(rp), input ?? IDLE_INPUT, dt, false, signals);
+    stepPlayer(rp.eid, input ?? IDLE_INPUT, dt, false, signals, true);
+    mirrorPlayerState(rp, getPlayerScratch()); // scratch → rp（零分配，保持 remotes Map 对象身份）
 
-    // 远程玩家危险物：只投递 KillRequest，由结算管线裁决（与本地契约一致，不先判 inv）
-    // 护盾格挡：房主是判定权威 → 本地破盾特效 + 广播给客机
-    if (checkHazardOverlap(rp)) {
-      applyEffect(rp, { kind: 'KillRequest' }, {
-        onShieldBlock: () => {
-          spawnParticles(FX.shieldBreak, rp.x, rp.y);
-          netBus.emit({ type: 'fx:shieldbreak', x: rp.x, y: rp.y, playerId: id });
-        },
-      });
-    }
-
-    // 远程玩家死亡：房主判定权威 → 本地播放 + 广播给客机
-    if (!wasDead && rp.dead) {
-      spawnParticles(FX.death, rp.x, rp.y);
-      netBus.emit({ type: 'fx:death', x: rp.x, y: rp.y, playerId: id });
-    }
-
-    // 远程玩家收集光球检测（共享光球，任何人收集即计数）
-    if (updateCollectSystem(rp.x, rp.y)) signals.collected = true;
-    // 远程玩家检查点交互（记录该玩家个人复活点）
-    // 客机通过 InputKeys.interact 上报 E 键；房主检测"按下沿"（本帧按下、上帧未按）
-    const interactNow = input?.interact ?? false;
-    const interactPrev = remoteInteractPrev.get(id) ?? false;
-    remoteInteractPrev.set(id, interactNow);
-    const cp = interactNow && !interactPrev
-      ? updateRespawnPointSystem(rp.x, rp.y, true)
-      : updateRespawnPointSystem(rp.x, rp.y, false);
-    if (cp) {
-      rp.cpX = cp.x;
-      rp.cpY = cp.y;
-      signals.checkpointHit = true;
-    }
-    // 远程玩家双跳票收集（背包被动道具）
-    if (updateItemPickupSystem(rp.x, rp.y, 'jumpBoost')) {
-      addItem(rp.backpack, 'doubleJump');
-      ITEMS['doubleJump'].onPickup?.(rp);
-      signals.jumpBoostPicked = true;
-    }
-    // 远程玩家钩锁道具收集（背包主动道具）
-    if (updateItemPickupSystem(rp.x, rp.y, 'hook')) {
-      addItem(rp.backpack, 'hook');
-      ITEMS['hook'].onPickup?.(rp);
-      signals.hookPicked = true;
-    }
-    // 远程玩家护盾道具收集（背包被动道具 · 限时 buff）
-    if (updateItemPickupSystem(rp.x, rp.y, 'shield')) {
-      if (rp.shieldsMax === 0) addItem(rp.backpack, 'shield');
-      ITEMS['shield'].onPickup?.(rp);
-      signals.shieldPicked = true;
-    }
-    // 远程玩家加速道具收集（背包被动道具 · 限时 buff）
-    if (updateItemPickupSystem(rp.x, rp.y, 'speed')) {
-      if (rp.speedMult <= 1) addItem(rp.backpack, 'speed');
-      ITEMS['speed'].onPickup?.(rp);
-      signals.speedPicked = true;
-    }
-
-    // 远程玩家钩锁（客机上报鼠标瞄准 + 左键按住状态；沿 = hold && !prev）
-    // S7 槽位统一派发：与本地共用 ActiveItemSystem，逻辑去重
+    // 钩锁按下沿（客机上报鼠标瞄准 + 左键按住状态；沿 = hold && !prev）
     const hookNow = input?.hook ?? false;
     const hookPrev = remoteHookPrev.get(id) ?? false;
     remoteHookPrev.set(id, hookNow);
-    stepActiveItem(rp, {
+
+    // 统一玩家 tick 管线（死亡倒计时/复活；交互=碰撞版 sim 路由到 rp + 检查点坐标交互）
+    tickPlayer(rp, rp.eid, input ?? IDLE_INPUT, signals, {
       dt,
+      isLocal: false,
       hookEdge: hookNow && !hookPrev,
       aim: { x: input?.aimX ?? 0, y: input?.aimY ?? 0 },
       sfx: false,
+      prev: { dead: wasDead, vy: prevVy, sprint: prevSprint, grounded: wasGrounded },
+      deathMode: 'countdown',
+      spawnX: rp.cpX ?? 6,
+      spawnY: rp.cpY ?? 4,
+      interactions: (p, _inp, sig) => {
+        // 碰撞版交互：远端同样走 collisionBus，钩子经 sim 上下文路由到 rp（危险/收集/道具）
+        setCollisionSim({ p, remoteId: id });
+        updateCollisionSystem(p, sig as Record<string, boolean>);
+        setCollisionSim(null);
+        // 检查点激活（远端：坐标 + interact 按下沿；碰撞仅标记附近，不激活）
+        const interactNow = input?.interact ?? false;
+        const interactPrev = remoteInteractPrev.get(id) ?? false;
+        remoteInteractPrev.set(id, interactNow);
+        const cp = interactNow && !interactPrev
+          ? updateRespawnPointSystem(p.x, p.y, true)
+          : updateRespawnPointSystem(p.x, p.y, false);
+        if (cp) {
+          rp.cpX = cp.x;
+          rp.cpY = cp.y;
+          sig.checkpointHit = true;
+        }
+        // 死亡边沿（房主判定权威）：死亡特效 + 广播给客机（物理坠落/碰撞致死均覆盖）
+        if (!wasDead && p.dead) {
+          spawnParticles(FX.death, p.x, p.y);
+          netBus.emit({ type: 'fx:death', x: p.x, y: p.y, playerId: id });
+        }
+      },
+      onDiedEdge: () => { /* 死亡特效/广播由 interactions 内死亡边沿统一处理 */ },
+      onRespawn: () => { /* 远端复活无本地副作用 */ },
+      onBuffExpired: () => { /* 远端 buff 到期无 toast */ },
+      onEvent: () => { /* 远端无反馈音效/粒子 */ },
     });
-
-    // 限时 buff 计时（护盾/加速等）：房主是计时权威，超时移除 → 背包权威同步给客机
-    const rpExpired = stepBuffTimers(rp, dt);
-    for (const ex of rpExpired) {
-      if (ex.source === 'shield') ITEMS['shield'].onExpire?.(rp);
-      if (ex.source === 'speed') ITEMS['speed'].onExpire?.(rp);
-    }
-    reconcileShield(rp);
-    reconcileSpeed(rp);
-
-    stepPlayerAnimation(rp, dt, signals);
   }
 }
 
@@ -532,8 +493,8 @@ function wireNetEvents(): void {
         reconcileSpeed(pS);
       }
 
-      // 步外权威矫正：立即写回组件，防下帧 hydrateFrom 覆盖
-      syncToEcs(pS);
+      // 步外权威矫正：立即写回组件（ECS 真源；hydrateFrom 已删除，写入即权威）
+      playerController.flush();
     }
 
     // 更新全局状态（权威）
@@ -564,6 +525,7 @@ function wireNetEvents(): void {
           lobby.myReady = false;
           applyLevel(mapId);
           gs.screen = 'playing';
+          gs.scene = null; // 基础 UI 场景真源：游戏中无覆盖
           gs.started = true;
         }
         break;
@@ -743,7 +705,7 @@ function renderGame(dt: number): void {
   drawFloor();
   drawSolids();
   drawTracks();
-  drawMovers();
+  drawMovers(renderAlpha(), prevMovers); // 问题 8：移动平台 alpha 插值
   drawSpringPads();
   drawCheckpoints(pulse);
   drawSpikes();
@@ -760,8 +722,8 @@ function renderGame(dt: number): void {
   // 钩锁瞄准预览（在玩家下方，半透明线）
   drawHookAim(pS);
 
-  // 绘制所有玩家（本地 + 远程）
-  drawPlayer(pS, getSelectedCharacter());
+  // 绘制所有玩家（本地 alpha 插值 + 远程）
+  drawLocalPlayerInterpolated(renderAlpha());
   for (const [, rp] of remotes) {
     drawRemotePlayer(rp, dt);
   }
@@ -836,6 +798,8 @@ function frame(nowMs: number): void {
   if (dt > 0.06) dt = 0.06;
   acc += dt;
   if (acc > 0.2) acc = 0.2;
+  // 问题 8：物理批步前快照（渲染 alpha 插值基准；仅表现层，不影响确定性物理）
+  snapshotRenderPrev();
   let n = 0;
   while (acc >= FDT && n < 10) { step(FDT); acc -= FDT; n++; }
   musicTick();
@@ -847,18 +811,20 @@ export function startLoop(): void {
   wireNetEvents();
   // 注册碰撞事件处理器（幂等）
   initCollisionHooks();
-  // 订阅 PlayerController 事件（玩家生命周期 → gs / sfx / 粒子 / 网络）
+  // 问题 4：玩家事件经 netBus 统一通道（wirePlayerEvents=gs/sfx/粒子；TriggerSystem=fireTriggers）
+  wireTriggerSystem();
   wirePlayerEvents();
   requestAnimationFrame(frame);
 }
 
-/** 订阅 PlayerController 事件（幂等） */
+let _playerEventsWired = false;
+/** 订阅玩家事件（问题 4）：PlayerController 经 netBus 统一派发；fireTriggers 逻辑由 TriggerSystem 订阅 */
 function wirePlayerEvents(): void {
-  playerController.onEvent = (event) => {
-    // 触发系统：事件总线 → 条件 → 投递请求（扩展占位；无注册触发时零成本）
-    fireTriggers(event.type, playerController.getState(), event);
+  if (_playerEventsWired) return;
+  _playerEventsWired = true;
+  netBus.on('player:*', (event) => {
     switch (event.type) {
-      case 'died': {
+      case 'player:died': {
         const dp = playerController.getState();
         gs.deaths = event.deaths;
         gs.shake = 1;
@@ -869,10 +835,10 @@ function wirePlayerEvents(): void {
         netBus.emit({ type: 'game:death', deaths: event.deaths });
         break;
       }
-      case 'jumped':
+      case 'player:jumped':
         sfx.jump();
         break;
-      case 'springed': {
+      case 'player:springed': {
         const sps = playerController.getState();
         sfx.spring();
         spawnParticles(FX.dust, sps.x, sps.y - sps.half, 8);
@@ -880,40 +846,43 @@ function wirePlayerEvents(): void {
         gs.shake = Math.max(gs.shake, 0.25);
         break;
       }
-      case 'dashed':
+      case 'player:dashed':
         sfx.dash();
         break;
-      case 'landed':
+      case 'player:landed':
         if (event.impact > 7.5) {
           const s = playerController.getState();
           spawnParticles(FX.dust, s.x, s.y - s.half, 6);
           sfx.land(event.impact * 0.02);
         }
         break;
-      case 'respawned':
+      case 'player:respawned':
         // 复活无全局副作用（trail 清理在 controller 内部）
         break;
-      case 'doubleJumped': {
+      case 'player:doubleJumped': {
         const dj = playerController.getState();
         spawnParticles(FX.doubleJump, dj.x, dj.y - dj.half, 8);
         break;
       }
     }
-  };
+  });
 }
 
 /* ==================== 输入回调 ==================== */
 
 /** 按键逻辑（由 core/input 的 keydown 回调调用） */
 export function handleKeyDown(e: KeyboardEvent): void {
-  // 准备流程（含两个选择子页）：ESC 逐级返回，Enter/Space 单机开始
+  // 准备流程（含两个选择子页）：ESC 逐级返回，Enter/Space 单机开始（场景经 ui.show 唯一入口）
   if (gs.screen === 'prepare') {
     if (prepare.mode === 'maps' || prepare.mode === 'chars') {
-      if (e.code === 'Escape') prepare.mode = 'prepare';
+      if (e.code === 'Escape') {
+        prepare.mode = 'prepare';
+        ui.show('prepare');
+      }
       return;
     }
     if (e.code === 'Escape') {
-      gs.screen = 'menu';
+      ui.show('menu');
     } else if (e.code === 'Enter' || e.code === 'Space' || e.code === 'NumpadEnter') {
       startGame();
     }
@@ -923,42 +892,40 @@ export function handleKeyDown(e: KeyboardEvent): void {
   // 菜单中：Enter / Space 进入准备界面（选图/选人）
   if (gs.screen === 'menu') {
     if (e.code === 'Enter' || e.code === 'Space' || e.code === 'NumpadEnter') {
-      gs.screen = 'prepare';
       prepare.mode = 'prepare';
+      ui.show('prepare');
     }
     return;
   }
 
-  // 暂停中：ESC 或 Enter 继续
+  // 暂停中：ESC 或 Enter 继续（弹出 pause 叠层 → 回游戏）
   if (gs.screen === 'paused') {
     if (e.code === 'Escape' || e.code === 'Enter' || e.code === 'Space') {
-      gs.screen = 'playing';
+      ui.show(null);
     }
     return;
   }
 
-  // ESC → 暂停（syncUI 自动切换场景到 pause）
+  // ESC → 暂停（叠层：push pause）
   if (e.code === 'Escape') {
-    gs.screen = 'paused';
+    ui.show('pause');
     return;
   }
 
   // 游戏中操作
   if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') {
+    // 直写组件（setJumpBuffer 内部），不再需要"防下帧 hydrate 覆盖"补丁
     playerController.setJumpBuffer(PHYS[getMode()].jb);
-    syncToEcs(playerController.getState()); // 帧间写点：立即写回组件，防下帧 hydrate 覆盖
   }
 
   if (e.code === 'KeyR') {
-    playerController.respawn();
-    syncToEcs(playerController.getState());
+    playerController.respawn(); // respawn 内部已直写组件
   }
 
   // 数字键 1-5：选中背包槽位（主动道具装备栏）
   if (e.code >= 'Digit1' && e.code <= 'Digit5') {
     const slot = parseInt(e.code[5]) - 1; // 'Digit1' → 0
-    playerController.getState().selectedSlot = slot;
-    syncToEcs(playerController.getState());
+    playerController.setSelectedSlot(slot); // 直写组件
     gs.toast = '装备栏 ' + (slot + 1);
     gs.toastT = 1.2;
   }
@@ -970,8 +937,7 @@ export function handleKeyDown(e: KeyboardEvent): void {
     const cur = getMode();
     const next = cur === 'tuned' ? 'classic' : 'tuned';
     const old = PHYS[cur], nw = PHYS[next];
-    playerController.getState().velocity.y *= nw.JV / old.JV;
-    syncToEcs(playerController.getState());
+    playerController.scaleVerticalVelocity(nw.JV / old.JV); // 直写组件
     setMode(next);
     gs.toast = '物理 · ' + nw.name;
     gs.toastT = 2;

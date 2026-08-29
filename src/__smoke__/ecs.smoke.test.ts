@@ -16,7 +16,7 @@ import { hasComponent, getAllEntities } from 'bitecs';
 import {
   createOrb, createJumpBoost, createHookPickup, createShieldPickup, createSpeedPickup, createCheckpoint, createNova,
   createSpike, createLaser, createMovingPlatform, createSpringPad, createLoopTrack,
-} from '../Prefabs/Scene/sceneFactory';
+} from '../Prefabs/Scenes/sceneFactory';
 
 beforeEach(() => {
   initEcs();

@@ -11,7 +11,7 @@ import { maps } from '../../config/level';
 import { CHARACTERS, DEFAULT_CHARACTER, getCharacterById, setSelectedCharacter } from '../../Prefabs/Player';
 import type { CharacterStyle } from '../../Prefabs/Player';
 import type { MapDefinition } from '../../types';
-import { Button, UI_SCENE } from '../../core/uiComponent';
+import { Button, UI_SCENE, ui } from '../../core/uiComponent';
 import type { UIWidget, UIScene } from '../../core/uiComponent';
 import { drawBackdrop, drawHUDFrame, drawNeonTitle, drawDecoStar, ease } from '../uiAtmosphere';
 
@@ -293,11 +293,11 @@ export function buildPrepareScene(a: PrepareActions): UIScene {
 
   const cardMap = new Card({
     id: 'prepare_map_card', kind: 'map', getData: selectedMap, isSelected: () => true,
-    onClick: () => { prepare.mode = 'maps'; }, enterDelay: 0.35,
+    onClick: () => { prepare.mode = 'maps'; ui.show('mapSelect'); }, enterDelay: 0.35,
   });
   const cardChar = new Card({
     id: 'prepare_char_card', kind: 'char', getData: selectedChar, isSelected: () => true,
-    onClick: () => { prepare.mode = 'chars'; }, enterDelay: 0.45,
+    onClick: () => { prepare.mode = 'chars'; ui.show('charSelect'); }, enterDelay: 0.45,
   });
   cardMap.x = px + 70; cardMap.y = py + 110; cardMap.w = 400; cardMap.h = 260;
   cardChar.x = px + 530; cardChar.y = py + 110; cardChar.w = 400; cardChar.h = 260;

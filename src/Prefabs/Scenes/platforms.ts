@@ -137,10 +137,17 @@ export function drawFloor(): void {
   }
 }
 
-/** 移动平台（ECS 实体）+ 轨迹线 */
-export function drawMovers(): void {
+/** 移动平台（ECS 实体）+ 轨迹线；alpha+prev 为问题 8 渲染插值（表现层，不影响物理） */
+export function drawMovers(alpha = 1, prev?: number[]): void {
+  let mi = 0;
   for (const e of query(world, [Position, Collider, PathMotion])) {
     const r = colliderWorldRect(e);
+    // 问题 8：按上一物理批步前 [x, top] 快照 lerp（模块级复用数组，实体序与快照一致）
+    if (prev && alpha < 1 && mi + 1 < prev.length) {
+      r.x = prev[mi] + (r.x - prev[mi]) * alpha;
+      r.top = prev[mi + 1] + (r.top - prev[mi + 1]) * alpha;
+    }
+    mi += 2;
     const hu = hue2(r.x + r.w / 2, r.top); // 采样点与静态平台统一
 
     // 轨迹虚线：统一令牌 + 沿运动方向流动（强化可动感）

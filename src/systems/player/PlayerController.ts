@@ -1,53 +1,42 @@
 /**
- * PlayerController —— 玩家控制类。
+ * PlayerController —— 玩家实体生命周期 + 渲染只读视图持有者（A 路线）。
  *
  * 职责：
- *  - 持有 PlayerState（私有，不暴露写权限）
- *  - 消费外部输入（InputKeys）
- *  - 管理物理步进 + 动画步进
- *  - 管理 die / respawn 生命周期
- *  - 产出事件（PlayerEvent）供 Game 层消费（更新 gs、sfx、粒子等）
+ *  - 持有渲染只读视图 this.state：每个物理步由 stepPlayer 的 scratch 镜像而来（mirrorFrom，
+ *    零分配），步外事件路径修改视图后经 flush() 一次性写回组件。
+ *  - 管理实体生命周期：ensurePlayerEntity / flush 出栈口。
+ *  - die / respawn / resetToSpawn / 槽位 / 网络矫正等事件路径修改：改视图后立即写回组件
+ *    （直写 ECS，不再有"防下帧 hydrate 覆盖"的散点补丁 —— hydrateFrom 已删除）。
+ *  - 产出事件（PlayerEvent）经 emitEvent 派发，供 Game 层消费（更新 gs、sfx、粒子等）；
+ *    该事件出口将在后续演进中并入 netBus（PlayerController 不再持有 onEvent 回调字段）。
  *
  * 不依赖：
- *  - 不直接读 keys 表（输入由 Game 注入）
+ *  - 不直接读 keys 表（输入由 Game 提取后直接传给 stepPlayer）
  *  - 不直接写 gs（GameState）
  *  - 不直接调 sfx / spawnParticles
  *  - 不直接发 netBus
  */
-import type { FrameSignals, PlayerState, InputKeys, TrackState } from '../../types';
-import type { PhysicsKey } from '../game/gameMode';
-import { stepPlayerByMode, resolveControlMode } from './index';
+import type { PlayerState, PlayerEvent, TrackState } from '../../types';
 import { createPlayerState } from './createPlayerState';
 import { recomputeStats } from '../effects';
-import { stepPlayerAnimation } from '../../Prefabs/Player';
-import { updateCollisionSystem } from '../level';
-import { trail } from '../particles';
 import { cpPoint } from '../../config';
+import { getPlayerEid, mirrorPlayerState, storePlayerComponents, syncFromEcs } from './playerEntity';
+import { PlayerControl, Velocity } from '../../core/ecs';
+import { trail } from '../particles';
+import { netBus } from '../../core/netBus';
 
-/* ==================== 事件类型 ==================== */
+/* ==================== 事件类型（问题 4：并入 netBus 单一事件通道） ==================== */
 
-export type PlayerEvent =
-  | { type: 'died'; deaths: number }
-  | { type: 'respawned' }
-  | { type: 'dashed' }
-  | { type: 'jumped' }
-  | { type: 'landed'; impact: number }
-  | { type: 'springed' }
-  | { type: 'doubleJumped' };
+export type { PlayerEvent } from '../../types';
 
 /* ==================== Controller ==================== */
 
 export class PlayerController {
   private state: PlayerState;
-  private input: InputKeys;
   private deathCount: number;
-
-  /** 事件回调（Game 层注入，每帧内同步调用） */
-  onEvent?: (event: PlayerEvent) => void;
 
   constructor(spawnX: number, spawnY: number) {
     this.state = createPlayerState(spawnX, spawnY);
-    this.input = { left: false, right: false, jump: false, sprint: false, interact: false, hook: false, aimX: 0, aimY: 0 };
     this.deathCount = 0;
   }
 
@@ -57,121 +46,80 @@ export class PlayerController {
   isDead(): boolean { return this.state.dead; }
   getDeathCount(): number { return this.deathCount; }
 
+  /* ==================== 视图同步（渲染只读视图） ==================== */
+
+  /** 物理步后：scratch → 视图（零分配，复杂数组引用共享） */
+  mirrorFrom(source: PlayerState): void {
+    mirrorPlayerState(this.state, source);
+  }
+
+  /** 每渲染帧一次的派生视图刷新：组件真源 → 视图（独立引用） */
+  refreshFromEcs(): void {
+    const v = syncFromEcs(getPlayerEid());
+    if (v) mirrorPlayerState(this.state, v);
+  }
+
   /**
-   * 用组件真源派生视图原地覆盖工作副本（阶段 B：每帧物理步前调用）。
-   * 组件是唯一权威存储；this.state 是本帧的工作副本。
-   * 原地覆盖（Object.assign）而非替换引用 —— 保留模块级 P 引用可见性。
-   * 注意：帧间事件（跳跃缓冲/槽位/复活）写副本后必须立即 syncToEcs，
-   * 否则下一帧 hydrateFrom 会覆盖掉事件修改。
+   * 步外修改统一出栈口：视图 → 组件（单点写回；实体未接线时为空操作）。
+   * 网络矫正 / 事件路径（keydown、权威修正）修改视图后调用。
    */
-  hydrateFrom(source: PlayerState): void {
-    Object.assign(this.state, source);
+  flush(): void {
+    storePlayerComponents(getPlayerEid(), this.state);
   }
 
-  /* ==================== 输入注入 ==================== */
+  /* ==================== 事件出口（问题 4：统一走 netBus） ==================== */
 
-  /** 每帧注入输入（Game 从 keys 表或网络包提取） */
-  setInput(input: InputKeys): void {
-    // 保存上一帧的 jump 状态用于边缘检测（帧间 key-up 也能正确反映）
-    this.state.jumpWasDown = this.input.jump;
-    this.input = input;
+  /** 事件统一出口：die/respawn/Game 步进循环均经 netBus 派发（wirePlayerEvents / TriggerSystem 订阅） */
+  emitEvent(event: PlayerEvent): void {
+    netBus.emit(event);
   }
 
-  /** 键盘事件快捷：设置跳跃缓冲 + 输入层按下标记（keydown handler 调用） */
+  /** 物理内坠落死亡登记（Game 在 died 边沿检测时调用）；返回累计死亡数 */
+  registerDeath(): number {
+    this.deathCount++;
+    return this.deathCount;
+  }
+
+  /* ==================== 事件路径：直写组件（删除 hydrateFrom 后无"防覆盖补丁"） ==================== */
+
+  /** 键盘事件快捷：设置跳跃缓冲 + 输入层按下标记（直写组件，无需 flush） */
   setJumpBuffer(value: number): void {
     this.state.jbuf = value;
     this.state.jumpFresh = true;
-  }
-
-  /* ==================== 核心步进 ==================== */
-
-  /**
-   * 步进玩家（物理 + 碰撞 + 动画）。
-   * 注意：死亡状态下也已处理计时和复活，返回前会 return。
-   */
-  step(dt: number, mode: PhysicsKey, isLocal: boolean): void {
-    // ── 死亡计时 ──
-    if (this.state.dead) {
-      this.state.deadT -= dt;
-      if (this.state.deadT <= 0) {
-        this.respawn();
-      }
-      return;
-    }
-
-    // ── 物理步 ──
-    // 快照前一帧状态用于边沿检测
-    const prevSprint = this.state.wasSpr;
-    const wasGrounded = this.state.grounded;
-    const prevVy = this.state.velocity.y;
-    const wasDead = this.state.dead;
-
-    const signals: FrameSignals = {};
-    // S3 消费：按控制权仲裁结果分派物理（TRACK/ZIPLINE/FREE；约束类机制只插仲裁表+消费分支）
-    stepPlayerByMode(this.state, resolveControlMode(this.state), this.input, dt, isLocal, signals);
-
-    // 二段跳触发 → 发射事件
-    if (signals.doubleJump) {
-      this.onEvent?.({ type: 'doubleJumped' });
-    }
-
-    // 物理步内坠落死亡（stepPlayerGeneric 只设 dead=true，缺 deadT/事件）
-    if (this.state.dead && !wasDead) {
-      this.state.deadT = 0.85;
-      this.deathCount++;
-      this.onEvent?.({ type: 'died', deaths: this.deathCount });
-    }
-
-    // ── 纯反馈事件（Game 层处理音效/粒子）──
-    // 跳跃起始
-    if (isLocal && this.state.velocity.y > 0 && prevVy <= 0) {
-      this.onEvent?.({ type: 'jumped' });
-    }
-    // 冲刺起始
-    if (isLocal && this.state.sprint && !prevSprint) {
-      this.onEvent?.({ type: 'dashed' });
-    }
-    // 硬着陆
-    if (isLocal && !wasGrounded && this.state.grounded && prevVy < 0) {
-      this.onEvent?.({ type: 'landed', impact: -prevVy });
-    }
-    // 弹簧弹射
-    if (isLocal && signals.spring) {
-      this.onEvent?.({ type: 'springed' });
-    }
-
-    // ── 碰撞检测（事件分发 → CollisionHooks） ──
-    updateCollisionSystem(this.state, signals as Record<string, boolean>);
-
-    // ── 动画步进 ──
-    stepPlayerAnimation(this.state, dt, signals);
-
-    // ── 冲刺曳光 ──
-    // 仅在本地玩家时推入曳光点（远程玩家由各自 controller 或 host 模拟处理）
-    if (this.state.sprint && isLocal) {
-      trail.push({ x: this.state.x - this.state.face * 0.12, y: this.state.y, age: 0 });
+    const e = getPlayerEid();
+    if (e >= 0) {
+      PlayerControl.jbuf[e] = value;
+      PlayerControl.jumpFresh[e] = 1;
     }
   }
 
-  /**
-   * 客机专用：维持死亡视觉效果，不推进计时（等待房主权威复活）。
-   */
-  maintainDeathVisual(): void {
-    this.state.deadT = 0.85;
+  /** 选中槽位（直写组件，无需 flush） */
+  setSelectedSlot(slot: number): void {
+    this.state.selectedSlot = slot;
+    const e = getPlayerEid();
+    if (e >= 0) PlayerControl.selectedSlot[e] = slot;
+  }
+
+  /** 垂直速度缩放（P 键切换物理模式用；直写组件，无需 flush） */
+  scaleVerticalVelocity(ratio: number): void {
+    this.state.velocity.y *= ratio;
+    const e = getPlayerEid();
+    if (e >= 0) Velocity.y[e] *= ratio;
   }
 
   /* ==================== 生命周期 ==================== */
 
-  /** 死亡 */
+  /** 死亡（视图 + 直写组件） */
   die(): void {
     if (this.state.dead || this.state.inv > 0) return;
     this.state.dead = true;
     this.state.deadT = 0.85;
     this.deathCount++;
-    this.onEvent?.({ type: 'died', deaths: this.deathCount });
+    this.emitEvent({ type: 'player:died', deaths: this.deathCount });
+    this.flush();
   }
 
-  /** 复活 */
+  /** 复活（视图 + 直写组件） */
   respawn(): void {
     this.state.dead = false;
     this.state.x = cpPoint.x;
@@ -185,7 +133,8 @@ export class PlayerController {
     // 双跳为永久升级，复活保留 extraJumpsMax；但本次滞空期清零，着陆后刷新
     this.state.extraJumps = 0;
     trail.length = 0;
-    this.onEvent?.({ type: 'respawned' });
+    this.emitEvent({ type: 'player:respawned' });
+    this.flush();
   }
 
   /**
@@ -218,6 +167,14 @@ export class PlayerController {
     this.state.hookMissT = 0;
     this.state.selectedSlot = 0;
     trail.length = 0;
+    this.flush(); // 实体未接线（切图 init 前）时为空操作；接线后由调用方在 ensurePlayerEntity 后补一次 init flush
+  }
+
+  /**
+   * 客机专用：维持死亡视觉效果，不推进计时（等待房主权威复活）。
+   */
+  maintainDeathVisual(): void {
+    this.state.deadT = 0.85;
   }
 
   /* ==================== 网络权威矫正 ==================== */
@@ -225,6 +182,7 @@ export class PlayerController {
   /**
    * 用房主权威位置矫正本地预测（客机用）。
    * 偏差大于 0.5 格时硬矫正位置 + 速度。
+   * 注意：调用方（net 'state' 处理）在批量矫正后统一 flush 写回组件。
    */
   applyCorrection(
     x: number, y: number, vx: number, vy: number,
@@ -241,7 +199,7 @@ export class PlayerController {
   }
 
   /**
-   * 应用权威死亡状态（客机用）。
+   * 应用权威死亡状态（客机用）。调用方随后统一 flush 写回组件。
    * @param dead 房主认为玩家是否死亡
    */
   applyDeathAuthority(dead: boolean, x: number, y: number, inv: number): void {

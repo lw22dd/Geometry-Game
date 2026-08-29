@@ -275,6 +275,12 @@ export function mapDefinitionTSCode(store: EditorStore): string {
   if (map.entitySpawners.hooks && map.entitySpawners.hooks.length > 0) {
     out += `${indent}${indent}hooks: [\n${map.entitySpawners.hooks.map(h => `${indent}${indent}${indent}[${fmt(h[0])}, ${fmt(h[1])}],`).join('\n')}\n${indent}${indent}],\n`;
   }
+  if (map.entitySpawners.shields && map.entitySpawners.shields.length > 0) {
+    out += `${indent}${indent}shields: [\n${map.entitySpawners.shields.map(h => `${indent}${indent}${indent}[${fmt(h[0])}, ${fmt(h[1])}],`).join('\n')}\n${indent}${indent}],\n`;
+  }
+  if (map.entitySpawners.speeds && map.entitySpawners.speeds.length > 0) {
+    out += `${indent}${indent}speeds: [\n${map.entitySpawners.speeds.map(h => `${indent}${indent}${indent}[${fmt(h[0])}, ${fmt(h[1])}],`).join('\n')}\n${indent}${indent}],\n`;
+  }
   if (map.entitySpawners.tracks && map.entitySpawners.tracks.length > 0) {
     out += `${indent}${indent}tracks: [\n`;
     for (const tr of map.entitySpawners.tracks) {

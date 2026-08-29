@@ -2,7 +2,7 @@
  * UI 氛围层 —— 与 menu.ts 同款：种子随机星空 / 极光辉斑 / 漂浮线框几何 / 流星。
  * 提供给 gallery / instructions / prepare 等弹窗复用，保证全 UI 视觉一致。
  */
-import { ctx, VW, VH } from '../core/canvas';
+import { ctx, VW, VH, DPR } from '../core/canvas';
 import { rr } from '../core/math';
 
 /* ---------- 基础小工具 ---------- */
@@ -96,14 +96,27 @@ export function buildAtmo(theme: AtmoTheme = _DEFAULT): _AtmoData {
 }
 
 /* ---------- 氛围背景（与 menu 同款） ---------- */
+
+// 问题 9：全屏晕影渐变按 (VW, VH, DPR) 缓存，仅 resize 时重建（避免每帧 createRadialGradient 分配）
+let _vignette: CanvasGradient | null = null;
+let _vignetteKey = '';
+function vignetteGradient(): CanvasGradient {
+  const key = VW + 'x' + VH + '@' + DPR;
+  if (_vignette === null || _vignetteKey !== key) {
+    _vignetteKey = key;
+    _vignette = ctx.createRadialGradient(VW / 2, VH / 2, VH * .3, VW / 2, VH / 2, VH * .95);
+    _vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    _vignette.addColorStop(1, 'rgba(2,0,10,.6)');
+  }
+  return _vignette;
+}
+
 export function drawBackdrop(t: number, theme: AtmoTheme = _DEFAULT): void {
   const d = buildAtmo(theme);
   ctx.save();
   ctx.fillStyle = 'rgba(5,3,16,.68)';
   ctx.fillRect(0, 0, VW, VH);
-  const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * .3, VW / 2, VH / 2, VH * .95);
-  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(2,0,10,.6)');
-  ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
+  ctx.fillStyle = vignetteGradient(); ctx.fillRect(0, 0, VW, VH);
 
   ctx.globalCompositeOperation = 'lighter';
   for (const a of d.aura) {

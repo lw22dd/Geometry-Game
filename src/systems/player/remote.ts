@@ -5,8 +5,9 @@
  */
 import type { RemotePlayer, InputKeys, PathSegment } from '../../types';
 import { room } from '../../net/room';
-import { buildCumulativeLengths } from '../../core/path';
+import { unpackTrack } from '../../core/trackCodec';
 import { createPlayerState } from './createPlayerState';
+import { removeRemotePlayerEntity, removeAllRemotePlayerEntities } from './playerEntity';
 
 /** 远程玩家表（playerId → RemotePlayer，含完整 PlayerState 模拟状态） */
 export const remotes = new Map<number, RemotePlayer>();
@@ -22,6 +23,8 @@ export function resetRemotes(): void {
   remotes.clear();
   clientInputs.clear();
   clientSeq.clear();
+  // A 路线：远端实体表与 remotes 生命周期同步（clearWorld 后侧表已失效，清表防悬空）
+  removeAllRemotePlayerEntities();
 }
 
 /**
@@ -48,6 +51,7 @@ export function removeRemote(id: number): void {
   remotes.delete(id);
   clientInputs.delete(id);
   clientSeq.delete(id);
+  removeRemotePlayerEntity(id);
 }
 
 /** 更新远程玩家的输入（房主用：收到客机 input 消息时调用） */
@@ -97,22 +101,8 @@ export function applyNetPlayers(players: NetPlayerTrackFields[]): void {
     rp.sprint = ps.sprint;
     // 加速倍率：房主模拟权威（加速光效随位置一起同步）
     rp.speedMult = ps.speedMult || 1;
-    // 轨道状态（无则渲染为自由运动）
-    if (ps.trackOn) {
-      const cl = buildCumulativeLengths(ps.trackSegments);
-      rp.track = {
-        segments: ps.trackSegments,
-        cumulative: cl,
-        dist: ps.trackDist,
-        speed: ps.trackSpeed,
-        totalLength: cl[cl.length - 1],
-        entryDist: ps.trackEntry,
-        exitDist: ps.trackExit,
-        zipline: ps.trackZipline,
-      };
-    } else {
-      rp.track = null;
-    }
+    // 轨道状态（无则渲染为自由运动）；问题 10：重建逻辑统一走 core/trackCodec
+    rp.track = unpackTrack(ps);
   }
 }
 

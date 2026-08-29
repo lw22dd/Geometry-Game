@@ -359,6 +359,35 @@ function renderOne(inst: MapInstance, time: number): void {
       ctx.restore();
       break;
     }
+    case 'speedPickup': {
+      // 青白「》》」双箭头（与游戏内拾取物渲染一致）
+      const hx = sx(inst.x), hy = sy(inst.y);
+      ctx.save();
+      ctx.translate(hx, hy);
+      if (inst.rotation) ctx.rotate((inst.rotation * Math.PI) / 180);
+      ctx.shadowColor = 'rgba(120,230,255,.9)';
+      ctx.shadowBlur = 8;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const R = 0.5 * sz;
+      // 后箭头（左小）
+      ctx.strokeStyle = '#8ff6ff';
+      ctx.lineWidth = R * 0.34;
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.82, -R * 0.78);
+      ctx.lineTo(-R * 0.05, 0);
+      ctx.lineTo(-R * 0.82, R * 0.78);
+      ctx.stroke();
+      // 前箭头（右大）
+      ctx.strokeStyle = '#eaffff';
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.18, -R * 0.78);
+      ctx.lineTo(R * 0.6, 0);
+      ctx.lineTo(-R * 0.18, R * 0.78);
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
     case 'track': {
       // 绘制轨道路径折线（预览简单线框 + 入口亮点）
       const pts: { x: number; y: number }[] = [];

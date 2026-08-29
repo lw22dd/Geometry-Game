@@ -17,6 +17,7 @@ export const gs: GameState = {
   winTime: 0,
   started: false,
   screen: 'menu',
+  scene: 'menu',
   toast: '',
   toastT: 0,
   flash: 0,

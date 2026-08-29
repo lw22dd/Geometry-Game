@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { initEcs, clearWorld, Position, Aura, qAuras } from '../core/ecs';
-import { createAura } from '../Prefabs/Scene/sceneFactory';
+import { createAura } from '../Prefabs/Scenes/sceneFactory';
 import { setAuraFx, resetAuraState, stepAuraSystem } from '../systems/level/AuraSystem';
 import { registerTrigger, resetTriggers, fireTriggers } from '../systems/effects/TriggerSystem';
 import { createPlayerState } from '../systems/player/createPlayerState';

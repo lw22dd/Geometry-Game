@@ -5,7 +5,7 @@
  * 远程玩家（host 模拟，无 ECS 实体）仍使用坐标版交互系统：
  *   updateCollectSystem(tx, ty) / updateItemPickupSystem(tx, ty, kind) / updateRespawnPointSystem() / updateGoalSystem()
  */
-export { initCollisionHooks, resetCollisionHooks, tryInteractCheckpoint } from './CollisionHooks';
+export { initCollisionHooks, resetCollisionHooks, tryInteractCheckpoint, setCollisionSim } from './CollisionHooks';
 export { updateCollectSystem } from './CollectSystem';
 export { updateItemPickupSystem, orbCount } from './ItemPickupSystem';
 export { updateRespawnPointSystem } from './RespawnPointSystem';

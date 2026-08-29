@@ -11,7 +11,7 @@
  *
  * 本文件只定义数据，不含任何系统逻辑。
  */
-import type { PathSegment, StatModifier, TrackState } from '../../types';
+import type { ItemId, PathSegment, StatModifier, TrackState } from '../../types';
 import { u8 } from 'bitecs/serialization';
 
 /* ==================== 物理 / 运动 ==================== */
@@ -172,7 +172,7 @@ export const PlayerInput = {
 };
 
 /** 背包（AoS）：每玩家一项道具编码数组（0=doubleJump，1=hook；最多 5 格） */
-export const Backpack = [] as number[][];
+export const Backpack = [] as ItemId[][];
 
 /** 玩家在轨状态（AoS 侧表，key = 玩家实体 eid）：完整 TrackState 或 null */
 export const PlayerTrackState = [] as (TrackState | null)[];

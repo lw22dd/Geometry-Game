@@ -5,18 +5,16 @@
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { rr } from '../../core/math';
-import { Button, UI_SCENE } from '../../core/uiComponent';
+import { Button, UI_SCENE, ui } from '../../core/uiComponent';
 import type { UIScene } from '../../core/uiComponent';
 import { drawBackdrop, drawHUDFrame, drawNeonTitle, drawDecoStar, ease } from '../uiAtmosphere';
 
-/* ==================== 弹窗状态 ==================== */
+/* ==================== 弹窗状态（问题 3：开关由叠层栈承担） ==================== */
 
-export const instructions = {
-  open: false,
-};
+export const instructions = {};
 
-export function openInstructions(): void { instructions.open = true; }
-export function closeInstructions(): void { instructions.open = false; }
+export function openInstructions(): void { ui.pushOverlay('instructions'); }
+export function closeInstructions(): void { ui.popOverlay(); }
 
 /* ---------- 弹窗动画计时 ---------- */
 let _instrT = 0;

@@ -296,6 +296,10 @@ function qOrbEntities(): number[] { return queryEntities([Position, Collectible,
 function qCheckpointEntities(): number[] { return queryEntities([Position, RespawnPoint]); }
 function qNovaEntity(): number { return queryEntities([Position, Goal])[0] ?? -1; }
 
+// 问题 9：小地图 query 结果使用模块级复用数组（每帧查询后清空，避免整数组丢弃分配）
+const _queryScratch: number[] = [];
 function queryEntities(terms: any[]): number[] {
-  return query(world, terms) as number[];
+  _queryScratch.length = 0;
+  for (const e of query(world, terms)) _queryScratch.push(e as number);
+  return _queryScratch;
 }

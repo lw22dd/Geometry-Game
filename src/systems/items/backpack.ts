@@ -14,6 +14,7 @@
 import type { ItemCategory, ItemId, PlayerState } from '../../types';
 import { MAX_BACKPACK } from '../../types';
 import { applyEffect, removeModifier } from '../effects';
+import { ITEM_DOUBLE_JUMP, ITEM_HOOK, ITEM_SHIELD, ITEM_SPEED } from '../../core/ecs';
 
 /** 主动道具触发上下文（S7 槽位 ActiveItemSystem 传入） */
 export interface ActiveItemContext {
@@ -112,20 +113,24 @@ export function addItem(backpack: ItemId[], id: ItemId): boolean {
   return true;
 }
 
-/** 道具 id → 网络数字编码（0=doubleJump，1=hook，2=shield，3=speed） */
+/** 道具 id → 网络数字编码（0=doubleJump，1=hook，2=shield，3=speed；问题 11：复用 ITEM_* 常量） */
 export function itemToNet(id: ItemId): number {
-  if (id === 'hook') return 1;
-  if (id === 'shield') return 2;
-  if (id === 'speed') return 3;
-  return 0;
+  switch (id) {
+    case 'hook': return ITEM_HOOK;
+    case 'shield': return ITEM_SHIELD;
+    case 'speed': return ITEM_SPEED;
+    default: return ITEM_DOUBLE_JUMP;
+  }
 }
 
 /** 网络数字编码 → 道具 id（未知编码视为二段跳票，防御） */
 export function netToItem(n: number): ItemId {
-  if (n === 1) return 'hook';
-  if (n === 2) return 'shield';
-  if (n === 3) return 'speed';
-  return 'doubleJump';
+  switch (n) {
+    case ITEM_HOOK: return 'hook';
+    case ITEM_SHIELD: return 'shield';
+    case ITEM_SPEED: return 'speed';
+    default: return 'doubleJump';
+  }
 }
 
 /**

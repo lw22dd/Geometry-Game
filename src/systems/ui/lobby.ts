@@ -14,7 +14,7 @@ import { resetRemotes } from '../player/remote';
 import { prepare } from './prepare';
 import { CHARACTERS, getCharacterById, setSelectedCharacter } from '../../Prefabs/Player';
 import type { CharacterStyle } from '../../Prefabs/Player';
-import { Button, TextInput, UI_SCENE } from '../../core/uiComponent';
+import { Button, TextInput, UI_SCENE, ui } from '../../core/uiComponent';
 import type { UIWidget, UIScene } from '../../core/uiComponent';
 
 type LobbyMode = 'none' | 'create' | 'join';
@@ -521,7 +521,7 @@ function myReady(): boolean {
   return p?.ready ?? false;
 }
 
-/** 退出房间：断开连接并复位，由 syncUI 自动路由回正确界面 */
+/** 退出房间：断开连接并复位，经 ui.show 唯一入口返回准备界面 */
 function leaveRoom(): void {
   if (room.connected) {
     net.disconnect();
@@ -531,7 +531,7 @@ function leaveRoom(): void {
   lobby.inRoom = false;
   lobby.myReady = false;
   lobby.mode = 'none';
-  // syncUI 在下一帧会根据 gs.screen 自动路由
+  ui.show('prepare');
 }
 
 /* ==================== 连接逻辑 ==================== */
