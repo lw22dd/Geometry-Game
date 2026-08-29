@@ -8,13 +8,13 @@ import {
   world, initEcs, clearWorld,
   Position, Velocity, Collider, PathMotion, SpringPad, Timer, Hazard,
   Collectible, RespawnPoint, Goal, Track, TrackGeom, Renderable, Animator,
-  Orb, JumpBoost, Hook, ShieldPickup, Hookable, renderStyles,
-  qOrbs, qJumpBoosts, qHooks, qShields, qCheckpoints, qGoal, qMovers, qSpringPads,
+  Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, Hookable, renderStyles,
+  qOrbs, qJumpBoosts, qHooks, qShields, qSpeeds, qCheckpoints, qGoal, qMovers, qSpringPads,
   qTimers, qHazards, qLasers, qTracks, qHookTargets, qCollectibles,
 } from '../core/ecs';
 import { hasComponent, getAllEntities } from 'bitecs';
 import {
-  createOrb, createJumpBoost, createHookPickup, createShieldPickup, createCheckpoint, createNova,
+  createOrb, createJumpBoost, createHookPickup, createShieldPickup, createSpeedPickup, createCheckpoint, createNova,
   createSpike, createLaser, createMovingPlatform, createSpringPad, createLoopTrack,
 } from '../Prefabs/Scene/sceneFactory';
 
@@ -30,6 +30,7 @@ describe('bitECS 场景层运行时', () => {
     const jb = createJumpBoost(3, 4, 0);
     const hk = createHookPickup(5, 6, 0);
     const sh = createShieldPickup(5.5, 6.5, 0);
+    const sp = createSpeedPickup(6, 6.5, 0);
     const cp = createCheckpoint(7, 8);
     const nova = createNova(9, 10);
     const spike = createSpike(11, 12);
@@ -45,6 +46,7 @@ describe('bitECS 场景层运行时', () => {
     expect(qJumpBoosts()).toContain(jb);
     expect(qHooks()).toContain(hk);
     expect(qShields()).toContain(sh);
+    expect(qSpeeds()).toContain(sp);
     expect(qCheckpoints()).toContain(cp);
     expect(qGoal()).toContain(nova);
     expect(qHazards()).toContain(spike);
@@ -53,7 +55,7 @@ describe('bitECS 场景层运行时', () => {
     expect(qSpringPads().length).toBeGreaterThanOrEqual(1);
     expect(qTracks().length).toBe(1);
     expect(qHookTargets().length).toBeGreaterThanOrEqual(2); // 平台 + 弹簧
-    expect(qCollectibles().length).toBe(4); // orb + jumpBoost + hook + shield
+    expect(qCollectibles().length).toBe(5); // orb + jumpBoost + hook + shield + speed
   });
 
   it('tag 组件用 hasComponent 可正确判定类型', () => {
@@ -61,6 +63,7 @@ describe('bitECS 场景层运行时', () => {
     const jb = createJumpBoost(3, 4, 0);
     const hk = createHookPickup(5, 6, 0);
     const sh = createShieldPickup(5.5, 6.5, 0);
+    const sp = createSpeedPickup(6, 6.5, 0);
     const spike = createSpike(11, 12);
 
     expect(hasComponent(world, orb, Orb)).toBe(true);
@@ -68,6 +71,7 @@ describe('bitECS 场景层运行时', () => {
     expect(hasComponent(world, jb, JumpBoost)).toBe(true);
     expect(hasComponent(world, hk, Hook)).toBe(true);
     expect(hasComponent(world, sh, ShieldPickup)).toBe(true);
+    expect(hasComponent(world, sp, SpeedPickup)).toBe(true);
     expect(hasComponent(world, spike, Hazard)).toBe(true);
     expect(hasComponent(world, spike, Timer)).toBe(false);
     expect(hasComponent(world, orb, Timer)).toBe(false);
@@ -86,10 +90,12 @@ describe('bitECS 场景层运行时', () => {
     const orb = createOrb(1, 2, 0);
     const nova = createNova(9, 10);
     const sh = createShieldPickup(5.5, 6.5, 0);
-    expect(renderStyles.length).toBe(6);
+    const sp = createSpeedPickup(6, 6.5, 0);
+    expect(renderStyles.length).toBe(7);
     expect(Renderable.styleId[orb]).toBe(0);
     expect(Renderable.styleId[nova]).toBe(4);
     expect(Renderable.styleId[sh]).toBe(5);
+    expect(Renderable.styleId[sp]).toBe(6);
     expect(Renderable.radius[orb]).toBe(0.4);
   });
 

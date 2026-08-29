@@ -10,7 +10,7 @@
  *   enter:player:goal        → 终点登顶
  */
 import { hasComponent } from 'bitecs';
-import { world, Position, Collider, Timer, Hazard, Collectible, RespawnPoint, Goal, Orb, JumpBoost, Hook, ShieldPickup, qCheckpoints } from '../../core/ecs';
+import { world, Position, Collider, Timer, Hazard, Collectible, RespawnPoint, Goal, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, qCheckpoints } from '../../core/ecs';
 import { collisionBus } from '../../core/collisionBus';
 import { gs } from '../game/gameState';
 import { playerController } from '../player';
@@ -150,6 +150,31 @@ export function initCollisionHooks(): void {
       if (signals) signals.shieldPicked = true;
 
       gs.toast = '护盾已装备！危险物命中将格挡一次';
+      gs.toastT = 2.5;
+      return;
+    }
+
+    // ── 加速（背包被动道具 · 限时 buff · 速度 ×2）──
+    if (hasComponent(world, b, SpeedPickup)) {
+      const s = playerController.getState();
+      // 未激活时才占背包格（已有加速 = 拾取只刷新计时，不重复占格）
+      if (s.speedMult <= 1 && !addItem(s.backpack, 'speed')) {
+        gs.toast = '背包已满！';
+        gs.toastT = 2;
+        return;
+      }
+      Collectible.collected[b] = 1;
+      // 被动效果经道具 onPickup → 契约层（ApplyModifier moveSpeed 限时 buff），不直写 speedMult
+      ITEMS['speed'].onPickup?.(s);
+
+      const pos = { x: Position.x[b], y: Position.y[b] };
+      spawnParticles(FX.sparkle, pos.x, pos.y);
+      spawnParticles(FX.speedBoost, pos.x, pos.y, 6);
+      sfx.speedPickup();
+      netBus.emit({ type: 'game:speedpickup' });
+      if (signals) signals.speedPicked = true;
+
+      gs.toast = '极速冲刺！移速 ×2';
       gs.toastT = 2.5;
       return;
     }

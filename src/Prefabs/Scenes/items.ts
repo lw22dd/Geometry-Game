@@ -5,7 +5,7 @@
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
-import { Position, Collider, Collectible, RespawnPoint, Goal, Renderable, Animator, Orb, JumpBoost, Hook, ShieldPickup } from '../../core/ecs';
+import { Position, Collider, Collectible, RespawnPoint, Goal, Renderable, Animator, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup } from '../../core/ecs';
 import { gs } from '../../systems/game/gameState';
 import { colliderWorldRect } from '../../systems/level';
 import { T } from './theme';
@@ -311,6 +311,55 @@ export function drawShieldPickups(): void {
     ctx.lineTo(0, R * 0.25);
     ctx.lineTo(R * 0.3, -R * 0.2);
     ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+}
+
+/** 加速道具（青白「》》」双箭头 + 泛光圈，拾取获得限时移速 ×2） */
+export function drawSpeedPickups(): void {
+  for (const e of query(world, [Position, Collider, Collectible, Renderable, Animator, SpeedPickup])) {
+    if (Collectible.collected[e] === 1) continue;
+    const out = getAnimOutput(e);
+    const r = colliderWorldRect(e);
+    const cx = sx(r.x + r.w / 2);
+    const cy = sy(r.top + r.h / 2 + out.offsetY);
+    const R = Renderable.radius[e] * view.SZ;
+
+    // ① 青白泛光圈（外发光层）
+    ctx.globalAlpha = out.alpha;
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.4);
+    g.addColorStop(0, 'rgba(140,246,255,.32)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+
+    // ② 「》》」双箭头：两枚右向 chevron（外小内大，冲刺感）
+    ctx.save();
+    ctx.translate(cx, cy + R * 0.1);
+    ctx.rotate(out.rotation);
+    ctx.shadowColor = 'rgba(120,230,255,.9)';
+    ctx.shadowBlur = T.glowMovable;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#8ff6ff';
+    ctx.lineWidth = R * 0.34;
+    // 后箭头（左小）
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.82, -R * 0.78);
+    ctx.lineTo(-R * 0.05, 0);
+    ctx.lineTo(-R * 0.82, R * 0.78);
+    ctx.stroke();
+    // 前箭头（右大）
+    ctx.strokeStyle = '#eaffff';
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.18, -R * 0.78);
+    ctx.lineTo(R * 0.6, 0);
+    ctx.lineTo(-R * 0.18, R * 0.78);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
     ctx.restore();
     ctx.globalAlpha = 1;
   }

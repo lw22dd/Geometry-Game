@@ -27,6 +27,7 @@ export function createPlayerState(x: number, y: number): PlayerState {
     sprint: false, wasSpr: false, inv: 0,
     extraJumps: 0, extraJumpsMax: 0,
     shields: 0, shieldsMax: 0,
+    speedMult: 1,
     modifiers: [],
     jumpWasDown: false, jumpFresh: false,
     impulses: [],

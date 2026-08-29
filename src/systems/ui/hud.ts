@@ -27,7 +27,7 @@ const BAR_X = (VW - BAR_W) / 2;
 const BAR_Y = VH - 46;
 
 /** 背包栏（玩家自带 5 格装备栏，屏幕最下方居中）；
- *  占用格显示道具图标：二段跳票 = 绿色上箭头（被动），钩锁 = 金色钩形（主动），护盾 = 蓝紫盾形（被动）。
+ *  占用格显示道具图标：二段跳票 = 绿色上箭头（被动），钩锁 = 金色钩形（主动），护盾 = 蓝紫盾形（被动），加速 = 青色 》》双箭头（被动）。
  *  主动道具需选中对应槽位（数字键 1-5）才能使用，选中格高亮 + 键位数字提示。
  *  钩锁格在冷却中显示弧形遮罩。 */
 export function drawHUD(): void {
@@ -42,6 +42,7 @@ export function drawHUD(): void {
     const active = id === 'hook';
     const hue = id === null ? 'rgba(150,170,255,.25)'
       : active ? 'rgba(255,190,90,.9)'
+      : id === 'speed' ? 'rgba(90,225,255,.95)'
       : 'rgba(120,255,170,.9)';
 
     // 选中态发光底板
@@ -79,6 +80,8 @@ export function drawHUD(): void {
         drawJumpTicketIcon(cx, cy);
       } else if (id === 'shield') {
         drawShieldIcon(cx, cy);
+      } else if (id === 'speed') {
+        drawSpeedIcon(cx, cy);
       } else {
         drawHookIcon(cx, cy);
       }
@@ -160,6 +163,32 @@ function drawHookIcon(cx: number, cy: number): void {
   // 顶部圆头
   ctx.fillStyle = '#ffe3ad';
   ctx.beginPath(); ctx.arc(0, -10, 2, 0, 6.283); ctx.fill();
+  ctx.restore();
+}
+
+/** 加速图标：青色双箭头 》》（两个右向双箭头，随拾取物同形，缩小版） */
+function drawSpeedIcon(cx: number, cy: number): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.shadowColor = 'rgba(90,225,255,.85)';
+  ctx.shadowBlur = 6;
+  ctx.strokeStyle = '#5ae1ff';
+  ctx.lineWidth = 3.4;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  // 》》双箭头（右向双尖头，两条并列）
+  for (const ox of [-4, 4]) {
+    ctx.beginPath();
+    ctx.moveTo(ox - 5, -9);
+    ctx.lineTo(ox + 3, 0);
+    ctx.lineTo(ox - 5, 9);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(ox, -9);
+    ctx.lineTo(ox + 8, 0);
+    ctx.lineTo(ox, 9);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 

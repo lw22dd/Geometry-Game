@@ -170,7 +170,8 @@
 <div id="templateSaveOverlay" class="overlay hidden" onclick="if(event.target===this)hideTemplateSave()">
   <div id="templateSavePanel" class="modal">
     <h2><span class="td-icon" data-icon="Star" data-size="16"></span> 保存当前地图为模板</h2>
-    <p>点击「保存为模板」会<strong>自动在 src/mapTemplate/ 生成 .ts 源码文件</strong>并注册进 templates.ts（需以 <code>npm run dev</code> 启动编辑器）；写入失败时自动回退为浏览器 localStorage 模板。</p>
+    <p>保存路径固定为 <code>src/mapTemplate/</code>（所有地图的默认保存路径）。需以 <code>npm run dev</code> 启动编辑器；写入失败时自动回退为浏览器 localStorage 模板。</p>
+    <div id="templateSaveHint" class="save-hint"></div>
     <div class="field-group">
       <label class="field-label">模板名称 *</label>
       <input class="field-input" id="templateSaveName" placeholder="例如：冰封王座">
@@ -191,6 +192,10 @@
     <div class="field-group">
       <label class="field-label">描述</label>
       <input class="field-input" id="templateSaveDesc" placeholder="模板简介（显示在模板列表中）">
+    </div>
+    <div class="field-check" title="勾选后从当前地图派生一个新模板文件，不覆盖现有地图">
+      <input type="checkbox" id="templateSaveNew">
+      <label for="templateSaveNew">另存为新文件（不覆盖现有地图，派生一个新模板）</label>
     </div>
     <div class="actions">
       <button class="closeBtn" onclick="hideTemplateSave()">取消</button>

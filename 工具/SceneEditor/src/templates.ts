@@ -15,7 +15,7 @@ import { EMPTY_TEMPLATE } from './mapTemplate/empty';
 import { CRYSTAL_CAVERNS_TEMPLATE } from './mapTemplate/crystalCaverns';
 import { TWO_D_MAP_TEMPLATE } from './mapTemplate/twoDMapDesign';
 import { TPL_2D_TEMPLATE } from './mapTemplate/2d';
-import { TPL_2D_2_TEMPLATE } from './mapTemplate/2d2';
+
 
 export type { MapTemplate } from './mapTemplate/types';
 
@@ -26,7 +26,7 @@ export const MAP_TEMPLATES: MapTemplate[] = [
   CRYSTAL_CAVERNS_TEMPLATE,
   TWO_D_MAP_TEMPLATE,
   TPL_2D_TEMPLATE,
-  TPL_2D_2_TEMPLATE,
+
 ];
 
 /** 按 id 查找模板 */

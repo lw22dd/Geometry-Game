@@ -76,6 +76,7 @@ export const Orb = {};
 export const JumpBoost = {};
 export const Hook = {};
 export const ShieldPickup = {};
+export const SpeedPickup = {};
 
 /** 检查点 */
 export const RespawnPoint = { active: [] as number[], nearby: [] as number[] };
@@ -138,6 +139,8 @@ export const PlayerControl = {
   hookCd: [] as number[],
   hookMissT: [] as number[],
   selectedSlot: [] as number[],
+  /** 水平移速倍率（默认 1；加速 buff 时 = 2） */
+  speedMult: [] as number[],
   /** 当前所在轨道实体 eid（-1 = 自由运动） */
   trackEntity: [] as number[],
   /** 当前骑乘平台实体 eid（-1 = 无） */
@@ -199,6 +202,7 @@ export const CONTROL_MODE_CONSTRAINT = 4;
 export const ITEM_DOUBLE_JUMP = 0;
 export const ITEM_HOOK = 1;
 export const ITEM_SHIELD = 2;
+export const ITEM_SPEED = 3;
 
 /* ==================== 注册表（供 query/observe 使用） ==================== */
 

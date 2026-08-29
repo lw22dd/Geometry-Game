@@ -8,7 +8,7 @@ import { VERTICAL_SPRING, HORIZONTAL_SPRING } from './springs';
 import { initEcs, clearWorld } from '../core/ecs';
 import {
   createOrb, createJumpBoost, createCheckpoint, createNova, createMovingPlatform,
-  createSpringPad, createLaser, createSpike, createLoopTrack, createHookPickup, createShieldPickup,
+  createSpringPad, createLaser, createSpike, createLoopTrack, createHookPickup, createShieldPickup, createSpeedPickup,
 } from '../Prefabs/Scene/sceneFactory';
 
 const R = (x: number, y: number, w: number, h: number, hookable = true): Rect => ({ x, y, w, h, top: y + h, hookable });
@@ -172,6 +172,11 @@ export const maps: MapDefinition[] = [
       shields: [
         [23, 6.6],     // 尖刺坑前
         [181, 31.2],   // 激光栅栏前
+      ],
+      // 加速道具（限时加速：水平移速 ×2，10s 超时自动失效）
+      speeds: [
+        [50, 6.8],     // 平原 → 弹簧/阶梯前，助力冲过
+        [137, 31.4],   // 节奏平台区
       ],
       // 检查点坐标（复活点激活位置）
       checkpoints: [
@@ -362,6 +367,11 @@ export const maps: MapDefinition[] = [
         [16, 15.4],
         [164, 15.4],
         [93, 7.5],
+      ],
+      // 加速道具（限时加速：水平移速 ×2，10s 超时自动失效）
+      speeds: [
+        [90, 33],    // 下层桥（空中走廊前）
+        [90, 57.5],  // 上层走廊
       ],
       checkpoints: [
         [85, 6], [10, 50], [170, 50], [50, 56], [130, 56], [90, 62], [90, 78],
@@ -730,6 +740,11 @@ export const maps: MapDefinition[] = [
           [95.5, 34.2],
           [86, 38.2],
         ],
+        // 加速道具（限时加速：水平移速 ×2，10s 超时自动失效）
+        speeds: [
+          [94, 20.5],
+          [8, 23.8],
+        ],
         // 检查点
         checkpoints: [
           [60, 19.5],
@@ -860,6 +875,10 @@ export function initECSFromLevel(): void {
   // 护盾道具（地图数据驱动；无 shields 字段的地图自然不带护盾）
   for (const [x, y] of s.shields ?? []) {
     createShieldPickup(x, y, 0);
+  }
+  // 加速道具（地图数据驱动；无 speeds 字段的地图自然不带加速）
+  for (const [x, y] of s.speeds ?? []) {
+    createSpeedPickup(x, y, 0);
   }
   for (const [x, y] of s.checkpoints) {
     createCheckpoint(x, y);

@@ -12,8 +12,8 @@ const TPL_2D_DATA: MapData = {
     "width": 122,
     "height": 40,
     "playerSpawn": {
-      "x": 58.5,
-      "y": 19.5
+      "x": 48.783493369913124,
+      "y": 24.39397576588934
     },
     "layers": {
       "geometry": [
@@ -735,18 +735,6 @@ const TPL_2D_DATA: MapData = {
         },
         {
           "type": "springPad",
-          "x": 1.3,
-          "y": 2.3,
-          "w": 2.5,
-          "h": 2,
-          "force": {
-            "x": 0,
-            "y": 96
-          },
-          "duration": 0.3
-        },
-        {
-          "type": "springPad",
           "x": 66.5,
           "y": 19.2,
           "w": 2.5,
@@ -843,8 +831,8 @@ const TPL_2D_DATA: MapData = {
         },
         {
           "type": "checkpoint",
-          "x": 2.5,
-          "y": 35.5
+          "x": 5,
+          "y": 37.5
         },
         {
           "type": "checkpoint",

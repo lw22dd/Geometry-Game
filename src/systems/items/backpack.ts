@@ -4,11 +4,11 @@
  * 背包即玩家状态上的 backpack: ItemId[]（最长 5 格，顺序即槽位）。
  * 本模块只提供纯函数 + 道具注册表，不持有全局状态：
  *  - addItem / hasItem / isFull：槽位操作
- *  - itemToNet / netToItem：网络数字编码（0=doubleJump, 1=hook）
+ *  - itemToNet / netToItem：网络数字编码（0=doubleJump, 1=hook, 2=shield, 3=speed）
  *  - ITEMS：道具元数据（名称 / 类别：主动·被动）
  *
  * 类别语义：
- *  - passive 被动道具：拾取即生效常驻（二段跳票 → extraJumpsMax=1）
+ *  - passive 被动道具：拾取即生效（二段跳票 → extraJumpsMax=1；护盾/加速 → 限时 buff）
  *  - active  主动道具：由玩家触发使用（钩锁 → 鼠标瞄准 + 左键发射）
  */
 import type { ItemCategory, ItemId, PlayerState } from '../../types';
@@ -41,6 +41,9 @@ export interface ItemDef {
 
 /** 护盾有效时长（秒）：限时 buff，到期自动失效并退出背包 */
 export const SHIELD_TIME = 10;
+
+/** 加速有效时长（秒）：限时 buff，速度 ×2，到期自动失效并退出背包 */
+export const SPEED_TIME = 10;
 
 /** 道具注册表（全项目道具在此登记；新道具 = 新增条目 + 可选能力组件/系统） */
 export const ITEMS: Record<ItemId, ItemDef> = {
@@ -75,6 +78,18 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     }),
     // 到期表现由 game 层按 stepBuffTimers 到期列表处理（toast/粒子）；此处保持纯。
   },
+  speed: {
+    id: 'speed',
+    name: '加速',
+    category: 'passive',
+    // 被动效果：经契约层 + Modifier 管道授予水平移速 ×2（限时 buff：dur 到期由
+    // stepBuffTimers 自动失效；再拾取 = applyModifier 同键替换 → 重置计时）
+    onPickup: (p) => applyEffect(p, {
+      kind: 'ApplyModifier',
+      mod: { stat: 'moveSpeed', op: 'set', value: 2, source: 'speed', dur: SPEED_TIME, t: SPEED_TIME },
+    }),
+    // 到期表现由 game 层按 stepBuffTimers 到期列表处理（toast/粒子）；此处保持纯。
+  },
 };
 
 /** 背包已满 */
@@ -97,10 +112,11 @@ export function addItem(backpack: ItemId[], id: ItemId): boolean {
   return true;
 }
 
-/** 道具 id → 网络数字编码（0=doubleJump，1=hook，2=shield） */
+/** 道具 id → 网络数字编码（0=doubleJump，1=hook，2=shield，3=speed） */
 export function itemToNet(id: ItemId): number {
   if (id === 'hook') return 1;
   if (id === 'shield') return 2;
+  if (id === 'speed') return 3;
   return 0;
 }
 
@@ -108,6 +124,7 @@ export function itemToNet(id: ItemId): number {
 export function netToItem(n: number): ItemId {
   if (n === 1) return 'hook';
   if (n === 2) return 'shield';
+  if (n === 3) return 'speed';
   return 'doubleJump';
 }
 
@@ -124,5 +141,21 @@ export function reconcileShield(p: PlayerState): void {
   if (hasItem(p.backpack, 'shield') && p.shieldsMax === 0) {
     // 能力已失效（格挡/超时）但背包残留 → 退出背包
     p.backpack = p.backpack.filter(id => id !== 'shield');
+  }
+}
+
+/**
+ * 加速一致性（invariant：背包有 'speed' ⟺ 移速能力激活中 speedMult > 1）。
+ * 与 reconcileShield 同模式：限时 buff 两条失效路径（超时移除 / 背包权威移除）统一收尾。
+ * 超时路径只 removeModifier，背包清理由本函数统一完成；客机权威同步后也调用。
+ */
+export function reconcileSpeed(p: PlayerState): void {
+  if (!hasItem(p.backpack, 'speed') && p.speedMult > 1) {
+    // 有能力但背包被权威移除（如房主超时移除后广播）→ 同步清除能力
+    removeModifier(p, 'moveSpeed', 'speed');
+  }
+  if (hasItem(p.backpack, 'speed') && p.speedMult <= 1) {
+    // 能力已失效（超时）但背包残留 → 退出背包
+    p.backpack = p.backpack.filter(id => id !== 'speed');
   }
 }

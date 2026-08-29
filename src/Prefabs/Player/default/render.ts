@@ -81,6 +81,51 @@ export function renderDefaultPlayer(
     ctx.globalAlpha = output.alpha;
   }
 
+  // 加速光效（限时加速：青色脉冲光罩 + 尾部 》》速线，外扩到 1.5r，速度感）
+  if (player.speedMult > 1) {
+    const pulse = 0.5 + 0.5 * Math.sin(gs.time * 9);
+    // ① 外层光晕（lighter 叠加，强化存在感）
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = (0.2 + 0.12 * pulse) * output.alpha;
+    const g2 = ctx.createRadialGradient(0, 0, r * 1.1, 0, 0, r * 2.0);
+    g2.addColorStop(0, 'rgba(90,225,255,.5)');
+    g2.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g2;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 2.0, 0, 6.283);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    // ② 主光环（高速旋转感：虚线环呼吸）
+    ctx.globalAlpha = (0.7 + 0.3 * pulse) * output.alpha;
+    ctx.strokeStyle = 'rgba(90,225,255,.95)';
+    ctx.lineWidth = 2.6;
+    ctx.shadowColor = 'rgba(90,225,255,1)';
+    ctx.shadowBlur = 18;
+    ctx.setLineDash([7 * view.SZ, 5 * view.SZ]);
+    ctx.lineDashOffset = -gs.time * 40;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.5, 0, 6.283);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // ③ 尾部 》》速线（面朝反方向拖尾，速度感）
+    ctx.globalAlpha = (0.85 + 0.15 * pulse) * output.alpha;
+    ctx.strokeStyle = '#5ae1ff';
+    ctx.lineWidth = 2.6;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const tx = -player.face * r * 1.35;
+    for (const off of [-1, 1]) {
+      const ox = tx - player.face * off * r * 0.22;
+      ctx.beginPath();
+      ctx.moveTo(ox, off * r * 0.42);
+      ctx.lineTo(ox - player.face * r * 0.6, 0);
+      ctx.lineTo(ox, -off * r * 0.42);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = output.alpha;
+  }
+
   // 双眼（眨眼）
   const blink = (gs.time % 3.4) > 3.25;
   const ew = r * 0.17;

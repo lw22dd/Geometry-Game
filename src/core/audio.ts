@@ -89,6 +89,8 @@ export const sfx = {
   hookPickup(): void { tone('triangle', 660, 660, now(), 0.08, 0.15); tone('square', 880, 660, now() + 0.06, 0.12, 0.08, 2500); },
   /** 护盾拾取：上扬低频双音 */
   shieldPickup(): void { tone('sine', 440, 660, now(), 0.12, 0.14); tone('sine', 660, 880, now() + 0.08, 0.14, 0.12); },
+  /** 加速拾取：快速上滑双音 + 短噪声（冲刺感） */
+  speedPickup(): void { tone('sawtooth', 320, 980, now(), 0.12, 0.13, 2600); tone('square', 520, 1240, now() + 0.06, 0.14, 0.07, 3200); nz(now(), 0.1, 0.05, 1600); },
   /** 护盾破碎：快速下坠 + 短噪声（格挡时） */
   shieldBreak(): void { tone('sawtooth', 600, 120, now(), 0.25, 0.14, 1800); nz(now(), 0.15, 0.07, 1200); },
   /** 钩锁发射：快速上滑 + 短噪声（滑索收绳） */

@@ -82,7 +82,7 @@ export function removeModifier(p: PlayerState, stat: StatId, source: string): vo
 }
 
 /**
- * 重算玩家派生属性（extraJumpsMax / shieldsMax）。
+ * 重算玩家派生属性（extraJumpsMax / shieldsMax / speedMult）。
  * 规则：同一 stat 的 set 修正取最大值；add 修正累加。
  * 语义与旧 grantJumpCharges 一致：上限增加时补充可用次数（拾取即用），上限减少时钳制。
  */
@@ -114,6 +114,14 @@ export function recomputeStats(p: PlayerState): void {
   }
   p.shieldsMax = shields;
   if (p.shields > p.shieldsMax) p.shields = p.shieldsMax;
+
+  // ── moveSpeed → speedMult（水平移速倍率；set 取最大，add 累加；默认 1）──
+  let speed = 1;
+  for (const m of p.modifiers) {
+    if (m.stat !== 'moveSpeed') continue;
+    speed = m.op === 'set' ? Math.max(speed, m.value) : speed + m.value;
+  }
+  p.speedMult = Math.max(0, speed);
 }
 
 /**

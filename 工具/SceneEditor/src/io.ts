@@ -57,9 +57,58 @@ export function openSaveTemplateDialog(store: EditorStore): void {
   saveTplStore = store;
   const nameEl = document.getElementById('templateSaveName') as HTMLInputElement;
   nameEl.value = store.map.name || '';
+  const newEl = document.getElementById('templateSaveNew') as HTMLInputElement | null;
+  if (newEl) {
+    newEl.checked = false;
+    // 勾选/取消「另存为新文件」时即时刷新提示文案
+    newEl.onchange = () => updateSaveTemplateHint(store);
+  }
+  updateSaveTemplateHint(store); // 异步：先更新静态判断，再拉取磁盘注册清单校正
   document.getElementById('templateSaveOverlay')!.classList.remove('hidden');
   nameEl.focus();
   nameEl.select();
+}
+
+/** 从 dev 服务器拉取 src/mapTemplate 磁盘上已注册的模板 id 清单（权威判定依据） */
+async function fetchRegisteredTemplateIds(): Promise<string[]> {
+  try {
+    const r = await fetch('/__dsh-template-save', { method: 'GET' });
+    const j = await r.json();
+    if (j && j.ok && Array.isArray(j.templates)) {
+      return j.templates.map((t: { id?: string }) => t.id ?? '');
+    }
+  } catch { /* dev 服务器不可用 → 回退静态清单 */ }
+  return [];
+}
+
+/** 保存弹窗里的动态提示：编辑既有地图 → 覆盖原文件；新地图/空白画布 → 新建文件；勾选另存 → 派生新文件 */
+async function updateSaveTemplateHint(store: EditorStore): Promise<void> {
+  const hint = document.getElementById('templateSaveHint');
+  if (!hint) return;
+  const newEl = document.getElementById('templateSaveNew') as HTMLInputElement | null;
+  const forceNew = !!newEl?.checked;
+  const id = store.map.id;
+  const existing = MAP_TEMPLATES.find((t) => t.id === id);
+
+  // 勾选「另存为新文件」：无论当前地图是否已注册，一律派生新文件、不覆盖原文件
+  if (forceNew) {
+    hint.innerHTML = existing
+      ? `将<strong>新建</strong>副本 <code>src/mapTemplate/&lt;名称&gt;.ts</code>（<strong>不覆盖</strong>现有模板「${escHtml(existing.name)}」），并注册进 templates.ts。`
+      : `将<strong>新建</strong> <code>src/mapTemplate/&lt;名称&gt;.ts</code> 并注册进 templates.ts。`;
+    return;
+  }
+
+  const isNew = !id || id === 'untitled' || id === 'empty';
+  if (isNew) {
+    hint.innerHTML = `将<strong>新建</strong> <code>src/mapTemplate/&lt;名称&gt;.ts</code> 并注册进 templates.ts。`;
+    return;
+  }
+  // 权威判定：磁盘注册清单优先（新建模板后无需刷新页面即准确），失败则回退打包时静态 MAP_TEMPLATES
+  const diskIds = await fetchRegisteredTemplateIds();
+  const registered = diskIds.length > 0 ? diskIds : MAP_TEMPLATES.map((t) => t.id);
+  hint.innerHTML = registered.includes(id)
+    ? `将<strong>覆盖</strong>现有模板「${escHtml(existing?.name ?? id)}」<code>${escHtml(id)}</code>，不新增文件。改名只更新模板名称，不改变文件。`
+    : `将<strong>新建</strong> <code>src/mapTemplate/&lt;名称&gt;.ts</code> 并注册进 templates.ts。`;
 }
 
 /** 关闭「保存为模板」弹窗 */
@@ -76,6 +125,7 @@ export function confirmSaveTemplate(): void {
   const nameEl = document.getElementById('templateSaveName') as HTMLInputElement;
   const iconEl = document.getElementById('templateSaveIcon') as HTMLSelectElement;
   const descEl = document.getElementById('templateSaveDesc') as HTMLInputElement;
+  const newEl = document.getElementById('templateSaveNew') as HTMLInputElement | null;
   const name = nameEl.value.trim();
   if (!name) { showToast('请输入模板名称', 'error'); nameEl.focus(); return; }
   if (!saveTplStore) { showToast('未找到当前地图', 'error'); return; }
@@ -103,9 +153,15 @@ export function confirmSaveTemplate(): void {
   hideTemplateSave();
 
   // 自动写入 src/mapTemplate/*.ts（dev 服务器中间件；不可用则提示手动导出）
-  saveTemplateSourceToDisk(name, icon, desc, snapshot).then((res) => {
+  const forceNew = !!newEl?.checked;
+  saveTemplateSourceToDisk(name, icon, desc, snapshot, forceNew).then((res) => {
     if (res.ok) {
       removeUserTemplate(tpl.id); // 已固化为内置源码模板，移除浏览器里的重复副本
+      // 新建分支（含 forceNew 另存）：服务器生成了新文件与其 id，把打开地图的 id 同步过去，
+      // 保证「再次保存」是覆盖同一文件，而不是又新建一个副本。
+      if (res.id && !res.updated) {
+        saveTplStore!.setMapMeta({ id: res.id, name });
+      }
       showToast(`已保存为模板「${name}」→ 写入 src/mapTemplate/${res.fileName}（已在 templates.ts 注册）`, 'success');
     } else {
       showToast(`已保存为浏览器模板「${name}」（未自动写入源码：${res.error}）。可用「导出为内置模板源码」手动生成文件`, 'info');
@@ -115,16 +171,23 @@ export function confirmSaveTemplate(): void {
 
 /** 经 dev 服务器把当前地图自动写入 src/mapTemplate/*.ts 并注册（vite.config.ts 的中间件） */
 function saveTemplateSourceToDisk(
-  name: string, icon: string, desc: string, snapshot: MapData,
-): Promise<{ ok: boolean; fileName?: string; error?: string }> {
+  name: string, icon: string, desc: string, snapshot: MapData, forceNew: boolean,
+): Promise<{ ok: boolean; fileName?: string; id?: string; updated?: boolean; error?: string }> {
   return fetch('/__dsh-template-save', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, icon, desc, data: snapshot }),
+    body: JSON.stringify({ name, icon, desc, data: snapshot, forceNew }),
   })
     .then((r) => r.json().catch(() => ({ ok: false, error: '响应解析失败' })))
     .then((j) => {
-      if (j && j.ok) return { ok: true, fileName: j.fileName as string };
+      if (j && j.ok) {
+        return {
+          ok: true,
+          fileName: j.fileName as string,
+          id: j.id as string,
+          updated: j.updated as boolean,
+        };
+      }
       return { ok: false, error: (j && j.error) || '写入失败' };
     })
     .catch(() => ({ ok: false, error: 'dev 服务器不可用（请用 npm run dev 启动编辑器）' }));

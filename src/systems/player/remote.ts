@@ -72,6 +72,8 @@ export interface NetPlayerTrackFields {
   playerId: number;
   x: number; y: number; vx: number; vy: number; face: number;
   grounded: boolean; dead: boolean; sprint: boolean;
+  /** 水平移速倍率（1 = 常态，2 = 加速 buff） */
+  speedMult: number;
   trackOn: boolean; trackDist: number; trackSpeed: number;
   trackEntry: number; trackExit: number;
   trackSegments: PathSegment[];
@@ -93,6 +95,8 @@ export function applyNetPlayers(players: NetPlayerTrackFields[]): void {
     rp.grounded = ps.grounded;
     rp.dead = ps.dead;
     rp.sprint = ps.sprint;
+    // 加速倍率：房主模拟权威（加速光效随位置一起同步）
+    rp.speedMult = ps.speedMult || 1;
     // 轨道状态（无则渲染为自由运动）
     if (ps.trackOn) {
       const cl = buildCumulativeLengths(ps.trackSegments);

@@ -18,7 +18,7 @@ import {
   world,
   Position, Velocity, Collider, Player, PlayerControl, PlayerInput,
   JumpCharges, ShieldCharges, ImpulseQueue, Backpack, PlayerTrackState, PlayerPlat,
-  ITEM_DOUBLE_JUMP, ITEM_HOOK, ITEM_SHIELD, PlayerModifiers, ControlMode,
+  ITEM_DOUBLE_JUMP, ITEM_HOOK, ITEM_SHIELD, ITEM_SPEED, PlayerModifiers, ControlMode,
 } from '../../core/ecs';
 import { qLocalPlayer } from '../../core/ecs';
 import type { ItemId, PlayerState, TrackState } from '../../types';
@@ -31,10 +31,11 @@ export function getPlayerEid(): number {
   return playerEid;
 }
 
-/** 道具 id → 背包编码（与 Backpack 组件常量一致；0=doubleJump，1=hook，2=shield） */
+/** 道具 id → 背包编码（与 Backpack 组件常量一致；0=doubleJump，1=hook，2=shield，3=speed） */
 function itemToCode(id: ItemId): number {
   if (id === 'hook') return ITEM_HOOK;
   if (id === 'shield') return ITEM_SHIELD;
+  if (id === 'speed') return ITEM_SPEED;
   return ITEM_DOUBLE_JUMP;
 }
 
@@ -42,6 +43,7 @@ function itemToCode(id: ItemId): number {
 function codeToItem(code: number): ItemId {
   if (code === ITEM_HOOK) return 'hook';
   if (code === ITEM_SHIELD) return 'shield';
+  if (code === ITEM_SPEED) return 'speed';
   return 'doubleJump';
 }
 
@@ -109,6 +111,7 @@ export function syncToEcs(p: PlayerState): void {
   PlayerControl.hookCd[e] = p.hookCd;
   PlayerControl.hookMissT[e] = p.hookMissT;
   PlayerControl.selectedSlot[e] = p.selectedSlot;
+  PlayerControl.speedMult[e] = p.speedMult;
 
   // 契约组件：空中跳充能 / 护盾格挡 / 外力队列
   JumpCharges.left[e] = p.extraJumps;
@@ -162,6 +165,7 @@ export function syncFromEcs(e: number = playerEid): PlayerState | null {
     hookCd: PlayerControl.hookCd[e],
     hookMissT: PlayerControl.hookMissT[e],
     selectedSlot: PlayerControl.selectedSlot[e],
+    speedMult: PlayerControl.speedMult[e] ?? 1,
   };
 }
 

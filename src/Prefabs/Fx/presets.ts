@@ -121,6 +121,17 @@ export const FX: Record<string, FxPreset> = {
     spin: { start: [0, 3], rate: [-6, 6] },
   },
 
+  /** 加速拾取：青白横向冲刺射线（沿 ±X 扩散，冲刺感） */
+  speedBoost: {
+    count: 12,
+    kind: 'dot',
+    vel: { mode: 'axis', vx: [-7, 7], vy: [-1.2, 1.2] },
+    gravity: 0,
+    life: [0.4, 0.6],
+    size: [0.07, 0.1],
+    colors: ['#8ff6ff', '#ffffff', '#59d4ff'],
+  },
+
   /** 光球环境光尘：单颗缓慢上浮，青白（emitItemAmbient 每 0.5s 发 1 颗） */
   orbAmbient: {
     count: 1,

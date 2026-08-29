@@ -139,6 +139,8 @@ type PlayerState struct {
 	Sprint    bool    `json:"sprint"`
 	Squash    float64 `json:"squash"`
 	Inv       float64 `json:"inv"`
+	// 水平移速倍率（1 = 常态，2 = 加速 buff）
+	SpeedMult float64 `json:"speedMult"`
 	HasPlat   bool    `json:"hasPlat"`
 	PlatDx    float64 `json:"platDx,omitempty"`
 	// Track 状态（含钩锁滑索）

@@ -313,6 +313,30 @@ html, body {
   font-family: inherit;
 }
 .field-input:focus { border-color: var(--accent); outline: none; }
+.save-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(100, 70, 255, 0.08);
+  border: 1px dashed var(--border);
+  border-radius: 3px;
+  padding: 6px 8px;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+.save-hint strong { color: var(--accent-light); }
+.save-hint code { color: var(--accent-light); font-size: 11px; }
+.field-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.field-check input { accent-color: var(--accent); cursor: pointer; }
+.field-check label { cursor: pointer; }
 .btn-group { display: flex; gap: 6px; margin-top: 10px; }
 .btn {
   flex: 1;

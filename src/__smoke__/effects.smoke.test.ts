@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { createPlayerState } from '../systems/player/createPlayerState';
 import { applyEffect, consumeImpulses, applyModifier, removeModifier, recomputeStats, stepBuffTimers } from '../systems/effects';
-import { ITEMS, reconcileShield } from '../systems/items/backpack';
+import { ITEMS, reconcileShield, reconcileSpeed } from '../systems/items/backpack';
 import type { PlayerState } from '../types';
 
 /** 最小玩家状态（工厂构造；测试只改需要验证的字段） */
@@ -203,6 +203,69 @@ describe('护盾（限时 buff · 刷新式）', () => {
     ITEMS['shield'].onPickup?.(p);
     expect(p.modifiers).toHaveLength(1);
     expect(p.shieldsMax).toBe(1);
+    expect(p.modifiers[0].t ?? 0).toBeGreaterThan(tBefore);
+  });
+});
+
+describe('加速（限时 buff · 刷新式）', () => {
+  it('拾取经 Modifier 管道获得 speedMult=2（含限时 dur/t）', () => {
+    const p = fresh();
+    p.backpack.push('speed');
+    ITEMS['speed'].onPickup?.(p);
+    expect(p.speedMult).toBe(2);
+    expect(p.modifiers).toEqual([
+      { stat: 'moveSpeed', op: 'set', value: 2, source: 'speed', dur: expect.any(Number), t: expect.any(Number) },
+    ]);
+  });
+
+  it('stepBuffTimers 到期自动失效（背包由 reconcileSpeed 退出）', () => {
+    const p = fresh();
+    p.backpack.push('speed');
+    ITEMS['speed'].onPickup?.(p);
+    expect(p.speedMult).toBe(2);
+    // 到期前仍在
+    stepBuffTimers(p, 5);
+    expect(p.speedMult).toBe(2);
+    // 越过到期点
+    const expired = stepBuffTimers(p, 5.1);
+    expect(expired.some(e => e.source === 'speed')).toBe(true);
+    expect(p.speedMult).toBe(1);
+    // 背包自动退出（invariant）
+    expect(p.backpack).toContain('speed');
+    reconcileSpeed(p);
+    expect(p.backpack).not.toContain('speed');
+  });
+
+  it('reconcileSpeed 双方向一致：超时清背包 / 背包权威移除后清能力', () => {
+    // 方向一：能力超时失效（removeModifier）但背包残留 → 清背包
+    const p = fresh();
+    p.backpack.push('speed');
+    ITEMS['speed'].onPickup?.(p);
+    removeModifier(p, 'moveSpeed', 'speed');
+    expect(p.backpack).toContain('speed');
+    reconcileSpeed(p);
+    expect(p.backpack).not.toContain('speed');
+
+    // 方向二：有能力但背包被权威移除（房主超时广播）→ 清能力
+    const q = fresh();
+    ITEMS['speed'].onPickup?.(q);
+    expect(q.speedMult).toBe(2);
+    q.backpack = [];
+    reconcileSpeed(q);
+    expect(q.speedMult).toBe(1);
+  });
+
+  it('再拾取 = 重置计时（同键替换不叠加倍率）', () => {
+    const p = fresh();
+    p.backpack.push('speed');
+    ITEMS['speed'].onPickup?.(p);
+    stepBuffTimers(p, 7);
+    const tBefore = p.modifiers[0].t ?? 0;
+    expect(tBefore).toBeLessThan(10);
+    // 再拾取 → 计时重置，倍率仍为 ×2（不叠加）
+    ITEMS['speed'].onPickup?.(p);
+    expect(p.modifiers).toHaveLength(1);
+    expect(p.speedMult).toBe(2);
     expect(p.modifiers[0].t ?? 0).toBeGreaterThan(tBefore);
   });
 });

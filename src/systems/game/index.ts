@@ -19,7 +19,7 @@ import { updateMotion, updateLaserTimer, updateSpringPads } from '../level';
 import { stepAnimation } from '../animation';
 import {
   drawParallax, drawGrid, drawBorder, drawDecos, drawSolids, drawFloor, drawMovers, drawSpringPads,
-  drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawJumpBoosts, drawHookPickups, drawShieldPickups, drawNOVA,
+  drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawJumpBoosts, drawHookPickups, drawShieldPickups, drawSpeedPickups, drawNOVA,
   drawTrail, drawParticles, drawHints, drawTracks,
   drawMotes, stepMotes, drawFog, emitItemAmbient,
 } from '../../Prefabs/Scenes';
@@ -44,7 +44,7 @@ import { initCollisionHooks, updateCollectSystem, updateRespawnPointSystem, upda
 import { buildCumulativeLengths, pathTotalLength } from '../../core/path';
 import { mouse } from '../../core/mouse';
 import { drawHookAim, drawHookRope, mouseAimDir, defaultAimDir } from '../items/hook';
-import { addItem, ITEMS, itemToNet, netToItem, reconcileShield } from '../items/backpack';
+import { addItem, ITEMS, itemToNet, netToItem, reconcileShield, reconcileSpeed } from '../items/backpack';
 import { stepActiveItem } from '../items/activeItem';
 import { applyEffect, stepBuffTimers } from '../effects';
 import { fireTriggers } from '../effects/TriggerSystem';
@@ -224,7 +224,7 @@ function step(dt: number): void {
   // 物理 + 碰撞 + 动画（单机/房主/客机统一走 controller.step）
   playerController.step(dt, getMode(), true);
 
-  // 限时 buff 计时（护盾等）：到期自动失效（死亡分支已提前 return → 死亡期间计时暂停）
+  // 限时 buff 计时（护盾/加速等）：到期自动失效（死亡分支已提前 return → 死亡期间计时暂停）
   const expired = stepBuffTimers(pState, dt);
   for (const ex of expired) {
     ITEMS[ex.source as ItemId]?.onExpire?.(pState);
@@ -232,9 +232,15 @@ function step(dt: number): void {
       gs.toast = '护盾失效';
       gs.toastT = 2;
     }
+    if (ex.source === 'speed') {
+      gs.toast = '加速失效';
+      gs.toastT = 2;
+    }
   }
   // 护盾一致性：格挡消耗 / 超时两条失效路径统一收尾（背包自动退出）
   reconcileShield(pState);
+  // 加速一致性：超时失效路径统一收尾（背包自动退出）
+  reconcileSpeed(pState);
 
   // 7. 主动道具（S7 槽位 ActiveItemSystem）：按选中槽位派发（本地鼠标边沿/瞄准）
   //    必须在 syncToEcs 之前：钩锁写 track/hookCd 到副本，随步末统一写回组件
@@ -349,6 +355,12 @@ function stepRemoteClients(dt: number): void {
       ITEMS['shield'].onPickup?.(rp);
       signals.shieldPicked = true;
     }
+    // 远程玩家加速道具收集（背包被动道具 · 限时 buff）
+    if (updateItemPickupSystem(rp.x, rp.y, 'speed')) {
+      if (rp.speedMult <= 1) addItem(rp.backpack, 'speed');
+      ITEMS['speed'].onPickup?.(rp);
+      signals.speedPicked = true;
+    }
 
     // 远程玩家钩锁（客机上报鼠标瞄准 + 左键按住状态；沿 = hold && !prev）
     // S7 槽位统一派发：与本地共用 ActiveItemSystem，逻辑去重
@@ -362,12 +374,14 @@ function stepRemoteClients(dt: number): void {
       sfx: false,
     });
 
-    // 限时 buff 计时（护盾等）：房主是计时权威，超时移除 → 背包权威同步给客机
+    // 限时 buff 计时（护盾/加速等）：房主是计时权威，超时移除 → 背包权威同步给客机
     const rpExpired = stepBuffTimers(rp, dt);
     for (const ex of rpExpired) {
       if (ex.source === 'shield') ITEMS['shield'].onExpire?.(rp);
+      if (ex.source === 'speed') ITEMS['speed'].onExpire?.(rp);
     }
     reconcileShield(rp);
+    reconcileSpeed(rp);
 
     stepPlayerAnimation(rp, dt, signals);
   }
@@ -384,6 +398,7 @@ function broadcastHostState(): void {
     x: pS.x, y: pS.y, vx: pS.velocity.x, vy: pS.velocity.y,
     face: pS.face, grounded: pS.grounded, dead: pS.dead,
     sprint: pS.sprint, inv: pS.inv,
+    speedMult: pS.speedMult,
     hasPlat: pS.plat !== null, platDx: pS.plat ? pS.plat.dx : 0,
     ...packTrack(pS.track),
     backpack: pS.backpack.map(itemToNet),
@@ -396,6 +411,7 @@ function broadcastHostState(): void {
       x: rp.x, y: rp.y, vx: rp.velocity.x, vy: rp.velocity.y,
       face: rp.face, grounded: rp.grounded, dead: rp.dead,
       sprint: rp.sprint, inv: rp.inv,
+      speedMult: rp.speedMult,
       hasPlat: false, platDx: 0,
       ...packTrack(rp.track),
       backpack: rp.backpack.map(itemToNet),
@@ -512,6 +528,8 @@ function wireNetEvents(): void {
         }
         // 护盾一致性：房主超时移除护盾 → 本地盾能力随之清除（背包为权威）
         reconcileShield(pS);
+        // 加速一致性：房主超时移除加速 → 本地速度倍率随之清除（背包为权威）
+        reconcileSpeed(pS);
       }
 
       // 步外权威矫正：立即写回组件，防下帧 hydrateFrom 覆盖
@@ -573,6 +591,10 @@ function wireNetEvents(): void {
         break;
       case 'shieldpickup':
         gs.toast = '队友拾取了护盾';
+        gs.toastT = 2;
+        break;
+      case 'speedpickup':
+        gs.toast = '队友拾取了加速';
         gs.toastT = 2;
         break;
       case 'win':
@@ -730,6 +752,7 @@ function renderGame(dt: number): void {
   drawJumpBoosts();
   drawHookPickups();
   drawShieldPickups();
+  drawSpeedPickups();
   drawNOVA(pulse);
   drawTrail();
   drawParticles();

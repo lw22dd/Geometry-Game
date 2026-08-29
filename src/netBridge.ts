@@ -28,6 +28,9 @@ netBus.on(e => {
     case 'game:shieldpickup':
       net.sendHostEvent('shieldpickup', {});
       break;
+    case 'game:speedpickup':
+      net.sendHostEvent('speedpickup', {});
+      break;
     case 'game:death':
       net.sendHostEvent('death', { deaths: e.deaths });
       break;

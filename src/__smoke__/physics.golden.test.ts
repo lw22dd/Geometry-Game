@@ -56,6 +56,7 @@ function freshPlayer(x = 6, y = 4): PlayerState {
     sprint: false, wasSpr: false, inv: 0,
     extraJumps: 0, extraJumpsMax: 0,
     shields: 0, shieldsMax: 0,
+    speedMult: 1,
     modifiers: [],
     jumpWasDown: false, jumpFresh: false,
     impulses: [],

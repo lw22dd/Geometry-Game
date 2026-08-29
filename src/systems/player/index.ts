@@ -243,8 +243,8 @@ function stepFreePhysics(
   p.wasSpr = spr;
   p.sprint = spr;
 
-  // 水平加速度
-  const target = dir * (spr ? SPRINT : RUN);
+  // 水平加速度（移速倍率由 Modifier 管道重算：默认 1，加速 buff = 2）
+  const target = dir * (spr ? SPRINT : RUN) * (p.speedMult > 0 ? p.speedMult : 1);
   const acc = p.grounded ? (dir !== 0 ? 90 : 120) : ph.air;
   const dv = target - p.velocity.x;
   const st = acc * dt;

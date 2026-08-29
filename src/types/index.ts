@@ -16,8 +16,8 @@ export interface Impulse {
   t: number;
 }
 
-/** 玩家属性 id（Modifier 管道目标属性；扩展位：moveSpeed / jumpHeight / hookRange ...） */
-export type StatId = 'jumpCharges' | 'shields';
+/** 玩家属性 id（Modifier 管道目标属性；扩展位：jumpHeight / hookRange ...） */
+export type StatId = 'jumpCharges' | 'shields' | 'moveSpeed';
 
 /** 数值修正条目：目标属性 + 覆盖/累加 + 数值 + 来源（来源用于幂等替换） */
 export interface StatModifier {
@@ -178,7 +178,7 @@ export interface TrackState {
 /* ==================== 背包/道具 ==================== */
 
 /** 道具 id */
-export type ItemId = 'doubleJump' | 'hook' | 'shield';
+export type ItemId = 'doubleJump' | 'hook' | 'shield' | 'speed';
 
 /** 道具类别：主动（玩家触发）/ 被动（拾取即生效常驻） */
 export type ItemCategory = 'active' | 'passive';
@@ -222,6 +222,8 @@ export interface PlayerState {
   shields: number;
   /** 护盾最大格数（由 modifier 管道重算；0 = 未激活） */
   shieldsMax: number;
+  /** 水平移速倍率（由 modifier 管道重算；1 = 常态，2 = 加速 buff） */
+  speedMult: number;
   /** 数值修正列表（Modifier 管道：影响来源投递，recomputeStats 重算 extraJumpsMax 等） */
   modifiers: StatModifier[];
   /** 上一物理步跳跃键是否按下（用于二段跳"新按下沿"检测：按下一次跳一次） */
@@ -305,6 +307,8 @@ export interface FrameSignals {
   hookPicked?: boolean;
   /** 本帧拾取了护盾道具 */
   shieldPicked?: boolean;
+  /** 本帧拾取了加速道具 */
+  speedPicked?: boolean;
   /** 本帧触发了弹簧平台 */
   spring?: boolean;
   /** 本帧使用了空中二段跳 */
@@ -374,6 +378,8 @@ export interface MapDefinition {
     hooks?: [number, number][];
     /** 护盾道具坐标（可选；限时护盾：格挡一次或超时自动失效） */
     shields?: [number, number][];
+    /** 加速道具坐标（可选；限时加速：速度 ×2，超时自动失效） */
+    speeds?: [number, number][];
     checkpoints: [number, number][];
     nova: { x: number; y: number };
     /** 冲刺轨道（可选；无轨道的地图省略） */
@@ -389,6 +395,7 @@ export type NetBusEvent =
   | { type: 'game:jumpboost' }
   | { type: 'game:hookpickup' }
   | { type: 'game:shieldpickup' }
+  | { type: 'game:speedpickup' }
   | { type: 'game:death'; deaths: number }
   | { type: 'game:win'; time: number; orbs: number; total: number; x: number; y: number; playerId: number }
   // ── 特效同步：死亡/护盾破碎特效由房主广播（房主是判定权威）──
@@ -444,6 +451,8 @@ export interface NetPlayerState {
   dead: boolean;
   sprint: boolean;
   inv: number;
+  /** 水平移速倍率（1 = 常态，2 = 加速 buff；用于客机渲染远程玩家加速光效） */
+  speedMult: number;
   hasPlat: boolean;
   platDx: number;
   /** 轨道运动状态 */
@@ -459,7 +468,7 @@ export interface NetPlayerState {
   trackExit: number;
   /** 路径段定义（客户端由此重建 TrackState） */
   trackSegments: PathSegment[];
-  /** 背包道具（数字编码：0=doubleJump, 1=hook） */
+  /** 背包道具（数字编码：0=doubleJump, 1=hook, 2=shield, 3=speed） */
   backpack: number[];
 }
 

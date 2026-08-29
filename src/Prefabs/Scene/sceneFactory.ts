@@ -12,7 +12,7 @@ import { world } from '../../core/ecs';
 import {
   Position, Velocity, Collider, PathMotion, SpringPad, Timer, Hazard,
   Collectible, RespawnPoint, Goal, Track, Aura, Renderable, Animator, TrackGeom,
-  Hookable, Orb, JumpBoost, Hook, ShieldPickup, renderStyles,
+  Hookable, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, renderStyles,
 } from '../../core/ecs';
 import type { PathSegment } from '../../types';
 import type { LaserSpawnData, MoverSpawnData, SpringPadSpawnData } from '../../types';
@@ -29,6 +29,7 @@ export const STYLE_HOOK = 2;
 export const STYLE_CHECKPOINT = 3;
 export const STYLE_NOVA = 4;
 export const STYLE_SHIELD = 5;
+export const STYLE_SPEED = 6;
 
 /** 写入手写样式表（renderStyles 为 src/ecs 注册表；幂等） */
 function ensureStyles(): void {
@@ -40,6 +41,7 @@ function ensureStyles(): void {
     { bodyGrad: ['#7df9ff', '#7df9ff', '#7df9ff'], glow: '#7df9ff' },                    // 3 checkpoint
     { bodyGrad: ['#f2e4ff', '#e3ccff', '#c07dff'], glow: '#c07dff' },                    // 4 nova
     { bodyGrad: ['#e8f0ff', '#b3c7ff', '#7d6bff'], glow: 'rgba(150,140,255,.85)' },      // 5 shield
+    { bodyGrad: ['#eaffff', '#8ff6ff', '#59d4ff'], glow: 'rgba(120,230,255,.85)' },      // 6 speed
   );
 }
 
@@ -123,6 +125,20 @@ export function createShieldPickup(x: number, y: number, phase: number): number 
   addComponent(world, e, ShieldPickup);
   setRenderable(e, 0.45, STYLE_SHIELD);
   // 复用 hover 动画控制器（浮动/摇摆），绘制层按 shield 样式画盾形
+  setAnimator(e, 'jumpBoost', createHoverAnimState({ phase }));
+  return e;
+}
+
+/** 加速道具（限时 buff：拾取后水平移速 ×2，超时自动失效） */
+export function createSpeedPickup(x: number, y: number, phase: number): number {
+  ensureStyles();
+  const e = addEntity(world);
+  setPosition(e, x, y);
+  setCollider(e, 1.2, 1.2, 0);
+  addComponent(world, e, Collectible); Collectible.collected[e] = 0;
+  addComponent(world, e, SpeedPickup);
+  setRenderable(e, 0.45, STYLE_SPEED);
+  // 复用 hover 动画控制器（浮动/摇摆），绘制层按 speed 样式画「》》」双箭头
   setAnimator(e, 'jumpBoost', createHoverAnimState({ phase }));
   return e;
 }
