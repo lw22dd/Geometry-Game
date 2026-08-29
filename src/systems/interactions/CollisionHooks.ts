@@ -10,7 +10,7 @@
  *   enter:player:goal        → 终点登顶
  */
 import { hasComponent } from 'bitecs';
-import { world, Position, Collider, Timer, Hazard, Collectible, RespawnPoint, Goal, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, MagnetPickup, qCheckpoints } from '../../core/ecs';
+import { world, Position, Collider, Timer, Hazard, Collectible, RespawnPoint, Goal, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, qCheckpoints } from '../../core/ecs';
 import { collisionBus } from '../../core/collisionBus';
 import { gs } from '../game/gameState';
 import { playerController } from '../player';
@@ -79,14 +79,6 @@ const PICKUP_RULES: PickupRule[] = [
     fx: (x, y) => spawnParticles(FX.speedBoost, x, y, 6),
     sfx: () => sfx.speedPickup(),
     toast: '极速冲刺！移速 ×2',
-    toastT: 2.5,
-  },
-  {
-    tag: MagnetPickup,
-    item: 'magnet',
-    fx: (x, y) => spawnParticles(FX.magnetBurst, x, y),
-    sfx: () => sfx.magnet(),
-    toast: '磁铁已装备！自动吸引附近光球',
     toastT: 2.5,
   },
 ];

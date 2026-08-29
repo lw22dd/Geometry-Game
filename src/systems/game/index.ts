@@ -19,7 +19,7 @@ import { updateMotion, updateLaserTimer, updateSpringPads, updateCollisionSystem
 import { stepAnimation } from '../animation';
 import {
   drawParallax, drawGrid, drawBorder, drawDecos, drawSolids, drawFloor, drawMovers, drawSpringPads,
-  drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawJumpBoosts, drawHookPickups, drawShieldPickups, drawSpeedPickups, drawMagnets, drawNOVA,
+  drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawJumpBoosts, drawHookPickups, drawShieldPickups, drawSpeedPickups, drawNOVA,
   drawTrail, drawParticles, drawHints, drawTracks,
   drawMotes, stepMotes, drawFog, emitItemAmbient,
 } from '../../Prefabs/Scenes';
@@ -52,7 +52,6 @@ import { packTrack, unpackTrack } from '../../core/trackCodec';
 import { mouse } from '../../core/mouse';
 import { drawHookAim, drawHookRope, mouseAimDir, defaultAimDir } from '../items/hook';
 import { itemToNet, netToItem, reconcileShield, reconcileSpeed, ITEMS } from '../items/backpack';
-import { stepMagnetAttraction } from '../items/magnet';
 import { wireTriggerSystem } from '../effects/TriggerSystem';
 import { stepAuraSystem, resetAuraState } from '../level/AuraSystem';
 
@@ -196,9 +195,6 @@ function step(dt: number): void {
     if (!rp.dead) auraPlayers.push({ id, state: rp });
   }
   stepAuraSystem(dt, auraPlayers);
-
-  // 2.6 磁铁吸引（持磁铁玩家拉近光球；须早于玩家碰撞检测 → 放在步进玩家前）
-  stepMagnetAttraction(dt);
 
   // 3. 实体动画 FSM 步进（场景道具 / 未来敌人 / NPC；输出在渲染帧由绘制层实时求值）
   stepAnimation(dt);
@@ -715,7 +711,6 @@ function renderGame(dt: number): void {
   drawHookPickups();
   drawShieldPickups();
   drawSpeedPickups();
-  drawMagnets();
   drawNOVA(pulse);
   drawTrail();
   drawParticles();

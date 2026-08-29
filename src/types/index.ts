@@ -178,7 +178,7 @@ export interface TrackState {
 /* ==================== 背包/道具 ==================== */
 
 /** 道具 id */
-export type ItemId = 'doubleJump' | 'hook' | 'shield' | 'speed' | 'magnet';
+export type ItemId = 'doubleJump' | 'hook' | 'shield' | 'speed';
 
 /** 道具类别：主动（玩家触发）/ 被动（拾取即生效常驻） */
 export type ItemCategory = 'active' | 'passive';
@@ -380,8 +380,6 @@ export interface MapDefinition {
     shields?: [number, number][];
     /** 加速道具坐标（可选；限时加速：速度 ×2，超时自动失效） */
     speeds?: [number, number][];
-    /** 磁铁道具坐标（可选；被动：持有时吸引附近光球） */
-    magnets?: [number, number][];
     checkpoints: [number, number][];
     nova: { x: number; y: number };
     /** 冲刺轨道（可选；无轨道的地图省略） */

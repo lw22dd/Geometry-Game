@@ -13,7 +13,6 @@ import { getAnimator } from '../../Prefabs/Animations';
 
 // ── 副作用导入：注册内建实体动画控制器（模块加载时 registerAnimator）──
 import '../../Prefabs/Scenes/itemsAnimators';
-import '../../Prefabs/Animations/magnet';
 
 /**
  * 步进所有带 Animator 的实体（物理子步调用）。

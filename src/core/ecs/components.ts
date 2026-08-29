@@ -77,7 +77,6 @@ export const JumpBoost = {};
 export const Hook = {};
 export const ShieldPickup = {};
 export const SpeedPickup = {};
-export const MagnetPickup = {};
 
 /** 检查点 */
 export const RespawnPoint = { active: [] as number[], nearby: [] as number[] };

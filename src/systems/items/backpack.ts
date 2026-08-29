@@ -96,15 +96,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     }),
     // 到期表现由 game 层按 stepBuffTimers 到期列表处理（toast/粒子）；此处保持纯。
   },
-  magnet: {
-    id: 'magnet',
-    code: 4,
-    name: '磁铁',
-    category: 'passive',
-    // 被动效果：持续吸引附近光球（由 systems/items/magnet 读取背包持有；
-    // 非常驻 Modifier、无时限 —— 不需要 onPickup 直写任何字段）
-  },
-};
+  };
 
 /**
  * 按来源取道具定义（Modifier source 为自由键：道具 id / 机制名）。
