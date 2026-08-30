@@ -33,6 +33,14 @@ netBus.on(e => {
     case 'game:win':
       net.sendHostEvent('win', { time: e.time, orbs: e.orbs, total: e.total, x: e.x, y: e.y, playerId: e.playerId });
       break;
+    // ── 密码机完成（第五人格式）：房主权威 → 广播给客机 toast ──
+    case 'game:cipherDone':
+      net.sendHostEvent('cipher_done', { x: e.x, y: e.y });
+      break;
+    // ── 宝箱开启：房主权威 → 广播给客机（队友开启提示）──
+    case 'game:chestOpened':
+      net.sendHostEvent('chest_opened', { x: e.x, y: e.y, chestType: e.chestType });
+      break;
     // ── 死亡特效：房主是死亡判定权威，广播给客机播放 ──
     case 'fx:death':
       net.sendHostEvent('fx_death', { x: e.x, y: e.y, playerId: e.playerId });

@@ -1,6 +1,6 @@
 /* 由 sync-prefabs.mjs 自动生成，请勿手动编辑 */
 window.PREFABS_DATA = {
-  "generatedAt": "2026-08-30T07:36:07.831Z",
+  "generatedAt": "2026-08-30T09:41:26.947Z",
   "source": "src/Prefabs",
   "categories": [
     {
@@ -90,6 +90,31 @@ window.PREFABS_DATA = {
         {
           "id": "checkpoint",
           "name": "检查点",
+          "file": "Scenes/items.ts"
+        },
+        {
+          "id": "cipher",
+          "name": "密码机（破译中）",
+          "file": "Scenes/items.ts"
+        },
+        {
+          "id": "cipherDone",
+          "name": "密码机（已完成）",
+          "file": "Scenes/items.ts"
+        },
+        {
+          "id": "chestReady",
+          "name": "宝箱（可开启）",
+          "file": "Scenes/items.ts"
+        },
+        {
+          "id": "chestCooling",
+          "name": "宝箱（冷却中）",
+          "file": "Scenes/items.ts"
+        },
+        {
+          "id": "chestOpen",
+          "name": "宝箱（开启中）",
           "file": "Scenes/items.ts"
         }
       ]
@@ -899,6 +924,417 @@ window.PREFABS_DATA = {
             "r0": null,
             "r1": null,
             "lw": null
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "cipherSparks",
+          "name": "cipherSparks",
+          "fx": {
+            "count": 6,
+            "kind": "dot",
+            "colors": [
+              "#8ff6ff",
+              "#ffb44d",
+              "#ffffff"
+            ],
+            "gravity": 0,
+            "life": [
+              0.4,
+              0.6
+            ],
+            "size": [
+              0.07,
+              0.1
+            ],
+            "vel": {
+              "mode": "axis",
+              "vx": [
+                -1.2,
+                1.2
+              ],
+              "vy": [
+                1.5,
+                3.5
+              ]
+            },
+            "r0": null,
+            "r1": null,
+            "lw": null
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "cipherDone",
+          "name": "cipherDone",
+          "fx": {
+            "count": 18,
+            "kind": "frag",
+            "colors": [
+              "#7de8ff",
+              "#ffb44d",
+              "#c77dff",
+              "#ffffff"
+            ],
+            "gravity": 10,
+            "life": [
+              0.5,
+              0.9
+            ],
+            "size": [
+              0.1,
+              0.2
+            ],
+            "vel": {
+              "mode": "radial",
+              "speed": [
+                2.5,
+                8
+              ],
+              "vyBias": 3
+            },
+            "r0": null,
+            "r1": null,
+            "lw": null
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "chestOpen",
+          "name": "chestOpen",
+          "fx": {
+            "count": 14,
+            "kind": "dot",
+            "colors": [
+              "#ffd76b",
+              "#8ff6ff",
+              "#ffffff"
+            ],
+            "gravity": 4,
+            "life": [
+              0.5,
+              0.8
+            ],
+            "size": [
+              0.07,
+              0.12
+            ],
+            "vel": {
+              "mode": "axis",
+              "vx": [
+                -2,
+                2
+              ],
+              "vy": [
+                2.5,
+                5.5
+              ]
+            },
+            "r0": null,
+            "r1": null,
+            "lw": null
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "chestRing",
+          "name": "chestRing",
+          "fx": {
+            "count": 1,
+            "kind": "ring",
+            "colors": [
+              "#ffd76b",
+              "#ffffff"
+            ],
+            "gravity": 0,
+            "life": [
+              0.4,
+              0.4
+            ],
+            "size": [
+              0.1,
+              0.1
+            ],
+            "vel": {
+              "mode": "axis",
+              "vx": [
+                0,
+                0
+              ],
+              "vy": [
+                0,
+                0
+              ]
+            },
+            "r0": [
+              0.2,
+              0.2
+            ],
+            "r1": [
+              2.6,
+              3.2
+            ],
+            "lw": 2.5
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "chestReady",
+          "name": "chestReady",
+          "fx": {
+            "count": 8,
+            "kind": "dot",
+            "colors": [
+              "#8ff6ff",
+              "#ffffff"
+            ],
+            "gravity": 0,
+            "life": [
+              0.5,
+              0.7
+            ],
+            "size": [
+              0.06,
+              0.1
+            ],
+            "vel": {
+              "mode": "axis",
+              "vx": [
+                -1.2,
+                1.2
+              ],
+              "vy": [
+                1.5,
+                3.5
+              ]
+            },
+            "r0": null,
+            "r1": null,
+            "lw": null
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "cipherScan",
+          "name": "cipherScan",
+          "fx": {
+            "count": 3,
+            "kind": "dot",
+            "colors": [
+              "#bfffff",
+              "#8ff6ff",
+              "#ffd08a"
+            ],
+            "gravity": -0.15,
+            "life": [
+              0.45,
+              0.75
+            ],
+            "size": [
+              0.03,
+              0.05
+            ],
+            "vel": {
+              "mode": "axis",
+              "vx": [
+                -0.25,
+                0.25
+              ],
+              "vy": [
+                0.25,
+                0.75
+              ]
+            },
+            "r0": null,
+            "r1": null,
+            "lw": null
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "cipherSteam",
+          "name": "cipherSteam",
+          "fx": {
+            "count": 12,
+            "kind": "dot",
+            "colors": [
+              "#cfffe9",
+              "#8ff6ff",
+              "#ffffff"
+            ],
+            "gravity": -0.5,
+            "life": [
+              0.7,
+              1.2
+            ],
+            "size": [
+              0.07,
+              0.15
+            ],
+            "vel": {
+              "mode": "axis",
+              "vx": [
+                -0.9,
+                0.9
+              ],
+              "vy": [
+                1.4,
+                2.8
+              ]
+            },
+            "r0": null,
+            "r1": null,
+            "lw": null
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "chestUnlock",
+          "name": "chestUnlock",
+          "fx": {
+            "count": 8,
+            "kind": "frag",
+            "colors": [
+              "#ffd76b",
+              "#fff3cf",
+              "#9aa4b8"
+            ],
+            "gravity": 20,
+            "life": [
+              0.25,
+              0.45
+            ],
+            "size": [
+              0.04,
+              0.08
+            ],
+            "vel": {
+              "mode": "radial",
+              "speed": [
+                2,
+                5.5
+              ],
+              "vyBias": 1.5
+            },
+            "r0": null,
+            "r1": null,
+            "lw": null
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "chestBeam",
+          "name": "chestBeam",
+          "fx": {
+            "count": 7,
+            "kind": "streak",
+            "colors": [
+              "#ffd76b",
+              "#fff3cf",
+              "#ffffff"
+            ],
+            "gravity": 0,
+            "life": [
+              0.32,
+              0.5
+            ],
+            "size": [
+              0.05,
+              0.09
+            ],
+            "vel": {
+              "mode": "axis",
+              "vx": [
+                -0.45,
+                0.45
+              ],
+              "vy": [
+                6,
+                9.5
+              ]
+            },
+            "r0": null,
+            "r1": null,
+            "lw": 3
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "chestDust",
+          "name": "chestDust",
+          "fx": {
+            "count": 10,
+            "kind": "dot",
+            "colors": [
+              "#9fb8ff",
+              "#c8d4ff",
+              "#ffffff"
+            ],
+            "gravity": 3,
+            "life": [
+              0.35,
+              0.6
+            ],
+            "size": [
+              0.05,
+              0.1
+            ],
+            "vel": {
+              "mode": "axis",
+              "vx": [
+                -3.2,
+                3.2
+              ],
+              "vy": [
+                0.2,
+                1.1
+              ]
+            },
+            "r0": null,
+            "r1": null,
+            "lw": null
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "lootPop",
+          "name": "lootPop",
+          "fx": {
+            "count": 1,
+            "kind": "ring",
+            "colors": [
+              "#ffd76b",
+              "#ffffff"
+            ],
+            "gravity": 0,
+            "life": [
+              0.42,
+              0.42
+            ],
+            "size": [
+              0.1,
+              0.1
+            ],
+            "vel": {
+              "mode": "axis",
+              "vx": [
+                0,
+                0
+              ],
+              "vy": [
+                0,
+                0
+              ]
+            },
+            "r0": [
+              0.12,
+              0.12
+            ],
+            "r1": [
+              0.95,
+              1.3
+            ],
+            "lw": 2
           },
           "file": "Fx/presets.ts"
         }

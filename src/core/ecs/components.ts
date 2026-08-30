@@ -96,6 +96,38 @@ export const RecallPickup = {};
  */
 export const WeaponPickup = { kind: [] as number[] };
 
+/**
+ * 密码机（第五人格式交互物）。
+ * progress：破译进度 0-100（%）；done：1 = 已完成（进度满后锁定）。
+ * 玩家靠近并持续按 E 破译；完成状态经 host_state 广播同步（同 orb）。
+ */
+export const Cipher = {
+  progress: [] as number[],
+  done: [] as number[],
+};
+
+/**
+ * 宝箱（场景交互物）。
+ * type：0 = 武器宝箱（橙红）/ 1 = 道具宝箱（蓝青）
+ * state：0 = 冷却中 / 1 = 可开启 / 2 = 已开启（开启动画中）
+ * timer：计时器（state0 累计到 CHEST_COOLDOWN 转可开启；state2 累计到开启动画时长转冷却）
+ */
+export const Chest = {
+  type: [] as number[],
+  state: [] as number[],
+  timer: [] as number[],
+};
+
+/**
+ * 掉落物（宝箱掉落的临时可拾取物；附加在现有拾取物实体上）。
+ * type：0 = 武器掉落 / 1 = 道具掉落（保留语义，便于扩展/绘制）
+ * lifetime：剩余存在时间（秒），到期由 ChestSystem 移除实体
+ */
+export const Loot = {
+  type: [] as number[],
+  lifetime: [] as number[],
+};
+
 /** 检查点 */
 export const RespawnPoint = { active: [] as number[], nearby: [] as number[] };
 
@@ -261,7 +293,7 @@ export const CONTROL_MODE_CONSTRAINT = 4;
 /** 全部数值 SoA 组件的汇总数组（一次性 registerComponents 用） */
 export const soaComponents = [
   Position, Velocity, Collider, PathMotion, SpringPad,
-  Timer, Hazard, Health, Collectible, RespawnPoint, Goal, Track, Aura,
+  Timer, Hazard, Health, Collectible, Cipher, Chest, Loot, RespawnPoint, Goal, Track, Aura,
   Projectile, WeaponPickup,
   Renderable, Player, PlayerControl, PlayerInput, JumpCharges, ShieldCharges, ControlMode,
 ];

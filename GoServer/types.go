@@ -37,6 +37,8 @@ type HostStateMsg struct {
 	Players []PlayerState `json:"players"`
 	Orbs    []OrbState    `json:"orbs"`
 	Items   []ItemState   `json:"items,omitempty"`
+	Ciphers []CipherState `json:"ciphers,omitempty"`
+	Chests  []ChestState  `json:"chests,omitempty"`
 	Gt      float64       `json:"gt"`
 	GotN    int           `json:"gotN"`
 	Deaths  int           `json:"deaths"`
@@ -112,6 +114,8 @@ type StateBroadcastMsg struct {
 	Players []PlayerState `json:"players"`
 	Orbs    []OrbState    `json:"orbs"`
 	Items   []ItemState   `json:"items,omitempty"`
+	Ciphers []CipherState `json:"ciphers,omitempty"`
+	Chests  []ChestState  `json:"chests,omitempty"`
 	Gt      float64       `json:"gt"`
 	GotN    int           `json:"gotN"`
 	Deaths  int           `json:"deaths"`
@@ -174,4 +178,17 @@ type OrbState struct {
 type ItemState struct {
 	EntityId  int  `json:"entityId"`
 	Collected bool `json:"collected"`
+}
+
+type CipherState struct {
+	EntityId int     `json:"entityId"`
+	Progress float64 `json:"progress"`
+	Done     bool    `json:"done"`
+}
+
+type ChestState struct {
+	EntityId int     `json:"entityId"`
+	Type     int     `json:"type"`
+	State    int     `json:"state"`
+	Timer    float64 `json:"timer"`
 }

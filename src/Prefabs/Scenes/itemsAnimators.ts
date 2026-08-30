@@ -217,9 +217,47 @@ const hookController: AnimatorController = {
   },
 };
 
+/* ==================== 密码机控制器 ==================== （破译机呼吸/待机，进度由绘制层直读 Cipher.progress） */
+
+interface CipherAnimState {
+  state: 'idle';
+  stateTime: number;
+}
+
+export function createCipherAnimState(): CipherAnimState {
+  return { state: 'idle', stateTime: 0 };
+}
+
+const cipherController: AnimatorController = {
+  id: 'cipher',
+
+  createState(): unknown {
+    return createCipherAnimState();
+  },
+
+  step(state: unknown, _entity: number, _dt: number): void {
+    const s = state as CipherAnimState;
+    s.stateTime += _dt;
+  },
+
+  getOutput(state: unknown, _entity: number): AnimOutput {
+    const s = state as CipherAnimState;
+    const t = gs.time;
+    return {
+      scaleX: 1, scaleY: 1,
+      rotation: 0,
+      offsetX: 0,
+      offsetY: Math.sin(t * 1.6) * 0.06,   // 轻微呼吸浮动
+      alpha: 1,
+      state: 'idle', stateTime: s.stateTime,
+    };
+  },
+};
+
 /* ==================== 注册（副作用） ==================== */
 
 registerAnimator(orbController);
 registerAnimator(novaController);
 registerAnimator(jumpBoostController);
 registerAnimator(hookController);
+registerAnimator(cipherController);

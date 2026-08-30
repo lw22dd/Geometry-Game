@@ -6,7 +6,7 @@
 import { query, getAllEntities, type World } from 'bitecs';
 import {
   Position, Velocity, Collider, PathMotion, SpringPad, Timer, Hazard, Health,
-  Collectible, RespawnPoint, Goal, Track, Aura, Renderable, Animator, Hookable,
+  Collectible, Cipher, Chest, Loot, RespawnPoint, Goal, Track, Aura, Renderable, Animator, Hookable,
   Player, PlayerControl, PlayerInput, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, WeaponPickup, Backpack,
   Projectile, EnemyBrain,
 } from './components';
@@ -36,6 +36,15 @@ export const qAuras = (): Q => query(world, [Position, Aura]) as Q;
 export const qHookTargets = (): Q => query(world, [Position, Collider, Hookable]) as Q;
 export const qCheckpoints = (): Q => query(world, [Position, Collider, RespawnPoint]) as Q;
 export const qGoal = (): Q => query(world, [Position, Collider, Goal]) as Q;
+
+/** 密码机（第五人格式交互物） */
+export const qCiphers = (): Q => query(world, [Position, Collider, Cipher]) as Q;
+
+/** 宝箱（场景交互物：冷却/可开启/开启中状态机） */
+export const qChests = (): Q => query(world, [Position, Collider, Chest]) as Q;
+
+/** 掉落物（宝箱掉落的临时可拾取物；带 lifetime 自动销毁） */
+export const qLoot = (): Q => query(world, [Position, Collider, Loot]) as Q;
 
 /** 可收集物（tag 区分类型） */
 export const qCollectibles = (): Q => query(world, [Position, Collider, Collectible]) as Q;

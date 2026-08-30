@@ -116,28 +116,25 @@ export function drawEnemy(eid: number, kind: EnemyKind, state: unknown): void {
   ctx.translate(cx, cy);
   ctx.scale(v.face, 1);
 
-  // 身体发光
+  // 身体：黑色填充正方形 + 白色外框
   ctx.shadowColor = def.glow;
   ctx.shadowBlur = 16;
-  const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.15, 0, 0, r);
-  g.addColorStop(0, def.bodyGrad[0]);
-  g.addColorStop(0.55, def.bodyGrad[1]);
-  g.addColorStop(1, def.bodyGrad[2]);
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.arc(0, 0, r, 0, 6.283);
-  ctx.fill();
-  ctx.shadowBlur = 0;
-
-  // 受击闪白描边
-  ctx.strokeStyle = v.inv > 0 ? 'rgba(255,255,255,.9)' : def.glow;
+  ctx.fillStyle = '#000';
+  ctx.strokeStyle = v.inv > 0 ? 'rgba(255,255,255,.9)' : '#fff';
   ctx.lineWidth = v.inv > 0 ? 2.4 : 1.6;
   ctx.globalAlpha = flash;
+  ctx.beginPath();
+  ctx.rect(-r, -r, r * 2, r * 2);
+  ctx.fill();
   ctx.stroke();
+  ctx.shadowBlur = 0;
 
-  // 朝向指示：脸前小方块（眼睛）
+  // 眼睛：位置与玩家一致（横排两只、居中偏上）
   ctx.fillStyle = '#fff';
-  ctx.fillRect(r * 0.3, -r * 0.32, r * 0.4, r * 0.26);
+  const ew = r * 0.17;
+  const eh = r * 0.36;
+  ctx.fillRect(r * 0.15 - ew / 2, -r * 0.3, ew, eh);
+  ctx.fillRect(r * 0.55 - ew / 2, -r * 0.3, ew, eh);
 
   // 追击态：头顶警戒「!」
   if (v.mode === 'chase') {

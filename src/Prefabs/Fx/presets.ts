@@ -304,4 +304,146 @@ export const FX: Record<string, FxPreset> = {
     colors: ['#ff6a6a', '#c77dff', '#ff9ad8', '#ffffff'],
     spin: { start: [0, 3], rate: [-7, 7] },
   },
+
+  /** 密码机破译火花：青橙 dot 上飘（破译中周期性反馈） */
+  cipherSparks: {
+    count: 6,
+    kind: 'dot',
+    vel: { mode: 'axis', vx: [-1.2, 1.2], vy: [1.5, 3.5] },
+    spreadX: 0.4,
+    gravity: 0,
+    life: [0.4, 0.6],
+    size: [0.07, 0.1],
+    colors: ['#8ff6ff', '#ffb44d', '#ffffff'],
+  },
+
+  /** 密码机完成爆裂：青白碎片 + 橙金上行光点（破译完成瞬间） */
+  cipherDone: {
+    count: 18,
+    kind: 'frag',
+    vel: { mode: 'radial', uniform: false, speed: [2.5, 8], vyBias: 3 },
+    gravity: 10,
+    life: [0.5, 0.9],
+    size: [0.1, 0.2],
+    colors: ['#7de8ff', '#ffb44d', '#c77dff', '#ffffff'],
+    spin: { start: [0, 3], rate: [-8, 8] },
+  },
+
+  /* ── 宝箱特效（S5）── */
+
+  /** 宝箱开启闪光：金/青双色上行光点 + 圆环（开箱瞬间） */
+  chestOpen: {
+    count: 14,
+    kind: 'dot',
+    vel: { mode: 'axis', vx: [-2, 2], vy: [2.5, 5.5] },
+    spreadX: 0.4,
+    gravity: 4,
+    life: [0.5, 0.8],
+    size: [0.07, 0.12],
+    colors: ['#ffd76b', '#8ff6ff', '#ffffff'],
+  },
+
+  /** 宝箱开启冲击环：外扩描边圆（开箱瞬间，强化"喷出"感） */
+  chestRing: {
+    count: 1,
+    kind: 'ring',
+    vel: { mode: 'axis', vx: [0, 0], vy: [0, 0] },
+    gravity: 0,
+    life: [0.4, 0.4],
+    size: [0.1, 0.1],
+    colors: ['#ffd76b', '#ffffff'],
+    r0: [0.2, 0.2],
+    r1: [2.6, 3.2],
+    lw: 2.5,
+  },
+
+  /** 宝箱刷新就绪：青色上行光点（40s 冷却结束，重新可开启） */
+  chestReady: {
+    count: 8,
+    kind: 'dot',
+    vel: { mode: 'axis', vx: [-1.2, 1.2], vy: [1.5, 3.5] },
+    spreadX: 0.5,
+    gravity: 0,
+    life: [0.5, 0.7],
+    size: [0.06, 0.1],
+    colors: ['#8ff6ff', '#ffffff'],
+  },
+
+  /* ── 美术升级：密码机 / 宝箱新增特效 ── */
+
+  /** 密码机解码窗扫描光点：窗内细微上浮（破译中每累计进度发射，替代原来单薄的 cipherSparks 补充层） */
+  cipherScan: {
+    count: 3,
+    kind: 'dot',
+    vel: { mode: 'axis', vx: [-0.25, 0.25], vy: [0.25, 0.75] },
+    spreadX: 0.22,
+    gravity: -0.15,
+    life: [0.45, 0.75],
+    size: [0.03, 0.05],
+    colors: ['#bfffff', '#8ff6ff', '#ffd08a'],
+  },
+
+  /** 密码机机顶排气：完成时自天线座喷出的青白蒸汽（速度慢、寿命长、轻微上飘） */
+  cipherSteam: {
+    count: 12,
+    kind: 'dot',
+    vel: { mode: 'axis', vx: [-0.9, 0.9], vy: [1.4, 2.8] },
+    spreadX: 0.22,
+    gravity: -0.5,
+    life: [0.7, 1.2],
+    size: [0.07, 0.15],
+    colors: ['#cfffe9', '#8ff6ff', '#ffffff'],
+  },
+
+  /** 宝箱锁扣弹开：金属碎屑（开箱第一段，锁扣崩开的瞬间） */
+  chestUnlock: {
+    count: 8,
+    kind: 'frag',
+    vel: { mode: 'radial', uniform: false, speed: [2, 5.5], vyBias: 1.5 },
+    gravity: 20,
+    life: [0.25, 0.45],
+    size: [0.04, 0.08],
+    colors: ['#ffd76b', '#fff3cf', '#9aa4b8'],
+    spin: { start: [0, 3], rate: [-12, 12] },
+  },
+
+  /** 宝箱开启光柱：箱内向上喷出的金白竖光（streak 沿速度反方向拖尾 → 天然成柱状） */
+  chestBeam: {
+    count: 7,
+    kind: 'streak',
+    vel: { mode: 'axis', vx: [-0.45, 0.45], vy: [6, 9.5] },
+    spreadX: 0.26,
+    gravity: 0,
+    life: [0.32, 0.5],
+    size: [0.05, 0.09],
+    colors: ['#ffd76b', '#fff3cf', '#ffffff'],
+    len: [0.9, 1.7],
+    lw: 3,
+  },
+
+  /** 宝箱开启扬尘：箱盖弹开时沿地面外扩的尘环（压低 vy，强调"沉箱被掀开"的重量感） */
+  chestDust: {
+    count: 10,
+    kind: 'dot',
+    vel: { mode: 'axis', vx: [-3.2, 3.2], vy: [0.2, 1.1] },
+    spreadX: 0.4,
+    gravity: 3,
+    life: [0.35, 0.6],
+    size: [0.05, 0.1],
+    colors: ['#9fb8ff', '#c8d4ff', '#ffffff'],
+  },
+
+  /** 掉落物浮现光环：loot 生成瞬间的一次性外扩圆环（提示"有东西掉出来了"） */
+  lootPop: {
+    count: 1,
+    kind: 'ring',
+    vel: { mode: 'axis', vx: [0, 0], vy: [0, 0] },
+    gravity: 0,
+    life: [0.42, 0.42],
+    size: [0.1, 0.1],
+    colors: ['#ffd76b', '#ffffff'],
+    r0: [0.12, 0.12],
+    r1: [0.95, 1.3],
+    lw: 2,
+  },
 };

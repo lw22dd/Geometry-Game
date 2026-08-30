@@ -135,11 +135,16 @@ function buildCollectibles() {
     }
   }
 
-  // 场景固定收集品（光球 / NOVA / 检查点）
+  // 场景固定收集品（光球 / NOVA / 检查点 / 密码机 / 宝箱）
   const STATIC_COLLECT = [
     { id: 'orb', name: '光球', file: 'Scenes/items.ts' },
     { id: 'nova', name: 'NOVA 星', file: 'Scenes/items.ts' },
     { id: 'checkpoint', name: '检查点', file: 'Scenes/items.ts' },
+    { id: 'cipher', name: '密码机（破译中）', file: 'Scenes/items.ts' },
+    { id: 'cipherDone', name: '密码机（已完成）', file: 'Scenes/items.ts' },
+    { id: 'chestReady', name: '宝箱（可开启）', file: 'Scenes/items.ts' },
+    { id: 'chestCooling', name: '宝箱（冷却中）', file: 'Scenes/items.ts' },
+    { id: 'chestOpen', name: '宝箱（开启中）', file: 'Scenes/items.ts' },
   ];
   items.push(...STATIC_COLLECT);
 

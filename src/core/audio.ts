@@ -313,6 +313,129 @@ export function noise(o: NoiseOpts): void {
   autoRelease(s, nodes);
 }
 
+/* ==================== 循环音（常驻节点 · 可调制 · 可停止） ==================== */
+
+/**
+ * 循环音句柄 —— 由 loopTone() 返回。
+ *
+ * 与 osc() / noise() 的「一次性节点 + onended 自动回收」不同，循环音是**常驻**节点：
+ * 典型场景是密码机的破译持续音（开始破译 → 起音，破译中随进度调制音高，
+ * 松手 / 完成 / 切图 → 停止）。因此必须由调用方显式管理生命周期：
+ *   ① 拿到句柄后在事件结束时务必 stop()（否则常驻节点会一直占着发声）；
+ *   ② stop() 走增益 ramp 后延迟 disconnect，杜绝爆音与节点泄漏；
+ *   ③ stop() 幂等，重复调用安全。
+ */
+export interface LoopHandle {
+  /** 调制音：0..1 → 联合调制（音高 + 低通截止 + 增益），用于"越接近完成越紧张" */
+  setParam(v: number): void;
+  /** 停止：增益 ramp 归零后断开全部节点 */
+  stop(): void;
+  /** 是否已停止 */
+  readonly stopped: boolean;
+}
+
+/** 循环音参数 */
+export interface LoopOpts {
+  /** 基频（Hz） */
+  f0: number;
+  type?: OscillatorType;
+  /** 低通截止基准（Hz）；设置后随 setParam 一起被调制 */
+  lp?: number;
+  /** 峰值增益（线性） */
+  vol?: number;
+  /** 声像 -1..1 */
+  pan?: number;
+  /** 起音（秒），默认 0.05 —— 循环音必须软起，硬切会爆音 */
+  attack?: number;
+}
+
+/** 哑句柄：音频不可用 / 静音时返回，让调用方无需判空 */
+const SILENT_LOOP: LoopHandle = { setParam() { /* 静默 */ }, stop() { /* 静默 */ }, stopped: true };
+
+/**
+ * 起一个常驻循环音，返回句柄。
+ * 链路：osc → [lowpass] → [panner] → gain(ADSR 软起) → sfxBus
+ */
+export function loopTone(o: LoopOpts): LoopHandle {
+  const c = AU.ctx;
+  const bus = AU.sfxBus;
+  if (!c || !bus || !canPlay()) return SILENT_LOOP;
+
+  const t = c.currentTime;
+  const baseF = Math.max(20, o.f0);
+  const baseLP = o.lp ?? 0;
+  const baseVol = o.vol ?? PEAK * 0.22;
+  const nodes: AudioNode[] = [];
+
+  const g = c.createGain();
+  nodes.push(g);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(Math.max(0.0002, baseVol), t + (o.attack ?? 0.05));
+
+  // 由后往前接：gain ← [panner] ← [lowpass] ← osc
+  let input: AudioNode = g;
+  if (o.pan && typeof c.createStereoPanner === 'function') {
+    const p = c.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, o.pan));
+    nodes.push(p);
+    p.connect(g);
+    input = p;
+  }
+  let lpNode: BiquadFilterNode | null = null;
+  if (o.lp) {
+    const f = c.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = baseLP;
+    f.Q.value = 0.9;
+    nodes.push(f);
+    f.connect(input);
+    input = f;
+    lpNode = f;
+  }
+  g.connect(bus);
+
+  const src = c.createOscillator();
+  src.type = o.type ?? 'sawtooth';
+  src.frequency.value = baseF;
+  nodes.push(src);
+  src.connect(input);
+  src.start(t);
+
+  let done = false;
+  return {
+    get stopped() { return done; },
+    setParam(v: number): void {
+      if (done) return;
+      const p = Math.max(0, Math.min(1, v));
+      const tt = c.currentTime;
+      // 音高：基频 → +55%（控制在一个十二度内，避免刺耳）
+      try { src.frequency.setTargetAtTime(baseF * (1 + p * 0.55), tt, 0.05); } catch { /* 忽略 */ }
+      // 低通：截止随进度打开 → 越接近完成越"亮"
+      if (lpNode) { try { lpNode.frequency.setTargetAtTime(baseLP * (1 + p * 1.1), tt, 0.05); } catch { /* 忽略 */ } }
+      // 增益：轻微上扬 → 越接近完成越紧张
+      try { g.gain.setTargetAtTime(baseVol * (1 + p * 0.35), tt, 0.06); } catch { /* 忽略 */ }
+    },
+    stop(): void {
+      if (done) return;
+      done = true;
+      const tt = c.currentTime;
+      try {
+        g.gain.cancelScheduledValues(tt);
+        g.gain.setValueAtTime(Math.max(0.0002, g.gain.value), tt);
+        g.gain.exponentialRampToValueAtTime(0.0001, tt + 0.09);
+      } catch {
+        try { g.gain.value = 0; } catch { /* 忽略 */ }
+      }
+      try { src.stop(tt + 0.12); } catch { /* 忽略 */ }
+      // 释音结束后回收全部节点（与 autoRelease 同一约定）
+      src.onended = () => {
+        for (const n of nodes) { try { n.disconnect(); } catch { /* 已断开 */ } }
+        src.onended = null;
+      };
+    },
+  };
+}
+
 /* ==================== 节流 ==================== */
 
 /** 各音效最小触发间隔（秒）；未列出的不节流 */
@@ -329,6 +452,11 @@ const MIN_GAP: Record<string, number> = {
   hit: 0.03,
   hurt: 0.05,
   explosion: 0.12,
+  /** 破译咔哒：多台密码机同时破译时防止叠成一片 */
+  cipherTick: 0.08,
+  /** 宝箱冷却拒绝：按住 E 时不要每帧都响 */
+  chestLocked: 0.35,
+  weaponSwap: 0.06,
 };
 
 const lastAt = new Map<string, number>();
@@ -430,14 +558,13 @@ export const sfx = {
     osc('sine', 660, { at: t + 0.08, dur: 0.18, vol: PEAK * 0.55 * k, f1: 880, detune: 6, pan: opts?.pan });
   },
 
-  /** 武器拾取：金属上滑双音 + 短噪声（装弹感） */
-  weaponPickup(opts?: SfxOpts): void {
-    const k = scale(opts);
-    if (k === null) return;
-    const t = now();
-    osc('square', 520, { at: t, dur: 0.1, vol: PEAK * 0.4 * k, f1: 780, lp: 2400, attack: 0.003, decay: 0.04, sustain: 0.3, release: 0.06, pan: opts?.pan });
-    osc('triangle', 780, { at: t + 0.07, dur: 0.16, vol: PEAK * 0.55 * k, f1: 1170, pan: opts?.pan });
-    noise({ at: t, dur: 0.08, vol: PEAK * 0.18 * k, hp: 2000, pan: opts?.pan });
+  /**
+   * 武器拾取：按武器种类差异化（AK = 上膛两段咔，手雷 = 金属 ping + 保险片）。
+   * @param opts.kind 武器种类；缺省按 AK 处理（保持旧调用方行为不变）
+   */
+  weaponPickup(opts?: SfxOpts & { kind?: 'ak' | 'grenade' }): void {
+    if (opts?.kind === 'grenade') sfx.weaponPickupGrenade(opts);
+    else sfx.weaponPickupAK(opts);
   },
 
   /** 加速拾取：快速上滑 + 短噪声（冲刺感） */
@@ -553,13 +680,19 @@ export const sfx = {
 
   /* ── 战斗音效（S2/S3）── */
 
-  /** AK 开火：短促噪声爆音 + 低频冲击 */
+  /** AK 开火：四层叠加 —— 爆音主体 + 低频冲击 + 枪机泛音 + 空间余响尾巴 */
   shot(opts?: SfxOpts): void {
     const k = scale(opts);
     if (k === null || gate('shot')) return;
     const t = now();
+    // ① 爆音主体（宽带噪声，极短起音）
     noise({ at: t, dur: 0.09, vol: PEAK * 0.55 * k, hp: 900, lp: 3800, attack: 0.002, release: 0.07, pan: opts?.pan });
-    osc('square', 180, { at: t, dur: 0.07, vol: PEAK * 0.3 * k, f1: 60, lp: 900, attack: 0.002, release: 0.05, pan: opts?.pan });
+    // ② 低频冲击（胸腔感：sine 下扫比原 square 更厚）
+    osc('sine', 150, { at: t, dur: 0.11, vol: PEAK * 0.42 * k, f1: 48, lp: 900, attack: 0.002, release: 0.08, pan: opts?.pan });
+    // ③ 中频金属"啪"（枪机往复的高频泛音）
+    osc('square', 620, { at: t + 0.008, dur: 0.05, vol: PEAK * 0.16 * k, f1: 300, lp: 3200, attack: 0.001, release: 0.04, pan: opts?.pan });
+    // ④ 空间余响（低通噪声尾巴，让枪声"落在场景里"而不是干响）
+    noise({ at: t + 0.05, dur: 0.26, vol: PEAK * 0.14 * k, lp: 700, attack: 0.01, release: 0.2, pan: opts?.pan });
   },
 
   /** 命中反馈：清脆短促高频（hitscan 命中敌人时） */
@@ -579,13 +712,19 @@ export const sfx = {
     noise({ at: t, dur: 0.12, vol: PEAK * 0.3 * k, hp: 700, lp: 2400, pan: opts?.pan });
   },
 
-  /** 换弹：金属两段咔嗒 */
+  /** 换弹：弹匣脱出 → 插入闷响 → 卡榫到位（三段，比原两段咔嗒更有重量感） */
   reload(opts?: SfxOpts): void {
     const k = scale(opts);
     if (k === null) return;
     const t = now();
+    // ① 弹匣脱出（金属脆咔）
     osc('square', 400, { at: t, dur: 0.05, vol: PEAK * 0.22 * k, lp: 2200, attack: 0.002, release: 0.03, pan: opts?.pan });
-    osc('square', 520, { at: t + 0.14, dur: 0.05, vol: PEAK * 0.2 * k, lp: 2400, attack: 0.002, release: 0.03, pan: opts?.pan });
+    noise({ at: t, dur: 0.06, vol: PEAK * 0.14 * k, hp: 1600, pan: opts?.pan });
+    // ② 弹匣插入到位（闷响：比"咔"更沉，低频 sine + 低通噪声）
+    osc('sine', 190, { at: t + 0.15, dur: 0.1, vol: PEAK * 0.34 * k, f1: 90, lp: 700, attack: 0.003, release: 0.07, pan: opts?.pan });
+    noise({ at: t + 0.15, dur: 0.07, vol: PEAK * 0.16 * k, lp: 900, pan: opts?.pan });
+    // ③ 到位卡榫（清脆收尾，给"装好了"的确认感）
+    osc('square', 700, { at: t + 0.24, dur: 0.045, vol: PEAK * 0.18 * k, lp: 3000, attack: 0.002, release: 0.03, pan: opts?.pan });
   },
 
   /** 手雷投掷：短促上滑 */
@@ -612,5 +751,136 @@ export const sfx = {
     const t = now();
     osc('square', 420, { at: t, dur: 0.2, vol: PEAK * 0.3 * k, f1: 80, lp: 1400, attack: 0.003, release: 0.16, pan: opts?.pan });
     noise({ at: t, dur: 0.12, vol: PEAK * 0.2 * k, hp: 800, pan: opts?.pan });
+  },
+
+  /**
+   * 宝箱开启（三段分层，错开约 70ms）—— 让「机关被触发 → 盖子掀开 → 宝光喷出」
+   * 有清晰的因果节奏，而不是原来一记合成音糊在一起。
+   */
+  chestOpen(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null) return;
+    const t = now();
+    // ① 锁扣崩开（金属脆响 + 碎屑噪声）
+    osc('square', 1150, { at: t, dur: 0.06, vol: PEAK * 0.3 * k, f1: 780, lp: 4200, attack: 0.001, release: 0.04, pan: opts?.pan });
+    noise({ at: t, dur: 0.07, vol: PEAK * 0.2 * k, hp: 2600, pan: opts?.pan });
+    // ② 盖子弹起（木质闷响 + 铰链上滑吱呀）
+    osc('sine', 200, { at: t + 0.07, dur: 0.16, vol: PEAK * 0.44 * k, f1: 120, lp: 800, attack: 0.003, release: 0.11, pan: opts?.pan });
+    noise({ at: t + 0.07, dur: 0.15, vol: PEAK * 0.14 * k, hp: 700, lp: 2600, attack: 0.005, release: 0.1, pan: opts?.pan });
+    // ③ 宝光喷出（上行琶音 + 高频闪光）
+    [523.25, 783.99, 1046.5].forEach((f, i) => {
+      osc('triangle', f, { at: t + 0.16 + i * 0.06, dur: 0.34, vol: PEAK * 0.46 * k, detune: 6, attack: 0.004, release: 0.22, pan: opts?.pan });
+    });
+    noise({ at: t + 0.18, dur: 0.4, vol: PEAK * 0.15 * k, hp: 3200, attack: 0.02, release: 0.3, pan: opts?.pan });
+  },
+
+  /** 宝箱冷却中按 E：低沉拒绝音（节流，防按住 E 每帧触发糊成一片） */
+  chestLocked(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null || gate('chestLocked')) return;
+    const t = now();
+    osc('square', 190, { at: t, dur: 0.09, vol: PEAK * 0.3 * k, f1: 120, lp: 900, attack: 0.002, release: 0.06, pan: opts?.pan });
+    noise({ at: t, dur: 0.06, vol: PEAK * 0.14 * k, lp: 800, pan: opts?.pan });
+  },
+
+  /** 宝箱刷新就绪：清脆双音 + 光感高频（40s 冷却结束，重新可开启） */
+  chestReady(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null) return;
+    const t = now();
+    osc('triangle', 660, { at: t, dur: 0.16, vol: PEAK * 0.5 * k, f1: 990, attack: 0.004, release: 0.1, pan: opts?.pan });
+    osc('triangle', 880, { at: t + 0.08, dur: 0.18, vol: PEAK * 0.42 * k, f1: 1320, attack: 0.004, release: 0.12, pan: opts?.pan });
+    noise({ at: t + 0.04, dur: 0.2, vol: PEAK * 0.1 * k, hp: 3400, attack: 0.01, release: 0.16, pan: opts?.pan });
+  },
+
+  /* ── 密码机音效（破译循环音 + 里程碑 + 完成 + 中断）── */
+
+  /** 密码机接入：机械咬合 + 电流启动（开始破译瞬间，与 loopTone 的持续音叠加） */
+  cipherStart(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null) return;
+    const t = now();
+    osc('square', 170, { at: t, dur: 0.09, vol: PEAK * 0.4 * k, f1: 110, lp: 1400, attack: 0.002, release: 0.06, pan: opts?.pan });
+    noise({ at: t, dur: 0.07, vol: PEAK * 0.2 * k, hp: 900, lp: 3000, pan: opts?.pan });
+    osc('triangle', 240, { at: t + 0.02, dur: 0.22, vol: PEAK * 0.34 * k, f1: 520, attack: 0.01, release: 0.14, pan: opts?.pan });
+  },
+
+  /** 破译中周期咔哒（每累计 SPARK_STEP 进度一次；门控防多台机器叠成一片） */
+  cipherTick(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null || gate('cipherTick')) return;
+    const t = now();
+    osc('square', 900, { at: t, dur: 0.03, vol: PEAK * 0.14 * k, lp: 3600, attack: 0.001, release: 0.02, pan: opts?.pan });
+    noise({ at: t, dur: 0.025, vol: PEAK * 0.09 * k, hp: 3000, pan: opts?.pan });
+  },
+
+  /**
+   * 破译里程碑（25 / 50 / 75%）—— 音高随阶段递增，给出"快好了"的正反馈。
+   * @param step 1..3（对应 25% / 50% / 75%）
+   */
+  cipherMilestone(step: number, opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null) return;
+    const t = now();
+    const f = [523.25, 659.25, 783.99][Math.min(2, Math.max(0, step - 1))];
+    osc('triangle', f, { at: t, dur: 0.16, vol: PEAK * 0.42 * k, detune: 6, attack: 0.004, release: 0.11, pan: opts?.pan });
+    osc('sine', f * 2, { at: t + 0.02, dur: 0.14, vol: PEAK * 0.2 * k, attack: 0.004, release: 0.1, pan: opts?.pan });
+  },
+
+  /** 密码机破译完成：锁芯弹开 + 上行琶音 + 电流冲击（替代原先复用的检查点音 sfx.cp） */
+  cipherDone(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null) return;
+    const t = now();
+    osc('square', 150, { at: t, dur: 0.14, vol: PEAK * 0.45 * k, f1: 70, lp: 900, attack: 0.002, release: 0.1, pan: opts?.pan });
+    noise({ at: t, dur: 0.1, vol: PEAK * 0.22 * k, hp: 1200, lp: 4000, pan: opts?.pan });
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+      osc('triangle', f, { at: t + 0.06 + i * 0.07, dur: 0.3, vol: PEAK * 0.5 * k, detune: 7, attack: 0.004, release: 0.2, pan: opts?.pan });
+    });
+    noise({ at: t + 0.1, dur: 0.34, vol: PEAK * 0.16 * k, hp: 1800, attack: 0.02, release: 0.26, pan: opts?.pan });
+    osc('sine', 320, { at: t + 0.1, dur: 0.32, vol: PEAK * 0.24 * k, f1: 1320, attack: 0.02, release: 0.22, pan: opts?.pan });
+  },
+
+  /** 破译中断（松手 / 走开）：下行短音（负反馈，提示"停了"但进度保住） */
+  cipherAbort(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null) return;
+    const t = now();
+    osc('square', 420, { at: t, dur: 0.12, vol: PEAK * 0.26 * k, f1: 250, lp: 1800, attack: 0.003, release: 0.08, pan: opts?.pan });
+    noise({ at: t + 0.01, dur: 0.09, vol: PEAK * 0.12 * k, lp: 1100, pan: opts?.pan });
+  },
+
+  /* ── 武器音效（拾取差异化 / 切枪）── */
+
+  /** AK 拾取：弹匣拍入 → 拉柄到位 → 上扬确认（比原版更"重"） */
+  weaponPickupAK(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null) return;
+    const t = now();
+    osc('square', 330, { at: t, dur: 0.07, vol: PEAK * 0.32 * k, f1: 200, lp: 2000, attack: 0.002, release: 0.05, pan: opts?.pan });
+    noise({ at: t, dur: 0.06, vol: PEAK * 0.16 * k, hp: 1400, pan: opts?.pan });
+    osc('square', 880, { at: t + 0.09, dur: 0.06, vol: PEAK * 0.26 * k, f1: 1320, lp: 4200, attack: 0.001, release: 0.04, pan: opts?.pan });
+    osc('sine', 1760, { at: t + 0.1, dur: 0.22, vol: PEAK * 0.14 * k, attack: 0.002, release: 0.18, pan: opts?.pan });
+    osc('triangle', 780, { at: t + 0.14, dur: 0.18, vol: PEAK * 0.4 * k, f1: 1170, attack: 0.004, release: 0.12, pan: opts?.pan });
+  },
+
+  /** 手雷拾取：金属 ping + 保险片弹开（更"轻"更脆，与 AK 明确区分） */
+  weaponPickupGrenade(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null) return;
+    const t = now();
+    osc('triangle', 620, { at: t, dur: 0.14, vol: PEAK * 0.42 * k, detune: 12, attack: 0.002, release: 0.1, pan: opts?.pan });
+    noise({ at: t, dur: 0.05, vol: PEAK * 0.14 * k, hp: 2200, pan: opts?.pan });
+    osc('square', 1400, { at: t + 0.06, dur: 0.07, vol: PEAK * 0.2 * k, f1: 640, lp: 3600, attack: 0.001, release: 0.05, pan: opts?.pan });
+    osc('triangle', 880, { at: t + 0.12, dur: 0.18, vol: PEAK * 0.38 * k, f1: 1320, attack: 0.004, release: 0.12, pan: opts?.pan });
+  },
+
+  /** 切枪（切换武器槽位）：短促机械咔哒 */
+  weaponSwap(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null || gate('weaponSwap')) return;
+    const t = now();
+    osc('square', 520, { at: t, dur: 0.045, vol: PEAK * 0.24 * k, f1: 380, lp: 2800, attack: 0.001, release: 0.03, pan: opts?.pan });
+    noise({ at: t, dur: 0.04, vol: PEAK * 0.12 * k, hp: 1800, pan: opts?.pan });
   },
 };

@@ -374,6 +374,13 @@ export interface GameState {
    * 用于强化死亡/破盾/弹射等瞬间的冲击感。联机房主会话下不启用。
    */
   hitstop: number;
+  /**
+   * 密码机世界状态（第五人格式破译机）。
+   * - cipherTotal：当前地图密码机总数（由 config/level 装配写入，单一世界状态来源）。
+   * - 已完成数量不在此维护，改为派生：cipherDoneCount() 扫描 ECS 实体（Cipher.done），
+   *   单一数据源是密码机实体本身，避免权威态/计数双写不一致。
+   */
+  cipherTotal: number;
 }
 
 /**
@@ -450,6 +457,10 @@ export interface MapDefinition {
     recalls?: [number, number][];
     /** 武器拾取物（可选；无 weapons 字段的地图玩家无武器，需先拾取） */
     weapons?: { kind: WeaponId; x: number; y: number }[];
+    /** 密码机坐标（可选；第五人格式破译机：靠近 + 持续按 E 破译） */
+    ciphers?: [number, number][];
+    /** 宝箱坐标（可选；type 0=武器宝箱 1=道具宝箱；40s 刷新可开启，打开掉落随机拾取物） */
+    chests?: { type: 0 | 1; x: number; y: number }[];
     checkpoints: [number, number][];
     nova: { x: number; y: number };
     /** 冲刺轨道（可选；无轨道的地图省略） */
@@ -463,6 +474,8 @@ export interface MapDefinition {
 export type NetBusEvent =
   | { type: 'game:started' }
   | { type: 'game:checkpoint'; x: number; y: number }
+  | { type: 'game:cipherDone'; x: number; y: number }
+  | { type: 'game:chestOpened'; x: number; y: number; chestType: number }
   | { type: 'game:orb'; count: number; total: number }
   /** 道具拾取广播：网络事件名由 ITEMS 条目派生（wire 名 = 'item:' + item） */
   | { type: 'game:itemPicked'; item: ItemId }
@@ -590,6 +603,21 @@ export interface NetOrbState {
 export interface NetItemState {
   entityId: number;
   collected: boolean;
+}
+
+/** 密码机权威状态（host → 客机；破译进度 + 完成标记同步） */
+export interface NetCipherState {
+  entityId: number;
+  progress: number;
+  done: boolean;
+}
+
+/** 宝箱权威状态（host → 客机；状态机 state/timer 同步） */
+export interface NetChestState {
+  entityId: number;
+  type: number;
+  state: number;
+  timer: number;
 }
 
 /** 远程玩家（房主模拟权威状态 + 客机渲染，含 PlayerState 全字段） */

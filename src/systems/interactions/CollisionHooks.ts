@@ -280,7 +280,8 @@ export function initCollisionHooks(): void {
       Collectible.collected[b] = 1;
       if (!isRemote()) {
         spawnParticles(FX.weaponSpark, pos.x, pos.y);
-        sfx.weaponPickup({ pan: panOfX(pos.x) });
+        // 拾取音按武器种类差异化（AK = 上膛两段咔 / 手雷 = 金属 ping + 保险片）
+        sfx.weaponPickup({ pan: panOfX(pos.x), kind: kind === 'grenade' ? 'grenade' : 'ak' });
         gs.toast = kind === 'grenade' ? '获得手雷！选中槽位投掷或右键' : '获得 AK！选中槽位左键开火';
         gs.toastT = 2;
       }

@@ -15,7 +15,7 @@ import { initEcs, clearWorld } from '../core/ecs';
 import {
   createOrb, createJumpBoost, createCheckpoint, createNova, createMovingPlatform,
   createSpringPad, createLaser, createSpike, createLoopTrack, createHookPickup, createShieldPickup, createSpeedPickup,
-  createRecallPickup, createWeaponPickup,
+  createRecallPickup, createWeaponPickup, createCipherMachine, createChest,
 } from '../Prefabs/Scenes/sceneFactory';
 import { neonAscentMap } from './level/neonAscent';
 import { crystalCavernsMap } from './level/crystalCaverns';
@@ -94,6 +94,14 @@ export function initECSFromLevel(): void {
   // 武器拾取物（地图数据驱动；无 weapons 字段的地图玩家无武器，需先拾取）
   for (const w of s.weapons ?? []) {
     createWeaponPickup(w.x, w.y, w.kind, 0);
+  }
+  // 密码机（地图数据驱动；无 ciphers 字段的地图自然不带密码机）
+  for (const [x, y] of s.ciphers ?? []) {
+    createCipherMachine(x, y);
+  }
+  // 宝箱（地图数据驱动；type 0=武器宝箱 1=道具宝箱；无 chests 字段的地图自然不带宝箱）
+  for (const c of s.chests ?? []) {
+    createChest(c.x, c.y, c.type);
   }
   for (const [x, y] of s.checkpoints) {
     createCheckpoint(x, y);

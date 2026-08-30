@@ -19,8 +19,8 @@ Prefabs/
 │   └── index.ts        #   统一出口：stepPlayerAnimation / drawPlayer / drawPlayerFor
 │                        #   玩家 ECS 实体接线在 systems/player/playerEntity.ts（不在此目录）
 ├── Scene/          # 空目录（问题 6：已并入 Scenes/，仅保留占位）
-├── Scenes/         # 场景道具建模（已实现）：绘制层 + 统一 ECS 实体工厂（sceneFactory.ts）+ 动画控制器（itemsAnimators）+ 主题（theme.ts）
-└── WeaponVis/      # 武器外观预制体（预留）
+├── Scenes/         # 场景道具建模（已实现）：绘制层 + 材质原语（material.ts）+ 统一 ECS 实体工厂（sceneFactory.ts）+ 动画控制器（itemsAnimators）+ 主题（theme.ts）
+└── WeaponVis/      # 武器外观预制体（已实现）：AK 步枪 / 手雷 的本体建模与图标（武器形状的唯一来源）
 ```
 
 # 数据流

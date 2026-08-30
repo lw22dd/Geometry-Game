@@ -21,7 +21,7 @@ import { updateMotion, updateLaserTimer, updateSpringPads, updateCollisionSystem
 import { stepAnimation } from '../animation';
 import {
   drawParallax, drawGrid, drawBorder, drawDecos, drawSolids, drawFloor, drawMovers, drawSpringPads,
-  drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawJumpBoosts, drawHookPickups, drawShieldPickups, drawSpeedPickups, drawRecallPickups, drawWeaponPickups, drawNOVA,
+  drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawJumpBoosts, drawHookPickups, drawShieldPickups, drawSpeedPickups, drawRecallPickups, drawWeaponPickups, drawCiphers, drawChests, drawNOVA,
   drawTrail, drawParticles, drawHints, drawTracks,
   drawMotes, stepMotes, drawFog, emitItemAmbient,
 } from '../../Prefabs/Scenes';
@@ -42,14 +42,16 @@ import {
   ensurePlayerEntity, getPlayerEid,
   storePlayerComponents, ensureRemotePlayerEntity, mirrorPlayerState,
 } from '../player/playerEntity';
-import type { FrameSignals, InputKeys, NetPlayerState, NetOrbState, NetItemState, RemotePlayer, ItemId, PlayerState, EnemyKind } from '../../types';
+import type { FrameSignals, InputKeys, NetPlayerState, NetOrbState, NetItemState, NetCipherState, NetChestState, RemotePlayer, ItemId, PlayerState, EnemyKind } from '../../types';
 import { MAX_BACKPACK } from '../../types';
 import { hasComponent } from 'bitecs';
-import { world, Position, PathMotion, Collider, Collectible, Orb, qOrbs, qCollectibles, EnemyBrain, qEnemies } from '../../core/ecs';
+import { world, Position, PathMotion, Collider, Collectible, Cipher, Chest, Loot, Orb, qOrbs, qCollectibles, qCiphers, qChests, EnemyBrain, qEnemies } from '../../core/ecs';
 import { query } from 'bitecs';
 import { clamp } from '../../core/math';
 import {
   initCollisionHooks, updateRespawnPointSystem, orbCount, tryInteractCheckpoint, setCollisionSim,
+  updateCipherSystem, resetCipherSpark, cipherDoneCount,
+  stepChests, updateChestSystem, resetChestState,
 } from '../interactions';
 import { packTrack, unpackTrack } from '../../core/trackCodec';
 import { mouse } from '../../core/mouse';
@@ -110,6 +112,10 @@ export function applyLevel(mapId: string): void {
   gs.winTime = 0;
   gs.toast = '';
   gs.toastT = 0;
+  // 密码机世界状态：总数由地图装配写入（已完成数派生自 ECS，无需复位计数）
+  gs.cipherTotal = currentMap.entitySpawners.ciphers?.length ?? 0;
+  resetCipherSpark();
+  resetChestState(); // 宝箱就绪边沿表随切图清空（实体 eid 失效）
   // 相机复位到出生点（避免镜头从旧图边界缓移）
   cam.x = sp.x;
   cam.y = sp.y + 3;
@@ -228,10 +234,11 @@ function step(dt: number): void {
   const hookEdge = mouse.down && !mouse.prevDown;
   mouse.prevDown = mouse.down;
 
-  // 2. 关卡级系统（移动平台运动 / 弹簧动画 / 激光计时）
+  // 2. 关卡级系统（移动平台运动 / 弹簧动画 / 激光计时 / 宝箱状态机）
   updateMotion();
   updateSpringPads(dt);
   updateLaserTimer();
+  stepChests(dt);
 
   // 2.5 光环系统（范围持续场，扩展占位；当前无地图光环 → 查询为空，零成本）
   // 本地 + 远端玩家统一进同一光环场（房主对远端同判定）
@@ -295,6 +302,10 @@ function step(dt: number): void {
     interactions: (p, _input, sig) => {
       // 本地碰撞系统：危险/收集/检查点/终点经 collisionBus → CollisionHooks（作用于本地视图）
       updateCollisionSystem(p, sig as Record<string, unknown>);
+      // 密码机：靠近 + 持续按 E 破译（本地玩家；进度经 host_state 权威同步）
+      updateCipherSystem(p.x, p.y, _input.interact, dt, false);
+      // 宝箱：靠近 + 按 E 开启（本地玩家；状态经 host_state 权威同步）
+      updateChestSystem(p.x, p.y, _input.interact, false);
     },
     onDiedEdge: () => {
       playerController.emitEvent({ type: 'player:died', deaths: playerController.registerDeath() });
@@ -403,6 +414,10 @@ function stepRemoteClients(dt: number): void {
           rp.cpY = cp.y;
           sig.checkpointHit = true;
         }
+        // 密码机：远端玩家靠近 + 持续按 E 破译（host 权威模拟）
+        updateCipherSystem(p.x, p.y, input?.interact ?? false, dt, true);
+        // 宝箱：远端玩家靠近 + 按 E 开启（host 权威模拟）
+        updateChestSystem(p.x, p.y, input?.interact ?? false, true);
         // 死亡边沿（房主判定权威）：死亡特效 + 广播给客机（物理坠落/碰撞致死均覆盖）
         if (!wasDead && p.dead) {
           spawnParticles(FX.death, p.x, p.y);
@@ -458,11 +473,12 @@ function broadcastHostState(): void {
     });
   }
 
-  // 光球状态 + 道具状态（jumpboost / hook collected）
+  // 光球状态 + 道具状态（jumpboost / hook collected）+ 宝箱状态（冷却/可开启）
   const orbs = collectOrbStates();
   const items = collectItemStates();
+  const chests = collectChestStates();
 
-  net.sendHostState(_netSeq, players, orbs, items, gs.gt, gs.gotN, gs.deaths, gs.win);
+  net.sendHostState(_netSeq, players, orbs, items, collectCipherStates(), chests, gs.gt, gs.gotN, gs.deaths, gs.win);
 }
 
 /** 收集光球状态（ECS 查询，仅 Orb tag） */
@@ -479,7 +495,27 @@ function collectItemStates(): NetItemState[] {
   const states: NetItemState[] = [];
   for (const e of qCollectibles()) {
     if (hasComponent(world, e, Orb)) continue; // 光球走 orbs 通道
+    // 宝箱掉落物：动态创建、entityId 两端不一致，不进快照（拾取效果经玩家状态同步）
+    if (hasComponent(world, e, Loot)) continue;
     states.push({ entityId: e, collected: Collectible.collected[e] === 1 });
+  }
+  return states;
+}
+
+/** 收集密码机状态（破译进度 + 完成标记，供客机同步） */
+function collectCipherStates(): NetCipherState[] {
+  const states: NetCipherState[] = [];
+  for (const e of qCiphers()) {
+    states.push({ entityId: e, progress: Cipher.progress[e], done: Cipher.done[e] === 1 });
+  }
+  return states;
+}
+
+/** 收集宝箱状态（种类 + 状态机 state/timer，供客机同步显示） */
+function collectChestStates(): NetChestState[] {
+  const states: NetChestState[] = [];
+  for (const e of qChests()) {
+    states.push({ entityId: e, type: Chest.type[e], state: Chest.state[e], timer: Chest.timer[e] });
   }
   return states;
 }
@@ -524,7 +560,7 @@ function wireNetEvents(): void {
   if (_netWired) return;
   _netWired = true;
 
-  net.on('state', (seq, players, orbs, items, gt, gotN, deaths, win) => {
+  net.on('state', (seq, players, orbs, items, ciphers, chests, gt, gotN, deaths, win) => {
     if (room.role !== 'client') return;
 
     // 更新远程玩家渲染位置
@@ -606,6 +642,10 @@ function wireNetEvents(): void {
     applyOrbStates(orbs);
     // 更新道具状态（jumpboost / hook 实体 collected）
     applyItemStates(items ?? []);
+    // 更新密码机状态（破译进度 + 完成标记）
+    applyCipherStates(ciphers ?? []);
+    // 更新宝箱状态（状态机 state/timer，权威为准）
+    applyChestStates(chests ?? []);
   });
 
   net.on('event', (kind, data) => {
@@ -645,6 +685,18 @@ function wireNetEvents(): void {
         break;
       case 'checkpoint':
         toast('◆ 检查点', 1.5);
+        break;
+      // ── 密码机完成（第五人格式）：队友破译完成 → 客机补 toast + 完成特效 ──
+      case 'cipher_done':
+        toast('队友破译了密码机 ' + cipherDoneCount() + '/' + gs.cipherTotal, 2);
+        break;
+      // ── 宝箱开启：队友开启宝箱 → 客机补 toast + 开启特效 ──
+      case 'chest_opened':
+        if (typeof d?.x === 'number' && typeof d?.y === 'number') {
+          spawnParticles(FX.chestOpen, d.x, d.y + 1.0);
+          spawnParticles(FX.chestRing, d.x, d.y + 1.0);
+        }
+        toast('队友开启了宝箱' + (d?.chestType === 0 ? '！' : '！'), 2);
         break;
       case 'win':
         gs.win = true;
@@ -749,6 +801,38 @@ function applyItemStates(items: NetItemState[]): void {
   }
 }
 
+/**
+ * 应用密码机权威状态（host → 客机）到本地 ECS + 世界统计。
+ * 状态转变检测：某台密码机由未完成→完成时本地播放完成特效（客机侧表现）。
+ */
+function applyCipherStates(ciphers: NetCipherState[]): void {
+  for (const cs of ciphers) {
+    const e = cs.entityId;
+    if (!hasComponent(world, e, Cipher)) continue;
+    // 完成边沿：host 权威标记 done 而本地未完成 → 补特效（本地预测已完成时此处应已一致）
+    const wasDone = Cipher.done[e] === 1;
+    if (!wasDone && cs.done) {
+      const px = Position.x[e], py = Position.y[e];
+      spawnParticles(FX.cipherDone, px, py + 1.4);
+    }
+    Cipher.progress[e] = cs.progress;
+    Cipher.done[e] = cs.done ? 1 : 0;
+  }
+  // 完成数不在此维护：由 cipherDoneCount() 派生（扫描 ECS Cipher.done），
+  // 客机与 host 共用同一数据源，避免权威态/计数双写不一致。
+}
+
+/** 应用宝箱权威状态（host → 客机）到本地 ECS（状态机 state/timer 以 host 为准） */
+function applyChestStates(chests: NetChestState[]): void {
+  for (const cs of chests) {
+    const e = cs.entityId;
+    if (!hasComponent(world, e, Chest)) continue;
+    Chest.type[e] = cs.type;
+    Chest.state[e] = cs.state;
+    Chest.timer[e] = cs.timer;
+  }
+}
+
 /* ==================== 渲染 ==================== */
 
 /** 逐帧渲染 */
@@ -822,6 +906,8 @@ function renderGame(dt: number): void {
   drawRecallPickups();
   drawWeaponPickups();
   drawNOVA(pulse);
+  drawCiphers();
+  drawChests();
   drawTrail();
   drawParticles();
 

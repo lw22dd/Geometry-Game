@@ -13,7 +13,7 @@ import { addEntity, addComponent } from 'bitecs';
 import { world } from '../../core/ecs';
 import {
   Position, Velocity, Collider, PathMotion, SpringPad, Timer, Hazard,
-  Collectible, RespawnPoint, Goal, Track, Aura, Renderable, Animator, TrackGeom,
+  Collectible, Cipher, Chest, RespawnPoint, Goal, Track, Aura, Renderable, Animator, TrackGeom,
   Hookable, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, RecallPickup, WeaponPickup, renderStyles,
 } from '../../core/ecs';
 import { weaponToCode } from '../../config/weapons';
@@ -23,7 +23,7 @@ import type { LaserSpawnData, MoverSpawnData, SpringPadSpawnData } from '../../t
 import { DEFAULT_SPRING } from './springPresets';
 import { TRACK_MIN_SPEED } from '../../config/physics';
 import { buildCumulativeLengths, pathPosition, pathTotalLength } from '../../core/path';
-import { createOrbAnimState, createHoverAnimState } from './itemsAnimators';
+import { createOrbAnimState, createHoverAnimState, createCipherAnimState } from './itemsAnimators';
 
 /* ==================== 渲染样式调色板（styleId → renderStyles） ==================== */
 
@@ -35,6 +35,8 @@ export const STYLE_NOVA = 4;
 export const STYLE_SHIELD = 5;
 export const STYLE_SPEED = 6;
 export const STYLE_RECALL = 7;
+export const STYLE_CIPHER = 8;
+export const STYLE_CHEST = 9;
 
 /** 写入手写样式表（renderStyles 为 src/ecs 注册表；幂等） */
 function ensureStyles(): void {
@@ -48,6 +50,8 @@ function ensureStyles(): void {
     { bodyGrad: ['#e8f0ff', '#b3c7ff', '#7d6bff'], glow: 'rgba(150,140,255,.85)' },      // 5 shield
     { bodyGrad: ['#eaffff', '#8ff6ff', '#59d4ff'], glow: 'rgba(120,230,255,.85)' },      // 6 speed
     { bodyGrad: ['#ffffff', '#e8eeff', '#c4d2ff'], glow: 'rgba(238,242,255,.9)' },        // 7 recall
+    { bodyGrad: ['#fff3d6', '#ffb44d', '#c9671e'], glow: 'rgba(255,180,80,.9)' },          // 8 cipher（破译中橙黄 → 完成青绿由绘制层接管）
+    { bodyGrad: ['#ffe9c9', '#ffb347', '#c9321e'], glow: 'rgba(255,170,90,.9)' },          // 9 chest（武器橙红 / 道具蓝青由绘制层接管）
   );
 }
 
@@ -175,6 +179,41 @@ export function createWeaponPickup(x: number, y: number, kind: WeaponId, phase: 
   // 复用 hover 动画控制器（浮动/摇摆），绘制层按 kind 画 AK / 手雷
   setRenderable(e, 0.5, STYLE_SPEED);
   setAnimator(e, 'jumpBoost', createHoverAnimState({ phase }));
+  return e;
+}
+
+/** 密码机（第五人格式：靠近 + 持续按 E 破译；实体是触发区，不参与物理） */
+export function createCipherMachine(x: number, y: number): number {
+  ensureStyles();
+  const e = addEntity(world);
+  setPosition(e, x, y);
+  // 触发区：贴近机型（宽 2.0 / 高 2.4），中心上移 1.2 与视觉底座对齐
+  setCollider(e, 2.0, 2.4, 0, 0, 1.2);
+  addComponent(world, e, Cipher);
+  Cipher.progress[e] = 0;
+  Cipher.done[e] = 0;
+  setRenderable(e, 1.0, STYLE_CIPHER);
+  setAnimator(e, 'cipher', createCipherAnimState());
+  return e;
+}
+
+/**
+ * 宝箱（场景交互物）。
+ * @param x,y 位置（格）
+ * @param type 0 = 武器宝箱（橙红，掉 AK/手雷）；1 = 道具宝箱（蓝青，掉背包道具）
+ * 初始 state = 1（可开启）；打开后进入 40s 冷却，ChestSystem 刷新。
+ */
+export function createChest(x: number, y: number, type: number): number {
+  ensureStyles();
+  const e = addEntity(world);
+  setPosition(e, x, y);
+  // 触发区：宽 2.2（横向容错），高 2.0（玩家站立即可交互）
+  setCollider(e, 2.2, 2.0, 0, 0, 1.0);
+  addComponent(world, e, Chest);
+  Chest.type[e] = type;
+  Chest.state[e] = 1;
+  Chest.timer[e] = 0;
+  setRenderable(e, 0.62, STYLE_CHEST);
   return e;
 }
 

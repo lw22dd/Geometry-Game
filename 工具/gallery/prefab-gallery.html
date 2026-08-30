@@ -200,6 +200,11 @@ const FALLBACK = {
       { id: 'ak', name: 'AK 步枪' },
       { id: 'grenade', name: '手雷' },
       { id: 'checkpoint', name: '检查点' },
+      { id: 'cipher', name: '密码机（破译中）' },
+      { id: 'cipherDone', name: '密码机（已完成）' },
+      { id: 'chestReady', name: '宝箱（可开启）' },
+      { id: 'chestCooling', name: '宝箱（冷却中）' },
+      { id: 'chestOpen', name: '宝箱（开启中）' },
     ]},
     { id: 'hazards', title: '机关', items: [
       { id: 'laser', name: '激光栅栏' },
@@ -560,6 +565,207 @@ function drawCheckpoint(ctx, cx, cy, t, r) {
   ctx.fillStyle = 'rgba(125,249,255,.9)';
   ctx.fillRect(cx - r * 0.9, cy + r * 0.15, r * 1.8, r * 0.3);
   ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+/* ============================================================
+ * 密码机 / 宝箱 —— 参考渲染（简化版）
+ *
+ * ⚠ 本页是独立的对照工具，不 import src 源码，因此这里的画法是对
+ *   src/Prefabs/Scenes/items.ts（drawCiphers / drawChests）+ material.ts
+ *   的**手工简化复刻**，只保留结构与配色以便对照。
+ *   源码改动后如需同步，请按 items.ts 重新校准此处。
+ * ============================================================ */
+
+/** 密码机参考渲染：@param done true = 已完成（青绿）/ false = 破译中（橙黄） */
+function drawCipherRef(ctx, cx, cy, t, r, done) {
+  const hue = done ? 160 : 40;
+  const breath = 0.5 + 0.5 * Math.sin(t * 2.4);
+  const boxW = r * 1.15, boxH = r * 1.7;
+  const bottom = cy + boxH * 0.5, top = bottom - boxH;
+  const capH = boxH * 0.09, baseH = boxH * 0.10;
+  const chX = cx - boxW / 2, chTop = top + capH, chH = (bottom - baseH * 0.5) - chTop;
+  const d = boxW * 0.11, dy = boxH * 0.13;
+  ctx.save();
+  // 接地光晕
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.translate(cx, bottom); ctx.scale(1, 0.34);
+  const gg = ctx.createRadialGradient(0, 0, 0, 0, 0, boxW * 0.72);
+  gg.addColorStop(0, `hsla(${hue},100%,55%,${done ? 0.5 : 0.32 + 0.12 * breath})`);
+  gg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(0, 0, boxW * 0.72, 0, 6.283); ctx.fill();
+  ctx.restore();
+  // 基座
+  ctx.beginPath();
+  ctx.moveTo(cx - boxW * 0.60, bottom); ctx.lineTo(cx - boxW * 0.46, bottom - baseH);
+  ctx.lineTo(cx + boxW * 0.46, bottom - baseH); ctx.lineTo(cx + boxW * 0.60, bottom);
+  ctx.closePath(); ctx.fillStyle = `hsla(${hue},28%,14%,.97)`; ctx.fill();
+  // 机箱
+  const bg = ctx.createLinearGradient(0, chTop, 0, chTop + chH);
+  bg.addColorStop(0, `hsla(${hue},26%,24%,.96)`); bg.addColorStop(1, `hsla(${hue},34%,11%,.97)`);
+  ctx.fillStyle = bg; ctx.fillRect(chX, chTop, boxW, chH);
+  // 玻璃窗 + 密码轮
+  const pad = boxW * 0.09, winX = chX + pad, winY = chTop + pad;
+  const winW = boxW - pad * 2, winH = chH * 0.46;
+  ctx.fillStyle = `hsla(${done ? 165 : 195},70%,9%,.92)`; ctx.fillRect(winX, winY, winW, winH);
+  const wPad = winW * 0.10, wGap = Math.max(1, winW * 0.035);
+  const wW = (winW - wPad * 2 - wGap * 3) / 4, wY = winY + winH * 0.16, wH = winH * 0.46;
+  for (let i = 0; i < 4; i++) {
+    const x = winX + wPad + i * (wW + wGap);
+    ctx.fillStyle = 'rgba(4,8,14,.92)'; ctx.fillRect(x, wY, wW, wH);
+    ctx.fillStyle = `hsla(${hue},100%,74%,${done ? 0.5 : 0.3})`;
+    ctx.fillRect(x, wY + wH * 0.47, wW, Math.max(1, wH * 0.1));
+    if (wW >= 5 && wH >= 9) {
+      const digit = done ? (i * 7 + 3) % 10 : Math.floor(t * (5 + i * 1.7) + i * 3.1) % 10;
+      ctx.fillStyle = done ? '#d7ffee' : `hsla(${hue},100%,90%,.95)`;
+      ctx.font = `700 ${Math.round(wH * 0.58)}px "Segoe UI",Arial`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(digit), x + wW / 2, wY + wH * 0.5);
+    }
+  }
+  // 格栅 + 铭牌
+  const vY = winY + winH + boxH * 0.035, vH = chH * 0.20;
+  ctx.fillStyle = `hsla(${hue},40%,6%,.72)`; ctx.fillRect(winX, vY, winW, vH);
+  ctx.fillStyle = `hsla(${hue},22%,32%,.9)`;
+  for (let i = 0; i < 5; i++) ctx.fillRect(winX + (winW / 5) * i + winW * 0.04, vY, Math.max(1, winW * 0.09), vH);
+  const sY = vY + vH + boxH * 0.035, sH = chTop + chH - pad - sY;
+  if (sH > 2) {
+    ctx.fillStyle = `hsla(${hue},30%,12%,.95)`; ctx.fillRect(winX, sY, winW, sH);
+    ctx.fillStyle = `hsla(${hue},95%,58%,.22)`;
+    for (let x = winX - sH; x < winX + winW; x += sH * 2) {
+      ctx.beginPath(); ctx.moveTo(x, sY + sH); ctx.lineTo(x + sH, sY);
+      ctx.lineTo(x + sH * 2, sY); ctx.lineTo(x + sH, sY + sH); ctx.closePath(); ctx.fill();
+    }
+  }
+  // 边框灯带
+  const ring = [[chX, chTop], [chX + boxW, chTop], [chX + boxW, chTop + chH], [chX, chTop + chH]];
+  ctx.shadowColor = `hsla(${hue},100%,55%,.9)`; ctx.shadowBlur = done ? 14 : 12;
+  ctx.strokeStyle = `hsla(${hue},100%,58%,${done ? 0.34 + 0.3 * breath : 0.34})`;
+  ctx.lineWidth = 3.8; ctx.beginPath();
+  ctx.moveTo(ring[0][0], ring[0][1]);
+  for (let i = 1; i < ring.length; i++) ctx.lineTo(ring[i][0], ring[i][1]);
+  ctx.closePath(); ctx.stroke(); ctx.shadowBlur = 0;
+  ctx.strokeStyle = `hsla(${hue},100%,88%,.95)`; ctx.lineWidth = 1.6; ctx.stroke();
+  // 顶盖 + 天线
+  ctx.fillStyle = `hsla(${hue},26%,22%,.96)`;
+  ctx.fillRect(cx - boxW * 0.56, top, boxW * 1.12, capH);
+  ctx.fillStyle = `hsla(${hue},100%,80%,.9)`; ctx.fillRect(cx - boxW * 0.56, top, boxW * 1.12, 2);
+  const antH = boxH * 0.2;
+  ctx.fillStyle = `hsla(${hue},22%,40%,1)`; ctx.fillRect(cx - 1.6, top - antH, 3.2, antH);
+  const blink = done ? 1 : 0.3 + 0.7 * Math.max(0, Math.sin(t * 3.4));
+  ctx.fillStyle = `hsla(${hue},100%,${done ? 78 : 62}%,${0.35 + 0.65 * blink})`;
+  ctx.beginPath(); ctx.arc(cx, top - antH, Math.max(1.6, r * 0.062), 0, 6.283); ctx.fill();
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.restore();
+}
+
+/** 宝箱参考渲染：@param state 0 冷却 / 1 可开启 / 2 开启中 */
+function drawChestRef(ctx, cx, cy, t, r, state) {
+  const isWeapon = false, hue = isWeapon ? 24 : 190;
+  const breath = 0.5 + 0.5 * Math.sin(t * 2.4);
+  const boxW = r * 2.2, boxH = r * 2.0;
+  const bottom = cy + boxH * 0.5;
+  const w = boxW * 0.30, bh = boxH * 0.46, d = boxW * 0.11, dy = boxH * 0.13;
+  const bodyTopY = bottom - bh, lidH = boxH * 0.30;
+  const open = state === 2, ready = state === 1;
+  // 开盖进度：本页无状态机，用时间循环演示开合动画
+  const anim = open ? (Math.sin(t * 0.8) * 0.5 + 0.5) : 0;
+  const ease = 1 - Math.pow(1 - anim, 3);
+  ctx.save();
+  // 接地光晕
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.translate(cx, bottom); ctx.scale(1, 0.34);
+  const gg = ctx.createRadialGradient(0, 0, 0, 0, 0, boxW * 0.42);
+  gg.addColorStop(0, `hsla(${hue},100%,55%,${ready ? 0.42 + 0.16 * breath : open ? 0.6 : 0.16})`);
+  gg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(0, 0, boxW * 0.42, 0, 6.283); ctx.fill();
+  ctx.restore();
+  // 右侧面
+  ctx.beginPath();
+  ctx.moveTo(cx + w, bodyTopY); ctx.lineTo(cx + w + d, bodyTopY - dy);
+  ctx.lineTo(cx + w + d, bottom - dy); ctx.lineTo(cx + w, bottom);
+  ctx.closePath(); ctx.fillStyle = `hsla(${hue},34%,11%,.97)`; ctx.fill();
+  // 顶面 / 箱内暗腔
+  ctx.beginPath();
+  ctx.moveTo(cx - w, bodyTopY); ctx.lineTo(cx - w + d, bodyTopY - dy);
+  ctx.lineTo(cx + w + d, bodyTopY - dy); ctx.lineTo(cx + w, bodyTopY);
+  ctx.closePath();
+  if (open) { ctx.fillStyle = `hsla(${hue},70%,12%,1)`; ctx.fill(); }
+  else { ctx.fillStyle = `hsla(${hue},40%,22%,.97)`; ctx.fill(); }
+  // 正面 + 箍带 + 锁扣宝石
+  const fg = ctx.createLinearGradient(0, bodyTopY, 0, bodyTopY + bh);
+  fg.addColorStop(0, `hsla(${hue},38%,21%,.97)`); fg.addColorStop(1, `hsla(${hue},36%,10%,.97)`);
+  ctx.fillStyle = fg; ctx.fillRect(cx - w, bodyTopY, w * 2, bh);
+  ctx.fillStyle = `hsla(${hue},95%,80%,.9)`; ctx.fillRect(cx - w, bodyTopY, w * 2, 2);
+  for (let i = 0; i < 2; i++) {
+    ctx.fillStyle = `hsla(${hue},20%,38%,.95)`;
+    ctx.fillRect(cx + (i === 0 ? -w * 0.52 : w * 0.52) - w * 0.085, bodyTopY, Math.max(2, w * 0.17), bh);
+  }
+  const lkW = Math.max(6, w * 0.46), lkH = Math.max(5, bh * 0.26), lkY = bodyTopY + bh * 0.16;
+  ctx.fillStyle = `hsla(${hue},26%,18%,.95)`; ctx.fillRect(cx - lkW / 2, lkY, lkW, lkH);
+  const gemR = Math.min(lkW, lkH) * 0.34, gemY = lkY + lkH * 0.5;
+  ctx.fillStyle = `hsla(${hue},100%,${state === 0 ? 46 : 70}%,${state === 0 ? 0.3 : ready ? 0.65 + 0.35 * breath : 0.9})`;
+  ctx.beginPath(); ctx.arc(cx, gemY, gemR, 0, 6.283); ctx.fill();
+  // 盖子（绕后缘铰链翻转）
+  ctx.save();
+  ctx.translate(cx - w + d, bodyTopY - dy + (state === 0 ? Math.max(1, bh * 0.03) : 0));
+  ctx.rotate(-(ease * 0.62));
+  ctx.beginPath();
+  ctx.moveTo(-d, dy); ctx.lineTo(0, 0);
+  ctx.bezierCurveTo(w * 0.22 - d * 0.5, -lidH, w * 1.78 - d * 0.5, -lidH, w * 2, 0);
+  ctx.lineTo(w * 2 - d, dy);
+  ctx.quadraticCurveTo(w - d * 0.5, dy - lidH * 0.30, -d, dy);
+  ctx.closePath();
+  const lg = ctx.createLinearGradient(0, -lidH, 0, dy);
+  lg.addColorStop(0, `hsla(${hue},42%,30%,.98)`); lg.addColorStop(1, `hsla(${hue},38%,13%,.98)`);
+  ctx.fillStyle = lg; ctx.fill();
+  ctx.strokeStyle = `hsla(${hue},95%,66%,.9)`; ctx.lineWidth = 2; ctx.stroke();
+  ctx.restore();
+  // 轮廓描边（冷却态 = 逐段点亮的进度轨）
+  const sil = [[cx - w, bottom], [cx - w, bodyTopY], [cx - w + d, bodyTopY - dy],
+               [cx + w + d, bodyTopY - dy], [cx + w + d, bottom - dy], [cx + w, bottom]];
+  const coolP = state === 0 ? (t * 0.15) % 1 : 1;
+  ctx.shadowColor = `hsla(${hue},100%,55%,.9)`; ctx.shadowBlur = ready ? 14 : 16;
+  ctx.strokeStyle = `hsla(${hue},100%,58%,${state === 0 ? 0.2 : ready ? 0.34 + 0.1 * breath : 0.4})`;
+  ctx.lineWidth = 3.8; ctx.beginPath();
+  ctx.moveTo(sil[0][0], sil[0][1]);
+  for (let i = 1; i < sil.length; i++) ctx.lineTo(sil[i][0], sil[i][1]);
+  ctx.closePath(); ctx.stroke(); ctx.shadowBlur = 0;
+  if (state === 0) {
+    ctx.strokeStyle = `hsla(${hue},100%,88%,.7)`; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(sil[0][0], sil[0][1]);
+    const n = Math.max(2, Math.round(coolP * sil.length));
+    for (let i = 1; i < n; i++) ctx.lineTo(sil[i][0], sil[i][1]);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(172,182,204,.5)'; ctx.lineWidth = Math.max(1.5, bh * 0.045);
+    for (let i = 0; i < 3; i++) {
+      const yy = bodyTopY + bh * (0.56 + i * 0.16);
+      ctx.beginPath(); ctx.moveTo(cx - w * 0.92, yy);
+      ctx.quadraticCurveTo(cx, yy + bh * 0.06, cx + w * 0.92, yy); ctx.stroke();
+    }
+  } else {
+    ctx.strokeStyle = `hsla(${hue},100%,88%,.95)`; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(sil[0][0], sil[0][1]);
+    for (let i = 1; i < sil.length; i++) ctx.lineTo(sil[i][0], sil[i][1]);
+    ctx.closePath(); ctx.stroke();
+    if (ready) {
+      ctx.strokeStyle = 'rgba(255,255,255,.42)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cx, bodyTopY + bh * 0.5, w * 1.34, t * 2, t * 2 + Math.PI); ctx.stroke();
+    }
+  }
+  if (open) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const bY = bodyTopY - dy, bH = boxH * 0.9;
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.52, bY); ctx.lineTo(cx + w * 0.52, bY);
+    ctx.lineTo(cx + w * 0.78, bY - bH); ctx.lineTo(cx - w * 0.78, bY - bH);
+    ctx.closePath();
+    const bg2 = ctx.createLinearGradient(0, bY, 0, bY - bH);
+    bg2.addColorStop(0, `hsla(${hue},100%,72%,.42)`); bg2.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = bg2; ctx.fill(); ctx.restore();
+  }
   ctx.restore();
 }
 
@@ -1030,6 +1236,11 @@ function drawItem(ctx, catId, id, cx, cy, t, r, data) {
     else if (id === 'ak') drawPickup(ctx, cx, cy, t, r, 'rgba(255,180,90,.34)', 0.3, 0.1, 0.2, (c, x, y, rr) => { c.save(); c.translate(x, y); c.shadowColor = 'rgba(255,150,60,.9)'; c.shadowBlur = 8; c.rotate(-0.15); akShape(c, rr); c.restore(); });
     else if (id === 'grenade') drawPickup(ctx, cx, cy, t, r, 'rgba(150,255,140,.34)', 0.9, 0.1, 0.6, (c, x, y, rr) => { c.save(); c.translate(x, y); c.shadowColor = 'rgba(150,255,140,.9)'; c.shadowBlur = 8; grenadeShape(c, rr); c.restore(); });
     else if (id === 'checkpoint') drawCheckpoint(ctx, cx, cy, t, r);
+    else if (id === 'cipher') drawCipherRef(ctx, cx, cy, t, r, false);
+    else if (id === 'cipherDone') drawCipherRef(ctx, cx, cy, t, r, true);
+    else if (id === 'chestReady') drawChestRef(ctx, cx, cy, t, r, 1);
+    else if (id === 'chestCooling') drawChestRef(ctx, cx, cy, t, r, 0);
+    else if (id === 'chestOpen') drawChestRef(ctx, cx, cy, t, r, 2);
     else drawOrb(ctx, cx, cy, t, r);
     return;
   }

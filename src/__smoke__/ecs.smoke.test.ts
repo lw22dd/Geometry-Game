@@ -104,7 +104,7 @@ describe('bitECS 场景层运行时', () => {
     const nova = createNova(9, 10);
     const sh = createShieldPickup(5.5, 6.5, 0);
     const sp = createSpeedPickup(6, 6.5, 0);
-    expect(renderStyles.length).toBe(7);
+    expect(renderStyles.length).toBe(10); // orb/boost/hook/checkpoint/nova/shield/speed/recall/cipher/chest
     expect(Renderable.styleId[orb]).toBe(0);
     expect(Renderable.styleId[nova]).toBe(4);
     expect(Renderable.styleId[sh]).toBe(5);

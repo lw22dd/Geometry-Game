@@ -11,3 +11,5 @@ export { orbCount } from './ItemPickupSystem';
 export { updateRespawnPointSystem } from './RespawnPointSystem';
 export { updateGoalSystem } from './GoalSystem';
 export { checkHazardOverlap } from './hazard';
+export { updateCipherSystem, resetCipherSpark, cipherCount, cipherDoneCount } from './CipherSystem';
+export { stepChests, updateChestSystem, resetChestState } from './ChestSystem';

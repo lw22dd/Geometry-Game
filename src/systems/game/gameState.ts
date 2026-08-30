@@ -23,4 +23,5 @@ export const gs: GameState = {
   flash: 0,
   shake: 0,
   hitstop: 0,
+  cipherTotal: 0,
 };

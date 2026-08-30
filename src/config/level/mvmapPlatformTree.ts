@@ -61,6 +61,16 @@ export const mvmapPlatformTree: MapDefinition = {
     lasers: [],
     orbs: [],
     jumpBoosts: [],
+    // 密码机（第五人格式：靠近 + 持续按 E 破译，进度满转完成）
+    ciphers: [
+      [3, 2.5],    // 出生地面
+      [8.5, 5.5],  // 平台树顶
+    ],
+    // 宝箱（type 0=武器宝箱 1=道具宝箱；40s 刷新，打开掉落随机可拾取物）
+    chests: [
+      { type: 0, x: 3.5, y: 2.5 },  // 出生地面：武器宝箱
+      { type: 1, x: 8.5, y: 4.5 },  // 平台树顶：道具宝箱
+    ],
     checkpoints: [],
     nova: { x: 8.5, y: 4.5 },
   },
