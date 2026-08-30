@@ -59,6 +59,26 @@ describe('契约层结算管线', () => {
     expect(p.impulses.length).toBe(0);
   });
 
+  it('DamageRequest：血量归零必须致死（onKill 不被受击无敌阻塞）', () => {
+    const p = fresh();
+    p.hp = 5;
+    let killed = false;
+    // 归零的这次命中即使按原顺序会先 grantInv，也不应阻止致死
+    applyEffect(p, { kind: 'DamageRequest', amount: 10 }, { onKill: () => { killed = true; p.dead = true; } });
+    expect(killed).toBe(true);
+    expect(p.dead).toBe(true);
+  });
+
+  it('DamageRequest：非致死才给受击无敌（HIT_INV）', () => {
+    const p = fresh();
+    p.hp = 50;
+    let damaged = false;
+    applyEffect(p, { kind: 'DamageRequest', amount: 10 }, { onDamaged: () => { damaged = true; } });
+    expect(p.hp).toBe(40);
+    expect(p.inv).toBeGreaterThan(0);
+    expect(damaged).toBe(true);
+  });
+
   it('GrantJumpCharges：设置充能上限并立即回满', () => {
     const p = fresh();
     applyEffect(p, { kind: 'GrantJumpCharges', max: 1 });

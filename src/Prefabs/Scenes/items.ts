@@ -5,7 +5,7 @@
  */
 import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
-import { Position, Collider, Collectible, RespawnPoint, Goal, Renderable, Animator, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup } from '../../core/ecs';
+import { Position, Collider, Collectible, RespawnPoint, Goal, Renderable, Animator, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, RecallPickup, WeaponPickup } from '../../core/ecs';
 import { gs } from '../../systems/game/gameState';
 import { colliderWorldRect } from '../../systems/level';
 import { T } from './theme';
@@ -14,6 +14,9 @@ import { query } from 'bitecs';
 import { world } from '../../core/ecs';
 import { spawnParticles } from '../../systems/particles';
 import { FX } from '../Fx';
+import { weaponFromCode } from '../../config/weapons';
+import { drawWeaponModel } from '../WeaponVis';
+import { drawItemModel } from '../ItemVis';
 
 /** 光球 */
 export function drawOrbs(): void {
@@ -185,27 +188,14 @@ export function drawJumpBoosts(): void {
     ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
     ctx.globalCompositeOperation = 'source-over';
 
-    // ② 绿色上行箭头
+    // ② 道具本体（建模单一来源 = Prefabs/ItemVis，与背包图标同形）
     ctx.save();
     ctx.translate(cx, cy + R * 0.1);
     ctx.rotate(out.rotation);
     ctx.shadowColor = 'rgba(120,255,170,.9)';
     ctx.shadowBlur = T.glowMovable;
-    ctx.fillStyle = '#59ff8f';
-    ctx.beginPath();
-    ctx.moveTo(0, -R * 1.3);
-    ctx.lineTo(R * 0.65, -R * 0.15);
-    ctx.lineTo(R * 0.24, -R * 0.15);
-    ctx.lineTo(R * 0.24, R);
-    ctx.lineTo(-R * 0.24, R);
-    ctx.lineTo(-R * 0.24, -R * 0.15);
-    ctx.lineTo(-R * 0.65, -R * 0.15);
-    ctx.closePath();
-    ctx.fill();
+    drawItemModel('doubleJump', R);
     ctx.shadowBlur = 0;
-    // 箭头高光竖线（对应"顶光"语法）
-    ctx.fillStyle = 'rgba(230,255,240,.9)';
-    ctx.fillRect(-R * 0.08, -R * 1.1, R * 0.16, R * 0.9);
     ctx.restore();
     ctx.globalAlpha = 1;
   }
@@ -232,36 +222,14 @@ export function drawHookPickups(): void {
     ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
     ctx.globalCompositeOperation = 'source-over';
 
-    // ② 金色钩形（钩杆 + 弯钩 + 倒刺）
+    // ② 道具本体（建模单一来源 = Prefabs/ItemVis，与背包图标同形）
     ctx.save();
     ctx.translate(cx, cy + R * 0.2);
     ctx.rotate(out.rotation);
     ctx.shadowColor = 'rgba(255,180,70,.9)';
     ctx.shadowBlur = T.glowMovable;
-    ctx.strokeStyle = '#ffc04d';
-    ctx.lineWidth = R * 0.42;
-    ctx.lineCap = 'round';
-    // 钩杆：竖直
-    ctx.beginPath();
-    ctx.moveTo(0, -R * 1.25);
-    ctx.lineTo(0, R * 0.35);
-    ctx.stroke();
-    // 弯钩：从杆尾向左弯回（钩口朝左）
-    ctx.beginPath();
-    ctx.arc(0, R * 0.35, R * 0.65, -Math.PI * 0.82, Math.PI * 1.02);
-    ctx.stroke();
-    // 倒刺（小三角箭头，指向钩住方向）
-    ctx.fillStyle = '#ffd27a';
-    ctx.beginPath();
-    ctx.moveTo(0, R * 0.28);
-    ctx.lineTo(-R * 0.55, R * 0.10);
-    ctx.lineTo(0, -R * 0.05);
-    ctx.closePath();
-    ctx.fill();
+    drawItemModel('hook', R);
     ctx.shadowBlur = 0;
-    // 顶部圆头（发射端）
-    ctx.fillStyle = '#ffe3ad';
-    ctx.beginPath(); ctx.arc(0, -R * 1.25, R * 0.22, 0, 6.283); ctx.fill();
     ctx.restore();
     ctx.globalAlpha = 1;
   }
@@ -287,30 +255,14 @@ export function drawShieldPickups(): void {
     ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
     ctx.globalCompositeOperation = 'source-over';
 
-    // ② 盾形（上圆 + 收尖下底 + V 型高光）
+    // ② 道具本体（建模单一来源 = Prefabs/ItemVis，与背包图标同形）
     ctx.save();
     ctx.translate(cx, cy + R * 0.1);
     ctx.rotate(out.rotation);
     ctx.shadowColor = 'rgba(150,140,255,.9)';
     ctx.shadowBlur = T.glowMovable;
-    ctx.fillStyle = '#b3c7ff';
-    ctx.beginPath();
-    ctx.arc(0, 0, R * 0.75, Math.PI, 0);
-    ctx.lineTo(R * 0.75, R * 0.45);
-    ctx.lineTo(0, R * 0.95);
-    ctx.lineTo(-R * 0.75, R * 0.45);
-    ctx.closePath();
-    ctx.fill();
+    drawItemModel('shield', R);
     ctx.shadowBlur = 0;
-    // V 型高光
-    ctx.strokeStyle = 'rgba(235,240,255,.9)';
-    ctx.lineWidth = R * 0.16;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(-R * 0.3, -R * 0.2);
-    ctx.lineTo(0, R * 0.25);
-    ctx.lineTo(R * 0.3, -R * 0.2);
-    ctx.stroke();
     ctx.restore();
     ctx.globalAlpha = 1;
   }
@@ -336,29 +288,82 @@ export function drawSpeedPickups(): void {
     ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
     ctx.globalCompositeOperation = 'source-over';
 
-    // ② 「》》」双箭头：两枚右向 chevron（外小内大，冲刺感）
+    // ② 道具本体（建模单一来源 = Prefabs/ItemVis，与背包图标同形）
     ctx.save();
     ctx.translate(cx, cy + R * 0.1);
     ctx.rotate(out.rotation);
     ctx.shadowColor = 'rgba(120,230,255,.9)';
     ctx.shadowBlur = T.glowMovable;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#8ff6ff';
-    ctx.lineWidth = R * 0.34;
-    // 后箭头（左小）
-    ctx.beginPath();
-    ctx.moveTo(-R * 0.82, -R * 0.78);
-    ctx.lineTo(-R * 0.05, 0);
-    ctx.lineTo(-R * 0.82, R * 0.78);
-    ctx.stroke();
-    // 前箭头（右大）
-    ctx.strokeStyle = '#eaffff';
-    ctx.beginPath();
-    ctx.moveTo(-R * 0.18, -R * 0.78);
-    ctx.lineTo(R * 0.6, 0);
-    ctx.lineTo(-R * 0.18, R * 0.78);
-    ctx.stroke();
+    drawItemModel('speed', R);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+}
+
+/** 重置箭头（白环 + 光圈，拾取获得主动道具：使用后回到绑定的检查点） */
+export function drawRecallPickups(): void {
+  for (const e of query(world, [Position, Collider, Collectible, Renderable, Animator, RecallPickup])) {
+    if (Collectible.collected[e] === 1) continue;
+    const out = getAnimOutput(e);
+    const r = colliderWorldRect(e);
+    const cx = sx(r.x + r.w / 2);
+    const cy = sy(r.top + r.h / 2 + out.offsetY);
+    const R = Renderable.radius[e] * view.SZ;
+
+    // ① 白色泛光圈（外发光层）
+    ctx.globalAlpha = out.alpha;
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.4);
+    g.addColorStop(0, 'rgba(238,242,255,.30)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+
+    // ② 道具本体（建模单一来源 = Prefabs/ItemVis，与背包图标同形）
+    ctx.save();
+    ctx.translate(cx, cy + R * 0.1);
+    ctx.rotate(out.rotation);
+    ctx.shadowColor = 'rgba(238,242,255,.9)';
+    ctx.shadowBlur = T.glowMovable;
+    drawItemModel('recall', R);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* ==================== 武器拾取物（S2：AK / 手雷） ==================== */
+
+/** 武器拾取物（橙金泛光圈 + 枪/雷本体，拾取装备对应武器） */
+export function drawWeaponPickups(): void {
+  for (const e of query(world, [Position, Collider, Collectible, Renderable, Animator, WeaponPickup])) {
+    if (Collectible.collected[e] === 1) continue;
+    const out = getAnimOutput(e);
+    const r = colliderWorldRect(e);
+    const cx = sx(r.x + r.w / 2);
+    const cy = sy(r.top + r.h / 2 + out.offsetY);
+    const R = Renderable.radius[e] * view.SZ;
+    const kind = weaponFromCode(WeaponPickup.kind[e]);
+
+    // ① 橙金泛光圈（外发光层）
+    ctx.globalAlpha = out.alpha;
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.4);
+    g.addColorStop(0, 'rgba(255,180,90,.34)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+
+    ctx.save();
+    ctx.translate(cx, cy + R * 0.1);
+    ctx.rotate(out.rotation);
+    ctx.shadowColor = 'rgba(255,150,60,.9)';
+    ctx.shadowBlur = T.glowMovable;
+    // 建模单一来源 = Prefabs/WeaponVis
+    drawWeaponModel(kind === 'grenade' ? 'grenade' : 'ak', R);
     ctx.shadowBlur = 0;
     ctx.restore();
     ctx.globalAlpha = 1;

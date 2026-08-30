@@ -6,5 +6,5 @@ export { applyEffect, SHIELD_BLOCK_INV } from './effects';
 export type { PlayerRequest, EffectContext } from './effects';
 export {
   grantImpulse, consumeImpulses, decayImpulses, grantJumpCharges, grantInv, killState,
-  applyModifier, removeModifier, recomputeStats, stepBuffTimers,
+  damageState, applyModifier, removeModifier, recomputeStats, stepBuffTimers,
 } from './verbs';

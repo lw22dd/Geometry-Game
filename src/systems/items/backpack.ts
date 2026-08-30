@@ -1,7 +1,7 @@
 /**
- * 背包运行时 —— 玩家自带的 5 格装备栏数据逻辑。
+ * 背包运行时 —— 玩家自带的 10 格装备栏数据逻辑。
  *
- * 背包即玩家状态上的 backpack: ItemId[]（最长 5 格，顺序即槽位）。
+ * 背包即玩家状态上的 backpack: ItemId[]（最长 10 格，顺序即槽位）。
  * 本模块只提供纯函数 + 道具注册表，不持有全局状态：
  *  - addItem / hasItem / isFull：槽位操作
  *  - itemToNet / netToItem：网络数字编码（单一事实源 = ITEMS 条目的 code 字段）
@@ -9,7 +9,7 @@
  *
  * 类别语义：
  *  - passive 被动道具：拾取即生效（二段跳票 → extraJumpsMax=1；护盾/加速 → 限时 buff）
- *  - active  主动道具：由玩家触发使用（钩锁 → 鼠标瞄准 + 左键发射）
+ *  - active  主动道具：由玩家触发使用（钩锁 → 鼠标瞄准 + 左键发射；AK/手雷 → 选中槽位后左键开火/投掷）
  */
 import type { ItemCategory, ItemId, PlayerState } from '../../types';
 import { MAX_BACKPACK } from '../../types';
@@ -83,6 +83,17 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     }),
     // 到期表现由 game 层按 stepBuffTimers 到期列表处理（toast/粒子）；此处保持纯。
   },
+  recall: {
+    id: 'recall',
+    code: 6,
+    name: '重置箭头',
+    category: 'active',
+    // 主动装备：拾取后自动选中该槽位，便于立即使用
+    onPickup: (p) => {
+      p.selectedSlot = p.backpack.indexOf('recall');
+    },
+    // onActivate 由 recall.ts 注册（回到绑定的检查点）
+  },
   speed: {
     id: 'speed',
     code: 3,
@@ -95,6 +106,26 @@ export const ITEMS: Record<ItemId, ItemDef> = {
       mod: { stat: 'moveSpeed', op: 'set', value: 2, source: 'speed', dur: SPEED_TIME, t: SPEED_TIME },
     }),
     // 到期表现由 game 层按 stepBuffTimers 到期列表处理（toast/粒子）；此处保持纯。
+  },
+  ak: {
+    id: 'ak',
+    code: 4,
+    name: 'AK',
+    category: 'active',
+    // 主动装备：拾取后自动选中该槽位，便于立即开火
+    onPickup: (p) => {
+      p.selectedSlot = p.backpack.indexOf('ak');
+    },
+  },
+  grenade: {
+    id: 'grenade',
+    code: 5,
+    name: '手雷',
+    category: 'active',
+    // 主动装备：拾取后自动选中该槽位，便于立即投掷
+    onPickup: (p) => {
+      p.selectedSlot = p.backpack.indexOf('grenade');
+    },
   },
   };
 

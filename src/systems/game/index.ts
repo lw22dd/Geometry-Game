@@ -21,7 +21,7 @@ import { updateMotion, updateLaserTimer, updateSpringPads, updateCollisionSystem
 import { stepAnimation } from '../animation';
 import {
   drawParallax, drawGrid, drawBorder, drawDecos, drawSolids, drawFloor, drawMovers, drawSpringPads,
-  drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawJumpBoosts, drawHookPickups, drawShieldPickups, drawSpeedPickups, drawNOVA,
+  drawCheckpoints, drawSpikes, drawLasers, drawOrbs, drawJumpBoosts, drawHookPickups, drawShieldPickups, drawSpeedPickups, drawRecallPickups, drawWeaponPickups, drawNOVA,
   drawTrail, drawParticles, drawHints, drawTracks,
   drawMotes, stepMotes, drawFog, emitItemAmbient,
 } from '../../Prefabs/Scenes';
@@ -42,9 +42,10 @@ import {
   ensurePlayerEntity, getPlayerEid,
   storePlayerComponents, ensureRemotePlayerEntity, mirrorPlayerState,
 } from '../player/playerEntity';
-import type { FrameSignals, InputKeys, NetPlayerState, NetOrbState, NetItemState, RemotePlayer, ItemId } from '../../types';
+import type { FrameSignals, InputKeys, NetPlayerState, NetOrbState, NetItemState, RemotePlayer, ItemId, PlayerState, EnemyKind } from '../../types';
+import { MAX_BACKPACK } from '../../types';
 import { hasComponent } from 'bitecs';
-import { world, Position, PathMotion, Collider, Collectible, Orb, qOrbs, qCollectibles } from '../../core/ecs';
+import { world, Position, PathMotion, Collider, Collectible, Orb, qOrbs, qCollectibles, EnemyBrain, qEnemies } from '../../core/ecs';
 import { query } from 'bitecs';
 import { clamp } from '../../core/math';
 import {
@@ -52,10 +53,14 @@ import {
 } from '../interactions';
 import { packTrack, unpackTrack } from '../../core/trackCodec';
 import { mouse } from '../../core/mouse';
-import { drawHookAim, drawHookRope, mouseAimDir, defaultAimDir } from '../items/hook';
+import { drawHookAim, drawWeaponAim, drawHookRope, mouseAimDir, defaultAimDir } from '../items/hook';
 import { itemToNet, netToItem, reconcileShield, reconcileSpeed, ITEMS } from '../items/backpack';
 import { wireTriggerSystem } from '../effects/TriggerSystem';
 import { stepAuraSystem, resetAuraState } from '../level/AuraSystem';
+import { stepHealthInv, stepTracers, drawTracers, spawnShotTracer, spawnShotFeedback, drawProjectiles, stepProjectiles, clearProjectiles } from '../combat';
+import { drawHeldItem } from '../items/hold';
+import { stepEnemies, spawnLevelEnemies } from '../enemy';
+import { drawEnemies } from '../../Prefabs/Enemy';
 
 /* ==================== 轨道状态序列化（问题 10：统一走 core/trackCodec） ==================== */
 
@@ -67,7 +72,8 @@ const STATE_INTERVAL = 2;
 /** 客户端尚未上报输入时的兜底：空输入（静止），绝不读本机键盘 */
 const IDLE_INPUT: InputKeys = {
   left: false, right: false, jump: false, sprint: false,
-  interact: false, hook: false, aimX: 0, aimY: 0,
+  interact: false, hook: false, fire: false, altFire: false, reload: false,
+  aimX: 0, aimY: 0,
 };
 
 /** 远程玩家上一帧 interact 状态（用于检测"按下沿"） */
@@ -90,6 +96,12 @@ export function applyLevel(mapId: string): void {
   // 玩家 ECS 实体：setupLevel 已 clearWorld + initEcs，这里重建并同步出生点
   ensurePlayerEntity(room.playerId);
   playerController.flush(); // 初始化写回（实体新建，全字段落位）
+  // 清空旧抛体（切图重建；clearWorld 已移除实体，防御性清理）
+  clearProjectiles();
+  // 敌人：房主/单机进程模拟并本地生成；客机为接收事件的木偶，不本地生成（S3/S4）
+  if (room.role !== 'client') {
+    spawnLevelEnemies(currentMap.entitySpawners.enemies ?? []);
+  }
   // gs 计数/计时复位
   gs.gt = 0;
   gs.gotN = 0;
@@ -168,8 +180,10 @@ function renderAlpha(): number {
 /** 插值绘制本地玩家（表现层；物理仍 120Hz 步进） */
 function drawLocalPlayerInterpolated(alpha: number): void {
   const pS = playerController.getState();
+  const localAim = mouse.used ? mouseAimDir(pS) : defaultAimDir(pS);
   if (alpha >= 1 || gs.screen !== 'playing') {
     drawPlayer(pS, getSelectedCharacter());
+    drawHeldItem(pS, localAim);
     return;
   }
   // 死亡时不做插值：直接用真实状态（render 侧据此隐藏建模并让爆裂粒子接管）
@@ -185,6 +199,7 @@ function drawLocalPlayerInterpolated(alpha: number): void {
   rv.x = prevPx + (pS.x - prevPx) * alpha;
   rv.y = prevPy + (pS.y - prevPy) * alpha;
   drawPlayer(rv, getSelectedCharacter());
+  drawHeldItem(rv, localAim);
 }
 
 /**
@@ -226,6 +241,10 @@ function step(dt: number): void {
   }
   stepAuraSystem(dt, auraPlayers);
 
+  // 2.6 实体生命无敌计时（持续接触伤害的结算节拍；玩家 inv 衰减由物理层负责）。
+  // 当前无敌人实体 → 查询为空，零成本。
+  stepHealthInv(dt);
+
   // 3-4. 表现层（实体动画 FSM + 粒子 / 曳光 / 浮尘）
   stepPresentation(dt);
 
@@ -243,7 +262,15 @@ function step(dt: number): void {
   //      死亡实体物理冻结（stepPlayer 内部仅推进 deadT）；每物理步恰好一次装载/一次写回。
   const signals: FrameSignals = {};
   const inputKeys = getLocalInputKeys();
-  const pvPrev = playerController.getState(); // 上一帧镜像 = 上一帧步后状态（边沿检测基准）
+  // 上一帧镜像 = 上一帧步后状态（边沿检测基准）。
+  // 注意：必须在 stepPlayer/mirrorFrom 之前存成标量快照 —— getState() 返回视图对象
+  // 引用，mirrorFrom 会原地改写它；若这里存引用，prev 会拿到"本帧"值，边沿全部失效
+  // （坠落死亡不触发 onDiedEdge → 摔悬崖无死亡表现）。
+  const pvPrev = playerController.getState();
+  const prevDead = pvPrev.dead;
+  const prevVy = pvPrev.velocity.y;
+  const prevSprint = pvPrev.wasSpr;
+  const prevGrounded = pvPrev.grounded;
 
   stepPlayer(getPlayerEid(), inputKeys, dt, true, signals, true);
   playerController.mirrorFrom(getPlayerScratch()); // scratch → 视图（零分配）
@@ -261,7 +288,7 @@ function step(dt: number): void {
     hookEdge,
     aim: { x: inputKeys.aimX, y: inputKeys.aimY },
     sfx: true,
-    prev: { dead: pvPrev.dead, vy: pvPrev.velocity.y, sprint: pvPrev.wasSpr, grounded: pvPrev.grounded },
+    prev: { dead: prevDead, vy: prevVy, sprint: prevSprint, grounded: prevGrounded },
     deathMode: inSession() && !isHost() ? 'wait' : 'countdown',
     spawnX: cpPoint.x,
     spawnY: cpPoint.y,
@@ -284,6 +311,21 @@ function step(dt: number): void {
       playerController.emitEvent(e);
     },
   });
+
+  // 9.5 敌人步进（S3）：只在房主/单机进程模拟，客机为接收事件的木偶。
+  //     追击目标 = 本地玩家 + 房主模拟的远端玩家（存活）。
+  if (room.role !== 'client') {
+    const enemyPlayers: { state: PlayerState }[] = [{ state: playerController.getState() }];
+    for (const [, rp] of remotes) {
+      if (!rp.dead) enemyPlayers.push({ state: rp });
+    }
+    stepEnemies(dt, enemyPlayers);
+  }
+
+  // 9.6 抛体（手雷）步进：抛物线 + 引信 + 爆炸圆判定（放在 buildSolids 与
+  //     敌人步进之后，命中检测用本帧世界几何）。敌人该进程内判定伤害；
+  stepProjectiles(dt);
+  stepTracers(dt);
 
   // 10. 房主模式：模拟所有客机物理 + 广播状态
   if (isHost()) {
@@ -317,6 +359,8 @@ function stepRemoteClients(dt: number): void {
     // A 路线：远端玩家也拥有实体（混合范式消失），统一走 stepPlayer(eid) 入口
     if (rp.eid == null) rp.eid = ensureRemotePlayerEntity(rp.id);
     const input = getClientInput(id);
+    // 远端选中槽位：客机上报告知（武器/主动道具"持有才可使用"判定需要）；未上报保持当前值
+    if (input && input.slot !== undefined) rp.selectedSlot = input.slot;
     const signals: FrameSignals = {};
     const wasDead = rp.dead;
     const prevVy = rp.velocity.y;
@@ -385,6 +429,11 @@ function broadcastHostState(): void {
     face: pS.face, grounded: pS.grounded, dead: pS.dead,
     sprint: pS.sprint, inv: pS.inv,
     speedMult: pS.speedMult,
+    hp: pS.hp,
+    weapon: pS.weapon,
+    ammo: pS.ammo,
+    hasGrenade: pS.hasGrenade,
+    reloadT: pS.reloadT,
     hasPlat: pS.plat !== null, platDx: pS.plat ? pS.plat.dx : 0,
     ...packTrack(pS.track),
     backpack: pS.backpack.map(itemToNet),
@@ -398,6 +447,11 @@ function broadcastHostState(): void {
       face: rp.face, grounded: rp.grounded, dead: rp.dead,
       sprint: rp.sprint, inv: rp.inv,
       speedMult: rp.speedMult,
+      hp: rp.hp,
+      weapon: rp.weapon,
+      ammo: rp.ammo,
+      hasGrenade: rp.hasGrenade,
+      reloadT: rp.reloadT,
       hasPlat: false, platDx: 0,
       ...packTrack(rp.track),
       backpack: rp.backpack.map(itemToNet),
@@ -444,9 +498,15 @@ function getLocalInputKeys(): InputKeys {
     jump: keys.Space || keys.KeyW || keys.ArrowUp,
     sprint: keys.ShiftLeft || keys.ShiftRight,
     interact: keys.KeyE,
+    // S2：左右键开火。左键在「未装备钩锁」时是开火（装备钩锁时左键归钩锁，避免冲突）
+    fire: mouse.down && !canHook,
+    altFire: mouse.rDown,
+    reload: keys.KeyR,
     hook: mouse.down && canHook,
     aimX: dir.x,
     aimY: dir.y,
+    // 客机上报告知选中槽位（房主模拟远端时用"持有才可使用"判定武器/主动道具）
+    slot: pState.selectedSlot,
   };
 }
 
@@ -514,6 +574,13 @@ function wireNetEvents(): void {
         } else if (!selfPs.dead && playerController.isDead()) {
           playerController.applyDeathAuthority(false, selfPs.x, selfPs.y, 1.2);
         }
+        // 生命值权威同步（房主是伤害与复活的唯一权威，客机预测被覆盖）
+        if (selfPs.hp !== undefined) pS.hp = selfPs.hp;
+        // 武器/弹药权威同步（S2：房主是弹匣消耗/换弹权威，客机跟随）
+        if (selfPs.weapon !== undefined) pS.weapon = selfPs.weapon;
+        if (selfPs.ammo !== undefined) pS.ammo = selfPs.ammo;
+        if (selfPs.hasGrenade !== undefined) pS.hasGrenade = selfPs.hasGrenade;
+        if (selfPs.reloadT !== undefined) pS.reloadT = selfPs.reloadT;
         // 背包权威同步（替换本地预测，与 extraJumpsMax 同模式）
         if (selfPs.backpack) {
           pS.backpack = selfPs.backpack.map(netToItem);
@@ -598,6 +665,17 @@ function wireNetEvents(): void {
         // 自己的破盾已在本地播放，不再重复
         if (d.playerId === room.playerId) break;
         spawnParticles(FX.shieldBreak, d.x, d.y);
+        break;
+      // ── 敌人死亡（S3）：房主判定广播，客机播放死亡表现（木偶）──
+      case 'enemy_died':
+        if (typeof d.x === 'number' && typeof d.y === 'number') {
+          spawnParticles(FX.enemyDeath, d.x, d.y);
+        }
+        break;
+      // ── 开火反馈：房主广播（房主是开火模拟权威），客机补播曳光/火光/音效 ──
+      case 'fx_shot':
+        spawnShotTracer(d.mx, d.my, d.hitX, d.hitY);
+        spawnShotFeedback(d.mx, d.my, d.hitX, d.hitY, !!d.hit);
         break;
     }
   });
@@ -689,9 +767,9 @@ function render(dt: number): void {
   ctx.fillStyle = gr;
   ctx.fillRect(0, 0, VW, VH);
 
-  // 菜单 / 准备流程 / 大厅 / 图鉴 / 操作说明 / 设置：全屏 UI 场景，直接绘制（不渲染游戏）
+  // 菜单 / 准备流程 / 大厅 / 操作说明 / 设置：全屏 UI 场景，直接绘制（不渲染游戏）
   if (ui.currentName === 'menu' || ui.currentName === 'lobby'
-      || ui.currentName === 'gallery' || ui.currentName === 'instructions'
+      || ui.currentName === 'instructions'
       || ui.currentName === 'settings'
       || ui.currentName === 'prepare' || ui.currentName === 'mapSelect' || ui.currentName === 'charSelect') {
     ui.draw(uiTime);
@@ -741,18 +819,30 @@ function renderGame(dt: number): void {
   drawHookPickups();
   drawShieldPickups();
   drawSpeedPickups();
+  drawRecallPickups();
+  drawWeaponPickups();
   drawNOVA(pulse);
   drawTrail();
   drawParticles();
 
+  // 敌人（S3）：行走兵（在玩家之下绘制，作为地面单位）
+  drawEnemies();
+  // 武器曳光（S2）：AK 开火留痕
+  drawTracers();
+
   // 钩锁瞄准预览（在玩家下方，半透明线）
   drawHookAim(pS);
+  // 武器（AK / 手雷）鼠标准星
+  drawWeaponAim(pS);
 
   // 绘制所有玩家（本地 alpha 插值 + 远程）
   drawLocalPlayerInterpolated(renderAlpha());
   for (const [, rp] of remotes) {
     drawRemotePlayer(rp, dt);
   }
+
+  // 手雷抛体（S2）：在玩家之上绘制，保证飞行可见
+  drawProjectiles();
 
   // 滑索绳索（在玩家上方，金色线）
   drawHookRope(pS);
@@ -827,6 +917,7 @@ function drawRemotePlayer(rp: RemotePlayer, dt: number): void {
   // 使用玩家选择的角色样式；未选择时回退默认角色（不按 playerId 区分颜色）
   const style = info?.char ? getCharacterById(info.char) : DEFAULT_CHARACTER;
   drawPlayerFor(rp, style);
+  drawHeldItem(rp);
 
   // 玩家 ID 标签
   ctx.save();
@@ -956,7 +1047,6 @@ function wirePlayerEvents(): void {
         if (event.impact > 7.5) {
           const s = playerController.getState();
           spawnParticles(FX.dust, s.x, s.y - s.half, 6);
-          spawnParticles(FX.landRing, s.x, s.y - s.half); // 重落地冲击环
           sfx.land(event.impact * 0.02, { pan: panOf(s.x) });
         }
         break;
@@ -1026,13 +1116,13 @@ export function handleKeyDown(e: KeyboardEvent): void {
     playerController.setJumpBuffer(PHYS[getMode()].jb);
   }
 
-  if (e.code === 'KeyR') {
-    playerController.respawn(); // respawn 内部已直写组件
-  }
+  // 注意：KeyR 已重排为「换弹」（S2）。换弹输入经 getLocalInputKeys 读取
+  // keys.KeyR → InputKeys.reload，由武器系统消费按下沿，此处不再处理。
+  // 手动复活移除：死亡走自动倒计时复活（tick 死亡分支）。
 
-  // 数字键 1-5：选中背包槽位（主动道具装备栏）
-  if (e.code >= 'Digit1' && e.code <= 'Digit5') {
-    const slot = parseInt(e.code[5]) - 1; // 'Digit1' → 0
+  // 数字键 1-9 / 0：选中背包槽位（10 格装备栏；第 10 格 = 0 键）
+  if ((e.code >= 'Digit1' && e.code <= 'Digit9') || e.code === 'Digit0') {
+    const slot = e.code === 'Digit0' ? MAX_BACKPACK - 1 : parseInt(e.code[5]) - 1; // 'Digit1' → 0
     playerController.setSelectedSlot(slot); // 直写组件
     gs.toast = '装备栏 ' + (slot + 1);
     gs.toastT = 1.2;
@@ -1059,4 +1149,20 @@ export function handleKeyDown(e: KeyboardEvent): void {
     gs.toastT = 2;
     if (!muted) resetMusicClock();
   }
+}
+
+/**
+ * 滚轮切换背包选中槽位（仅游戏中消费；UI 场景滚轮由 UIManager 先行处理）。
+ * 在整个装备栏（0..MAX_BACKPACK-1）间线性循环，空槽也滚动（与数字键直选一致）；
+ * 始终消费滚轮（避免游戏中滚动页面）。
+ */
+export function handleWheel(deltaY: number): boolean {
+  if (gs.screen !== 'playing') return false;
+  const p = playerController.getState();
+  const dir = deltaY > 0 ? 1 : -1; // 滚轮向下 = 下一格
+  const next = (p.selectedSlot + dir + MAX_BACKPACK) % MAX_BACKPACK;
+  playerController.setSelectedSlot(next); // 直写组件
+  gs.toast = '装备栏 ' + (next + 1);
+  gs.toastT = 1.2;
+  return true;
 }

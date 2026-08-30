@@ -325,6 +325,10 @@ const MIN_GAP: Record<string, number> = {
   uiHover: 0.04,
   uiClick: 0.03,
   laserWarn: 0.25,
+  shot: 0.09,
+  hit: 0.03,
+  hurt: 0.05,
+  explosion: 0.12,
 };
 
 const lastAt = new Map<string, number>();
@@ -424,6 +428,16 @@ export const sfx = {
     const t = now();
     osc('sine', 440, { at: t, dur: 0.15, vol: PEAK * 0.65 * k, f1: 660, detune: 6, pan: opts?.pan });
     osc('sine', 660, { at: t + 0.08, dur: 0.18, vol: PEAK * 0.55 * k, f1: 880, detune: 6, pan: opts?.pan });
+  },
+
+  /** 武器拾取：金属上滑双音 + 短噪声（装弹感） */
+  weaponPickup(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null) return;
+    const t = now();
+    osc('square', 520, { at: t, dur: 0.1, vol: PEAK * 0.4 * k, f1: 780, lp: 2400, attack: 0.003, decay: 0.04, sustain: 0.3, release: 0.06, pan: opts?.pan });
+    osc('triangle', 780, { at: t + 0.07, dur: 0.16, vol: PEAK * 0.55 * k, f1: 1170, pan: opts?.pan });
+    noise({ at: t, dur: 0.08, vol: PEAK * 0.18 * k, hp: 2000, pan: opts?.pan });
   },
 
   /** 加速拾取：快速上滑 + 短噪声（冲刺感） */
@@ -535,5 +549,68 @@ export const sfx = {
     const t = now();
     osc('triangle', 740, { at: t, dur: 0.07, vol: PEAK * 0.3 * k, attack: 0.002, release: 0.05, pan: opts?.pan });
     osc('triangle', 1108, { at: t + 0.045, dur: 0.11, vol: PEAK * 0.22 * k, attack: 0.002, release: 0.08, pan: opts?.pan });
+  },
+
+  /* ── 战斗音效（S2/S3）── */
+
+  /** AK 开火：短促噪声爆音 + 低频冲击 */
+  shot(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null || gate('shot')) return;
+    const t = now();
+    noise({ at: t, dur: 0.09, vol: PEAK * 0.55 * k, hp: 900, lp: 3800, attack: 0.002, release: 0.07, pan: opts?.pan });
+    osc('square', 180, { at: t, dur: 0.07, vol: PEAK * 0.3 * k, f1: 60, lp: 900, attack: 0.002, release: 0.05, pan: opts?.pan });
+  },
+
+  /** 命中反馈：清脆短促高频（hitscan 命中敌人时） */
+  hit(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null || gate('hit')) return;
+    const t = now();
+    osc('triangle', 1400, { at: t, dur: 0.06, vol: PEAK * 0.35 * k, f1: 600, attack: 0.002, release: 0.04, pan: opts?.pan });
+  },
+
+  /** 玩家受击（未死）：下坠中频 + 冲击噪声（比死亡轻，比命中重） */
+  hurt(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null || gate('hurt')) return;
+    const t = now();
+    osc('sawtooth', 420, { at: t, dur: 0.18, vol: PEAK * 0.55 * k, f1: 100, lp: 1100, attack: 0.003, decay: 0.06, sustain: 0.35, release: 0.12, pan: opts?.pan });
+    noise({ at: t, dur: 0.12, vol: PEAK * 0.3 * k, hp: 700, lp: 2400, pan: opts?.pan });
+  },
+
+  /** 换弹：金属两段咔嗒 */
+  reload(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null) return;
+    const t = now();
+    osc('square', 400, { at: t, dur: 0.05, vol: PEAK * 0.22 * k, lp: 2200, attack: 0.002, release: 0.03, pan: opts?.pan });
+    osc('square', 520, { at: t + 0.14, dur: 0.05, vol: PEAK * 0.2 * k, lp: 2400, attack: 0.002, release: 0.03, pan: opts?.pan });
+  },
+
+  /** 手雷投掷：短促上滑 */
+  grenadeThrow(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null) return;
+    const t = now();
+    osc('triangle', 240, { at: t, dur: 0.12, vol: PEAK * 0.3 * k, f1: 480, lp: 1600, attack: 0.003, release: 0.08, pan: opts?.pan });
+  },
+
+  /** 手雷爆炸：低频重击 + 碎裂噪声 */
+  explosion(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null || gate('explosion')) return;
+    const t = now();
+    noise({ at: t, dur: 0.4, vol: PEAK * 0.7 * k, lp: 1200, attack: 0.003, decay: 0.15, sustain: 0.3, release: 0.22, pan: opts?.pan });
+    osc('sawtooth', 160, { at: t, dur: 0.35, vol: PEAK * 0.5 * k, f1: 38, lp: 500, attack: 0.004, release: 0.3, pan: opts?.pan });
+  },
+
+  /** 敌人死亡：急促下坠（与死亡爆裂粒子同步） */
+  enemyDie(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null) return;
+    const t = now();
+    osc('square', 420, { at: t, dur: 0.2, vol: PEAK * 0.3 * k, f1: 80, lp: 1400, attack: 0.003, release: 0.16, pan: opts?.pan });
+    noise({ at: t, dur: 0.12, vol: PEAK * 0.2 * k, hp: 800, pan: opts?.pan });
   },
 };

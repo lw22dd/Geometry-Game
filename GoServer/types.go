@@ -24,6 +24,9 @@ type InputKeys struct {
 	Sprint   bool    `json:"sprint"`
 	Interact bool    `json:"interact"`
 	Hook     bool    `json:"hook"`
+	Fire     bool    `json:"fire"`
+	AltFire  bool    `json:"altFire"`
+	Reload   bool    `json:"reload"`
 	AimX     float64 `json:"aimX"`
 	AimY     float64 `json:"aimY"`
 }
@@ -141,8 +144,16 @@ type PlayerState struct {
 	Inv       float64 `json:"inv"`
 	// 水平移速倍率（1 = 常态，2 = 加速 buff）
 	SpeedMult float64 `json:"speedMult"`
-	HasPlat   bool    `json:"hasPlat"`
-	PlatDx    float64 `json:"platDx,omitempty"`
+	// 生命值（S1：房主权威；客机不自行结算伤害）
+	Hp float64 `json:"hp"`
+	// 当前主武器（S2：none / ak / grenade）
+	Weapon  string  `json:"weapon"`
+	Ammo    int     `json:"ammo"`
+	// 是否拥有手雷副武器（S2：拾取手雷道具后 true）
+	HasGrenade bool    `json:"hasGrenade"`
+	ReloadT float64 `json:"reloadT"`
+	HasPlat bool    `json:"hasPlat"`
+	PlatDx  float64 `json:"platDx,omitempty"`
 	// Track 状态（含钩锁滑索）
 	TrackOn       bool    `json:"trackOn"`
 	TrackZipline  bool    `json:"trackZipline"`

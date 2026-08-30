@@ -97,7 +97,7 @@ describe('stepControlArbiter 写 ControlMode 组件', () => {
 
 describe('S3 消费侧：stepPlayerByMode 分派（MovementSystem 读 ControlMode）', () => {
   const DT = 1 / 120;
-  const idle = (): InputKeys => ({ left: false, right: false, jump: false, sprint: false, interact: false, hook: false, aimX: 0, aimY: 0 });
+  const idle = (): InputKeys => ({ left: false, right: false, jump: false, sprint: false, interact: false, hook: false, fire: false, altFire: false, reload: false, aimX: 0, aimY: 0 });
 
   beforeAll(() => {
     setMode('tuned');

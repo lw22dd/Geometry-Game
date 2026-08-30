@@ -7,8 +7,6 @@ import { Button, UI_SCENE } from '../../core/uiComponent';
 import type { UIScene } from '../../core/uiComponent';
 import { drawBackdrop, drawHUDFrame, drawNeonTitle, drawDecoStar, ease } from '../uiAtmosphere';
 import { resetHover } from './primitives';
-import { drawOrbIcon } from './icons';
-import { openGallery } from './gallery';
 import { openInstructions } from './instructions';
 import { openSettings } from './settings';
 
@@ -69,62 +67,20 @@ function _menuTitle(t: number, en: number): void {
   ctx.restore();
 
   // 主标题：色差双层 + 渐变主体 + 紫晕 + 流光（内部自带 dy 入场位移）
-  drawNeonTitle(VW / 2, cy, 'NEON ASCENT', 76, t, en);
+  drawNeonTitle(VW / 2, cy, 'NEON FIGHT', 76, t, en);
 
   // 副标题 + 两侧菱形星
   const subY = cy + 38 + dy;
   ctx.font = '600 17px "Segoe UI","Microsoft YaHei",Arial';
   ctx.fillStyle = '#b9c8ff';
-  ctx.fillText('霓 虹 攀 升  ·  FEEL-TUNED EDITION', VW / 2, subY);
+  ctx.fillText('霓 虹 战 斗  ·  FEEL-TUNED EDITION', VW / 2, subY);
   for (const s of [-1, 1]) {
     drawDecoStar(VW / 2 + s * 185, subY - 6, 5, t * .8 * s, 'rgba(140,246,255,.8)', 1, 1);
   }
   ctx.restore();
 }
 
-/* ---------- 目标行（光球 + NOVA 实物图标） ---------- */
-function _menuGoal(t: number, en: number): void {
-  if (en <= 0) return;
-  const y = VH / 2 + 60 + (1 - en) * 14;
-  ctx.save();
-  ctx.globalAlpha = en;
-  ctx.textBaseline = 'middle';
 
-  ctx.font = '700 19px "Segoe UI","Microsoft YaHei",Arial';
-  const a = '收 集 42 枚 光 球';
-  const b = '登 顶 寻 找 NOVA 星';
-  const sep = '    ·    ';
-  const wa = ctx.measureText(a).width;
-  const wb = ctx.measureText(b).width;
-  ctx.font = '600 19px Arial';
-  const ws = ctx.measureText(sep).width;
-
-  const orbR = 9, starR = 9, gap = 13;
-  const total = orbR * 2 + gap + wa + ws + wb + gap + starR * 2;
-  let x = VW / 2 - total / 2;
-
-  drawOrbIcon(x + orbR, y + Math.sin(t * 2.6) * 2.5, t, orbR);
-  x += orbR * 2 + gap;
-
-  ctx.textAlign = 'left';
-  ctx.font = '700 19px "Segoe UI","Microsoft YaHei",Arial';
-  ctx.fillStyle = '#ffb0e8';
-  ctx.fillText(a, x, y);
-  x += wa;
-
-  ctx.font = '600 19px Arial';
-  ctx.fillStyle = 'rgba(150,170,255,.65)';
-  ctx.fillText(sep, x, y);
-  x += ws;
-
-  ctx.font = '700 19px "Segoe UI","Microsoft YaHei",Arial';
-  ctx.fillStyle = '#ffd9a0';
-  ctx.fillText(b, x, y);
-  x += wb;
-
-  _fillStar(x + gap + starR, y + Math.sin(t * 2.2 + 1.3) * 2.5, starR, t * .8, '#ffd76b', 'rgba(255,215,107,.9)');
-  ctx.restore();
-}
 
 /* ---------- 页脚 ---------- */
 function _menuFooter(t: number): void {
@@ -149,7 +105,6 @@ function drawMenuScene(_t: number): void {
   drawBackdrop(t);
   drawHUDFrame(ease(t / .5));
   _menuTitle(t, ease(t / .7));
-  _menuGoal(t, ease((t - .45) / .6));
   _menuFooter(t);
 }
 
@@ -169,40 +124,30 @@ export function buildMenuScene(onStart: () => void): UIScene {
     onClick: onStart,
   });
 
-  // 预制体图鉴按钮（位于开始游戏下方）
-  const galleryBtn = new Button({
-    id: 'menu_gallery',
-    label: '预制体图鉴',
-    variant: 'plain',
-    x: VW / 2 - 215, y: VH / 2 + 250, w: 200, h: 36,
-    enterDelay: 0.8,
-    onClick: openGallery,
-  });
-
-  // 操作说明按钮（与图鉴并排）
+  // 操作说明按钮（与设置并排）
   const instrBtn = new Button({
     id: 'menu_instr',
     label: '操作说明',
     variant: 'plain',
-    x: VW / 2 + 15, y: VH / 2 + 250, w: 200, h: 36,
+    x: VW / 2 - 215, y: VH / 2 + 250, w: 200, h: 36,
     enterDelay: 0.8,
     onClick: openInstructions,
   });
 
-  // 设置按钮（音量 / 画质；图鉴与说明下方一行）
+  // 设置按钮（音量 / 画质；说明下方一行）
   const settingsBtn = new Button({
     id: 'menu_settings',
     label: '设 置',
     variant: 'plain',
-    x: VW / 2 - 100, y: VH / 2 + 296, w: 200, h: 36,
-    enterDelay: 0.9,
+    x: VW / 2 + 15, y: VH / 2 + 250, w: 200, h: 36,
+    enterDelay: 0.8,
     onClick: openSettings,
   });
 
   return {
     name: UI_SCENE.MENU,
-    widgets: [menuBtn, galleryBtn, instrBtn, settingsBtn],
+    widgets: [menuBtn, instrBtn, settingsBtn],
     draw: drawMenuScene,
-    onExit: () => resetHover(menuBtn, galleryBtn, instrBtn, settingsBtn),
+    onExit: () => resetHover(menuBtn, instrBtn, settingsBtn),
   };
 }

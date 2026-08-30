@@ -8,6 +8,7 @@
 import type { PlayerState } from '../../types';
 import { ITEMS } from './backpack';
 import type { ActiveItemContext } from './backpack';
+import './recall'; // 副作用注册：让重置箭头 onActivate 可用
 
 /**
  * 步进一个玩家的主动道具（S7 槽位）。

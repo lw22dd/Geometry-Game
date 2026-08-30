@@ -23,6 +23,8 @@ import {
 } from '../../core/ecs';
 import { qLocalPlayer } from '../../core/ecs';
 import type { PlayerState, TrackState } from '../../types';
+import { PLAYER_MAX_HP } from '../../config/combat';
+import { weaponFromCode, weaponToCode } from '../../config/weapons';
 
 /** 本地玩家实体 eid（未创建 = -1） */
 let playerEid = -1;
@@ -59,6 +61,15 @@ export function ensurePlayerEntity(playerId: number): number {
     addComponent(world, e, ShieldCharges);
     addComponent(world, e, ControlMode);
     ControlMode.mode[e] = 0; // S3 仲裁初始值 = free
+    // 生命值槽位初始化（真实值由随后 storePlayerComponents 覆盖）
+    PlayerControl.hp[e] = PLAYER_MAX_HP;
+    PlayerControl.maxHp[e] = PLAYER_MAX_HP;
+    // 武器为地图拾取物：出生无主武器（'none' → -1）且无手雷
+    PlayerControl.weapon[e] = weaponToCode('none');
+    PlayerControl.ammo[e] = 0;
+    PlayerControl.hasGrenade[e] = 0;
+    PlayerControl.reloadT[e] = 0;
+    PlayerControl.fireCd[e] = 0;
     // AoS 侧表槽位初始化
     ImpulseQueue[e] = [];
     Backpack[e] = [];
@@ -99,6 +110,13 @@ export function loadPlayerComponents(e: number, out: PlayerState): void {
   out.extraJumpsMax = JumpCharges.max[e];
   out.shields = ShieldCharges.left[e];
   out.shieldsMax = ShieldCharges.max[e];
+  out.hp = PlayerControl.hp[e] ?? PLAYER_MAX_HP;
+  out.maxHp = PlayerControl.maxHp[e] ?? PLAYER_MAX_HP;
+  out.weapon = weaponFromCode(PlayerControl.weapon[e]);
+  out.ammo = PlayerControl.ammo[e] ?? 0;
+  out.hasGrenade = PlayerControl.hasGrenade[e] === 1;
+  out.reloadT = PlayerControl.reloadT[e] ?? 0;
+  out.fireCd = PlayerControl.fireCd[e] ?? 0;
   out.jumpWasDown = PlayerControl.jumpWasDown[e] === 1;
   out.jumpFresh = PlayerControl.jumpFresh[e] === 1;
   out.impulses = ImpulseQueue[e] ?? (ImpulseQueue[e] = []);
@@ -141,6 +159,13 @@ export function storePlayerComponents(e: number, p: PlayerState): void {
   JumpCharges.max[e] = p.extraJumpsMax;
   ShieldCharges.left[e] = p.shields;
   ShieldCharges.max[e] = p.shieldsMax;
+  PlayerControl.hp[e] = p.hp;
+  PlayerControl.maxHp[e] = p.maxHp;
+  PlayerControl.weapon[e] = weaponToCode(p.weapon);
+  PlayerControl.ammo[e] = p.ammo;
+  PlayerControl.hasGrenade[e] = p.hasGrenade ? 1 : 0;
+  PlayerControl.reloadT[e] = p.reloadT;
+  PlayerControl.fireCd[e] = p.fireCd;
   ImpulseQueue[e] = p.impulses;
   PlayerTrackState[e] = p.track;
   PlayerPlat[e] = p.plat;
@@ -172,6 +197,13 @@ export function mirrorPlayerState(target: PlayerState, source: PlayerState): voi
   target.extraJumpsMax = source.extraJumpsMax;
   target.shields = source.shields;
   target.shieldsMax = source.shieldsMax;
+  target.hp = source.hp;
+  target.maxHp = source.maxHp;
+  target.weapon = source.weapon;
+  target.ammo = source.ammo;
+  target.hasGrenade = source.hasGrenade;
+  target.reloadT = source.reloadT;
+  target.fireCd = source.fireCd;
   target.jumpWasDown = source.jumpWasDown;
   target.jumpFresh = source.jumpFresh;
   target.impulses = source.impulses;
@@ -220,6 +252,13 @@ export function syncFromEcs(e: number = playerEid): PlayerState | null {
     extraJumpsMax: JumpCharges.max[e],
     shields: ShieldCharges.left[e],
     shieldsMax: ShieldCharges.max[e],
+    hp: PlayerControl.hp[e] ?? PLAYER_MAX_HP,
+    maxHp: PlayerControl.maxHp[e] ?? PLAYER_MAX_HP,
+    weapon: weaponFromCode(PlayerControl.weapon[e]),
+    ammo: PlayerControl.ammo[e] ?? 0,
+    hasGrenade: PlayerControl.hasGrenade[e] === 1,
+    reloadT: PlayerControl.reloadT[e] ?? 0,
+    fireCd: PlayerControl.fireCd[e] ?? 0,
     jumpWasDown: PlayerControl.jumpWasDown[e] === 1,
     jumpFresh: PlayerControl.jumpFresh[e] === 1,
     impulses: (ImpulseQueue[e] ?? []).slice(),
@@ -258,6 +297,14 @@ export function ensureRemotePlayerEntity(playerId: number): number {
   addComponent(world, e, ShieldCharges);
   addComponent(world, e, ControlMode);
   ControlMode.mode[e] = 0;
+  PlayerControl.hp[e] = PLAYER_MAX_HP;
+  PlayerControl.maxHp[e] = PLAYER_MAX_HP;
+  // 武器为地图拾取物：远端玩家出生同样无主武器（'none' → -1）且无手雷
+  PlayerControl.weapon[e] = weaponToCode('none');
+  PlayerControl.ammo[e] = 0;
+  PlayerControl.hasGrenade[e] = 0;
+  PlayerControl.reloadT[e] = 0;
+  PlayerControl.fireCd[e] = 0;
   Collider.w[e] = 0.84;
   Collider.h[e] = 0.84;
   ImpulseQueue[e] = [];

@@ -5,11 +5,12 @@
  */
 import { query, getAllEntities, type World } from 'bitecs';
 import {
-  Position, Velocity, Collider, PathMotion, SpringPad, Timer, Hazard,
+  Position, Velocity, Collider, PathMotion, SpringPad, Timer, Hazard, Health,
   Collectible, RespawnPoint, Goal, Track, Aura, Renderable, Animator, Hookable,
-  Player, PlayerControl, PlayerInput, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, Backpack,
+  Player, PlayerControl, PlayerInput, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, WeaponPickup, Backpack,
+  Projectile, EnemyBrain,
 } from './components';
-import { world } from './world';
+import { world } from './World';
 
 export type W = World;
 /** 查询结果（默认非 buffered：普通 EntityId[]） */
@@ -25,6 +26,10 @@ export const qSpringPads = (): Q => query(world, [Position, Collider, SpringPad]
 export const qSpringAll = (): Q => query(world, [SpringPad]) as Q;
 export const qTimers = (): Q => query(world, [Timer]) as Q;
 export const qHazards = (): Q => query(world, [Position, Collider, Hazard]) as Q;
+/** 有生命值的实体（敌人 / 可摧毁物；不含玩家） */
+export const qHealth = (): Q => query(world, [Health]) as Q;
+/** 可被伤害的实体（生命 + 碰撞体，供投射物 / 爆炸查询） */
+export const qDamageable = (): Q => query(world, [Position, Collider, Health]) as Q;
 export const qLasers = (): Q => query(world, [Position, Collider, Timer, Hazard]) as Q;
 export const qTracks = (): Q => query(world, [Position, Track]) as Q;
 export const qAuras = (): Q => query(world, [Position, Aura]) as Q;
@@ -39,9 +44,15 @@ export const qJumpBoosts = (): Q => query(world, [Position, Collider, Collectibl
 export const qHooks = (): Q => query(world, [Position, Collider, Collectible, Hook]) as Q;
 export const qShields = (): Q => query(world, [Position, Collider, Collectible, ShieldPickup]) as Q;
 export const qSpeeds = (): Q => query(world, [Position, Collider, Collectible, SpeedPickup]) as Q;
+export const qWeaponPickups = (): Q => query(world, [Position, Collider, Collectible, WeaponPickup]) as Q;
 
 /** 动画 */
 export const qAnimators = (): Q => query(world, [Position, Animator]) as Q;
+
+/** 抛体（手雷等） */
+export const qProjectiles = (): Q => query(world, [Position, Projectile]) as Q;
+/** 敌人实体（位置 + 生命 + 大脑） */
+export const qEnemies = (): Q => query(world, [Position, Collider, Health, EnemyBrain]) as Q;
 
 /** 全部实体（清场/调试用） */
 export const qAll = (): Q => getAllEntities(world) as Q;

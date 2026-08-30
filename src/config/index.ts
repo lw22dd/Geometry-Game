@@ -6,3 +6,5 @@ export * from './physics';
 export * from './visuals';
 export * from './level';
 export * from './background';
+export * from './combat';
+export * from './weapons';

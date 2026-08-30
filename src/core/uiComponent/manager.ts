@@ -15,7 +15,7 @@ import type { UIWidget, UIScene, UISceneName } from './types';
 /**
  * UI 管理器（问题 3：单一真源 + 叠层栈）。
  *  - 基础场景真源：gs.scene（menu / prepare / mapSelect / charSelect / lobby / null）
- *  - 叠层栈：pause / dev / gallery / instructions（可覆盖基础场景）
+ *  - 叠层栈：pause / dev / instructions（可覆盖基础场景）
  *  - currentName = 栈顶叠层 ?? gs.scene（派生只读，不再由 syncUI 的 if 推导）
  *  - 所有写入走唯一入口 show(...)（内部写真源 gs.screen / gs.scene / 叠层栈后重算派生）
  */
@@ -25,7 +25,7 @@ export class UIManager {
   private _currentName: UISceneName = null;
   private hovered: UIWidget | null = null;
   private _focusedId: string | null = null;
-  /** 叠层栈（pause/dev/gallery/instructions） */
+  /** 叠层栈（pause/dev/instructions） */
   private overlays: UISceneName[] = [];
 
   /** 注册场景（通常由各 UI 模块在初始化时调用） */
@@ -53,7 +53,7 @@ export class UIManager {
    * 唯一写入口：切换 UI 场景（同时写真源）。
    *  - null：进入游戏画面（playing，无 UI 覆盖）
    *  - menu / prepare / mapSelect / charSelect / lobby：基础场景（写 gs.scene，清空叠层）
-   *  - pause / dev / gallery / instructions：叠层（压栈）
+   *  - pause / dev / instructions：叠层（压栈）
    */
   show(name: UISceneName): void {
     if (name === null) {
@@ -72,14 +72,14 @@ export class UIManager {
       gs.scene = name;
       this.overlays.length = 0;
     } else {
-      // 叠层：pause / dev / gallery / instructions
+      // 叠层：pause / dev / instructions
       if (!this.overlays.includes(name)) this.overlays.push(name);
       if (name === 'pause') gs.screen = 'paused';
     }
     this.applyScene();
   }
 
-  /** 压入叠层（gallery/instructions/dev 等） */
+  /** 压入叠层（instructions/dev 等） */
   pushOverlay(name: Exclude<UISceneName, null>): void {
     if (this.overlays.includes(name)) return;
     this.overlays.push(name);

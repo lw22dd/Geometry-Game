@@ -75,6 +75,8 @@ export interface ScreenTuning {
   hitstopMax: number;
   /** 护盾格挡震屏强度（trauma 值，0..1；死亡=1，弹簧=0.25，格挡取中间） */
   shieldShake: number;
+  /** 玩家受击（未死）震屏强度（trauma 值；死亡=1，受击略弱一档） */
+  hurtShake: number;
 }
 
 /** 高速速度线 */
@@ -167,6 +169,7 @@ const BASE: VisualTuning = {
     shakeFreq: 22,
     hitstopMax: 0.12,
     shieldShake: 0.42,
+    hurtShake: 0.85,
   },
   speedLines: {
     speedThreshold: 16,

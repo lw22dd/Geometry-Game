@@ -68,6 +68,17 @@ export const Timer = {
 /** 危险物（尖刺/激光） */
 export const Hazard = { damage: [] as number[] };
 
+/**
+ * 生命值（敌人 / 可摧毁物）。玩家 HP 走 PlayerControl（玩家状态唯一权威 = PlayerState），
+ * 本组件只服务非玩家实体，避免玩家的"状态真源"出现第二份。
+ * inv = 受击后无敌剩余（秒），防持续接触伤害逐物理步结算。
+ */
+export const Health = {
+  hp: [] as number[],
+  max: [] as number[],
+  inv: [] as number[],
+};
+
 /** 可收集物（collected 用 u8 标签，便于 bitECS SoA 序列化走网络） */
 export const Collectible = { collected: u8([]) };
 
@@ -77,6 +88,13 @@ export const JumpBoost = {};
 export const Hook = {};
 export const ShieldPickup = {};
 export const SpeedPickup = {};
+export const RecallPickup = {};
+
+/**
+ * 武器拾取物（SoA：kind = weaponToCode 编码；拾取后装备主武器 / 获得手雷副武器）。
+ * 武器与背包道具独立体系（不进 Backpack ITEMS 槽位）。
+ */
+export const WeaponPickup = { kind: [] as number[] };
 
 /** 检查点 */
 export const RespawnPoint = { active: [] as number[], nearby: [] as number[] };
@@ -106,6 +124,20 @@ export const Aura = { radius: [] as number[], tick: [] as number[], tickT: [] as
 /** 可被钩锁命中（tag；需同时有 Position + Collider） */
 export const Hookable = {};
 
+/** 抛体（手雷等）：初速 + 重力 + 引信 + 爆炸参数（SoA，S2） */
+export const Projectile = {
+  vx: [] as number[],
+  vy: [] as number[],
+  /** 重力加速度（格/秒²，正值 = 向下加速） */
+  gravity: [] as number[],
+  /** 引信剩余时长（秒，<=0 爆炸） */
+  fuse: [] as number[],
+  /** 爆炸半径（格） */
+  blastRadius: [] as number[],
+  /** 爆炸伤害 */
+  damage: [] as number[],
+};
+
 /* ==================== 表现 / 渲染 ==================== */
 
 /** 可渲染：radius + styleId（索引 renderStyles 调色板） */
@@ -116,6 +148,18 @@ export const renderStyles: { bodyGrad: [string, string, string]; glow: string }[
 
 /** 动画状态（AoS）：prefab 控制器 key + 实体独立 FSM 状态 */
 export const Animator = [] as { prefab: string; state: unknown }[];
+
+/* ==================== 敌人（S3） ==================== */
+
+/**
+ * 敌人大脑（AoS，同 Animator 模式）：kind + 敌人独立 AI/物理状态。
+ * 敌人状态真源在此侧表，不做玩家那套「SoA → scratch → 写回」搬运；
+ * 仅被 HUD / 子弹查询的字段（位置/生命）走 SoA。
+ */
+export const EnemyBrain = [] as { kind: string; state: unknown }[];
+
+/** 阵营标签（tag）：PvE 中敌我区分（敌人 = Team，玩家无此标签） */
+export const Team = {};
 
 /* ==================== 玩家 ==================== */
 
@@ -148,6 +192,20 @@ export const PlayerControl = {
   /** 该玩家激活的检查点（复活点） */
   cpX: [] as number[],
   cpY: [] as number[],
+  /** 当前生命值（战斗；PlayerState.hp 的 SoA 投影，状态真源仍在 PlayerState） */
+  hp: [] as number[],
+  /** 生命上限 */
+  maxHp: [] as number[],
+  /** 当前主武器（weaponToCode 编码，S2 投影；'none' = -1） */
+  weapon: [] as number[],
+  /** 弹匣内弹药（S2 投影） */
+  ammo: [] as number[],
+  /** 是否拥有手雷副武器（0/1；拾取手雷道具后 1；S2 投影） */
+  hasGrenade: [] as number[],
+  /** 换弹剩余时间（秒，>0 = 换弹中；S2 投影） */
+  reloadT: [] as number[],
+  /** 开火冷却剩余时间（秒；S2 投影） */
+  fireCd: [] as number[],
 };
 
 /** 空中跳充能（双跳票等能力挂载点）：left 剩余次数 / max 上限 */
@@ -203,6 +261,7 @@ export const CONTROL_MODE_CONSTRAINT = 4;
 /** 全部数值 SoA 组件的汇总数组（一次性 registerComponents 用） */
 export const soaComponents = [
   Position, Velocity, Collider, PathMotion, SpringPad,
-  Timer, Hazard, Collectible, RespawnPoint, Goal, Track, Aura,
+  Timer, Hazard, Health, Collectible, RespawnPoint, Goal, Track, Aura,
+  Projectile, WeaponPickup,
   Renderable, Player, PlayerControl, PlayerInput, JumpCharges, ShieldCharges, ControlMode,
 ];

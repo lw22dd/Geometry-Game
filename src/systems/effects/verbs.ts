@@ -141,6 +141,18 @@ export function stepBuffTimers(p: PlayerState, dt: number): { stat: StatId; sour
   return expired;
 }
 
+/**
+ * 扣除生命值（纯扣减，不判死）。
+ * 致死裁决归结算管线（effects.applyEffect）—— 与 killState 的分工同競速期的
+ * 「来源只投递请求、生死裁决权在玩家侧」一致。
+ * @returns 实际扣除量（已被 0 下限钳制前的请求量；供调用方做表现强度）
+ */
+export function damageState(p: PlayerState, amount: number): number {
+  const before = p.hp;
+  p.hp = Math.max(0, p.hp - amount);
+  return before - p.hp;
+}
+
 /** 直接标记死亡（纯状态；deadT/计数/事件由 PlayerController 或调用方处理） */
 export function killState(p: PlayerState): void {
   p.dead = true;

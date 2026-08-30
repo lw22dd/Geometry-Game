@@ -4,7 +4,8 @@
  *
  * 问题 3：场景切换统一走唯一入口 ui.show(...)（内部写真源 gs.screen / gs.scene / 叠层栈）；
  * ui.currentName 为派生只读（栈顶叠层 ?? gs.scene），不再有 syncUI 的 if 推导。
- * gallery / instructions 弹窗为叠层（push/pop）；pause/dev 亦为叠层。
+ * instructions 弹窗为叠层（push/pop）；pause/dev 亦为叠层。
+ * 预制体图鉴已迁移至 工具/gallery（单文件 HTML + sync-prefabs.mjs 同步脚本）。
  */
 import { gs } from '../game/gameState';
 import { startGame, startMultiplayerGame } from '../game';
@@ -13,7 +14,6 @@ import { buildMenuScene } from './menu';
 import { buildPauseScene, syncPauseWidgets } from './pause';
 import { buildLobbyScene, lobby } from './lobby';
 import { buildDevScene } from './dev';
-import { buildGalleryScene } from './gallery';
 import { buildInstructionsScene } from './instructions';
 import { buildSettingsScene } from './settings';
 import { prepare, buildPrepareScene, buildMapSelectScene, buildCharSelectScene } from './prepare';
@@ -63,13 +63,6 @@ export function registerUIScenes(): void {
 
   // ── 开发者设置场景（叠层：覆盖 pause）──
   ui.register(buildDevScene({
-    onBack: () => {
-      ui.popOverlay();
-    },
-  }));
-
-  // ── 预制体图鉴场景（叠层：覆盖当前基础场景）──
-  ui.register(buildGalleryScene({
     onBack: () => {
       ui.popOverlay();
     },

@@ -229,17 +229,79 @@ export const FX: Record<string, FxPreset> = {
     lw: 2,
   },
 
-  /** 落地冲击环：贴地扩散的薄环（重落地时发射） */
-  landRing: {
+  /* ── 战斗特效（S2/S3）── */
+
+  /** 枪口火光：短促黄白射线（AK 开火帧发射） */
+  muzzleFlash: {
+    count: 6,
+    kind: 'dot',
+    vel: { mode: 'axis', vx: [-1.5, 1.5], vy: [-0.5, 4] },
+    spreadX: 0.12,
+    gravity: 0,
+    life: [0.08, 0.16],
+    size: [0.07, 0.13],
+    colors: ['#fff3cf', '#ffcf5a', '#ffffff'],
+  },
+
+  /** 命中火花：黄白碎片（hitscan 命中敌人时） */
+  hitSpark: {
+    count: 6,
+    kind: 'frag',
+    vel: { mode: 'radial', uniform: false, speed: [2, 6] },
+    gravity: 12,
+    life: [0.2, 0.4],
+    size: [0.06, 0.12],
+    colors: ['#fff3cf', '#ffb347', '#ffffff'],
+    spin: { start: [0, 3], rate: [-9, 9] },
+  },
+
+  /** 武器拾取闪光：橙金碎片 + 上行光点（拾取 AK / 手雷时） */
+  weaponSpark: {
+    count: 10,
+    kind: 'frag',
+    vel: { mode: 'radial', uniform: false, speed: [3, 7], vyBias: 3 },
+    gravity: 14,
+    life: [0.35, 0.6],
+    size: [0.07, 0.14],
+    colors: ['#ffcf5a', '#ff7a3d', '#fff3cf', '#ffffff'],
+    spin: { start: [0, 3], rate: [-10, 10] },
+  },
+
+  /** 手雷爆炸：橙红碎片 + 上升火舌 */
+  grenadeBoom: {
+    count: 20,
+    kind: 'frag',
+    vel: { mode: 'radial', uniform: false, speed: [4, 11], vyBias: 3 },
+    gravity: 16,
+    life: [0.4, 0.7],
+    size: [0.1, 0.22],
+    colors: ['#ffb347', '#ff6a3d', '#ffe9a8', '#ffffff'],
+    spin: { start: [0, 3], rate: [-8, 8] },
+  },
+
+  /** 手雷爆炸冲击环：外扩描边圆（爆炸瞬间，强化范围感） */
+  grenadeShock: {
     count: 1,
-    kind: 'ring',
+    kind: 'shock',
     vel: { mode: 'axis', vx: [0, 0], vy: [0, 0] },
     gravity: 0,
-    life: [0.3, 0.3],
+    life: [0.35, 0.35],
     size: [0.1, 0.1],
-    colors: ['#9fb8ff'],
-    r0: [0.15, 0.15],
-    r1: [1.2, 1.7],
-    lw: 2,
+    colors: ['#ffb347', '#ffffff'],
+    r0: [0.3, 0.3],
+    r1: [2.8, 3.4],
+    lw: 3,
+  },
+
+  /** 敌人死亡：红紫爆裂 + 冲击环 */
+  enemyDeath: {
+    count: 14,
+    kind: 'frag',
+    vel: { mode: 'radial', uniform: false, speed: [3, 9], vyBias: 2 },
+    gravity: 12,
+    life: [0.45, 0.75],
+    size: [0.1, 0.2],
+    colors: ['#ff6a6a', '#c77dff', '#ff9ad8', '#ffffff'],
+    spin: { start: [0, 3], rate: [-7, 7] },
   },
 };

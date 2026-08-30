@@ -8,13 +8,13 @@ import {
   world, initEcs, clearWorld,
   Position, Velocity, Collider, PathMotion, SpringPad, Timer, Hazard,
   Collectible, RespawnPoint, Goal, Track, TrackGeom, Renderable, Animator,
-  Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, Hookable, renderStyles,
-  qOrbs, qJumpBoosts, qHooks, qShields, qSpeeds, qCheckpoints, qGoal, qMovers, qSpringPads,
+  Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, WeaponPickup, Hookable, renderStyles,
+  qOrbs, qJumpBoosts, qHooks, qShields, qSpeeds, qWeaponPickups, qCheckpoints, qGoal, qMovers, qSpringPads,
   qTimers, qHazards, qLasers, qTracks, qHookTargets, qCollectibles,
 } from '../core/ecs';
 import { hasComponent, getAllEntities } from 'bitecs';
 import {
-  createOrb, createJumpBoost, createHookPickup, createShieldPickup, createSpeedPickup, createCheckpoint, createNova,
+  createOrb, createJumpBoost, createHookPickup, createShieldPickup, createSpeedPickup, createWeaponPickup, createCheckpoint, createNova,
   createSpike, createLaser, createMovingPlatform, createSpringPad, createLoopTrack,
 } from '../Prefabs/Scenes/sceneFactory';
 
@@ -56,6 +56,19 @@ describe('bitECS 场景层运行时', () => {
     expect(qTracks().length).toBe(1);
     expect(qHookTargets().length).toBeGreaterThanOrEqual(2); // 平台 + 弹簧
     expect(qCollectibles().length).toBe(5); // orb + jumpBoost + hook + shield + speed
+  });
+
+  it('武器拾取物：工厂创建 + kind 编码 + 查询', () => {
+    const ak = createWeaponPickup(2, 3, 'ak', 0);
+    const gd = createWeaponPickup(4, 5, 'grenade', 0);
+    expect(hasComponent(world, ak, WeaponPickup)).toBe(true);
+    expect(hasComponent(world, ak, Collectible)).toBe(true);
+    expect(WeaponPickup.kind[ak]).toBe(0);      // ak → code 0
+    expect(WeaponPickup.kind[gd]).toBe(1);      // grenade → code 1
+    expect(qWeaponPickups()).toContain(ak);
+    expect(qWeaponPickups()).toContain(gd);
+    // 拾取后 collected=1（绘制层据此隐藏，网络据此同步）
+    Collectible.collected[ak] = 1;
   });
 
   it('tag 组件用 hasComponent 可正确判定类型', () => {

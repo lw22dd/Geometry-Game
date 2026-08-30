@@ -10,22 +10,24 @@
  *   enter:player:goal        → 终点登顶
  */
 import { hasComponent } from 'bitecs';
-import { world, Position, Collider, Timer, Hazard, Collectible, RespawnPoint, Goal, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, qCheckpoints } from '../../core/ecs';
+import { world, Position, Collider, Timer, Hazard, EnemyBrain, Collectible, RespawnPoint, Goal, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, RecallPickup, WeaponPickup, qCheckpoints } from '../../core/ecs';
+import { getEnemyKind } from '../../Prefabs/Enemy';
+import { weaponFromCode, WEAPONS } from '../../config/weapons';
 import { collisionBus } from '../../core/collisionBus';
 import { sx } from '../../core/camera';
 import { VW } from '../../core/canvas';
 import { gs } from '../game/gameState';
-import { VIS } from '../../config';
+import { VIS, SPIKE_DAMAGE, LASER_DAMAGE } from '../../config';
+import { dealDamage } from '../combat';
 import { playerController } from '../player';
 import { FX } from '../../Prefabs/Fx';
 import { spawnParticles } from '../particles';
 import { sfx } from '../../core/audio';
 import { netBus } from '../../core/netBus';
 import { room } from '../../net/room';
-import { addItem, ITEMS } from '../items/backpack';
+import { addItem, hasItem, ITEMS } from '../items/backpack';
 import { activateCheckpoint } from './RespawnPointSystem';
 import { orbCount } from './ItemPickupSystem';
-import { applyEffect } from '../effects';
 import type { ItemId, PlayerState } from '../../types';
 
 /** 世界 X → 声像 -1..1（按事件在屏幕上的左右位置映射，增强空间感） */
@@ -90,6 +92,13 @@ const PICKUP_RULES: PickupRule[] = [
     toast: '极速冲刺！移速 ×2',
     toastT: 2.5,
   },
+  {
+    tag: RecallPickup,
+    item: 'recall',
+    sfx: (pan) => sfx.cp({ pan }),
+    toast: '重置箭头已装备！选中后左键使用，回到检查点',
+    toastT: 2.5,
+  },
 ];
 
 /** 是否已初始化 */
@@ -134,21 +143,34 @@ export function initCollisionHooks(): void {
   // enter + stay 都订阅：stay 覆盖"激光在玩家区域内变亮"的情况
   // 契约：地刺/激光只投递 KillRequest，由结算管线裁决（无敌帧/已死免疫），不直接 die()
   const hazardHandler = ({ b }: { b: number }) => {
-    // 激光有 Timer 组件，只在 on 时致死
-    if (hasComponent(world, b, Timer)) {
-      if (!Timer.on[b]) return;
-    }
+    // 激光有 Timer 组件，只在 on 时造成伤害
+    const laser = hasComponent(world, b, Timer);
+    if (laser && !Timer.on[b]) return;
     const ps = targetState();
-    applyEffect(ps, { kind: 'KillRequest' }, {
+    // 契约：危险物只投递伤害，生死裁决权在玩家侧结算管线
+    // （无敌帧 / 护盾 / 致死判定一律由 DamageRequest 结算链处理）
+    dealDamage(ps, {
+      amount: laser ? LASER_DAMAGE : SPIKE_DAMAGE,
+      source: laser ? 'laser' : 'spike',
+    }, {
       onKill: () => {
         // 美术升级 6：激光命中火花（仅激光；尖刺保持现有死亡爆裂）
-        if (hasComponent(world, b, Timer)) spawnParticles(FX.laserHit, ps.x, ps.y);
+        if (laser) spawnParticles(FX.laserHit, ps.x, ps.y);
         if (isRemote()) {
           // 远端死亡：房主权威直接置死（死亡特效/广播由 tick 死亡边沿处理）
           ps.dead = true;
           ps.deadT = 0.85;
         } else {
           playerController.die();
+        }
+      },
+      // 受击未死：命中火花 + 受击音效 + 强震屏（接近死亡但略弱；远端不设置，避免影响房主权威模拟节奏）
+      onDamaged: () => {
+        spawnParticles(FX.laserHit, ps.x, ps.y);
+        if (!isRemote()) {
+          sfx.hurt({ pan: panOfX(ps.x) });
+          gs.hitstop = Math.max(gs.hitstop, VIS.screen.hitstopMax * 0.4);
+          gs.shake = Math.max(gs.shake, VIS.screen.hurtShake);
         }
       },
       // 护盾格挡：破盾特效 + 震屏；本地补音效/停顿，远端广播给客机
@@ -169,6 +191,42 @@ export function initCollisionHooks(): void {
   collisionBus.on('enter:player:hazard', hazardHandler);
   collisionBus.on('stay:player:hazard', hazardHandler);
 
+  // ── 敌人接触伤害（S3）：敌人 → 玩家走 collisionBus → dealDamage ──
+  // enter + stay 都订阅：stay 覆盖"敌人持续贴身"的情况（无敌帧节拍控制扣血频率）。
+  // 契约：只投递 DamageRequest，由玩家侧结算管线裁决（无敌帧 / 护盾 / 致死）。
+  const enemyHandler = ({ b }: { b: number }) => {
+    const brain = EnemyBrain[b];
+    if (!brain) return;
+    const ps = targetState();
+    if (ps.dead) return;
+    const def = getEnemyKind(brain.kind as never);
+    dealDamage(ps, {
+      amount: def.contactDamage,
+      source: 'enemy',
+      knockback: { x: ps.x > Position.x[b] ? 2.5 : -2.5, y: 1.5 },
+    }, {
+      onKill: () => {
+        if (isRemote()) {
+          // 远端死亡：房主权威直接置死（死亡特效/广播由 tick 死亡边沿处理）
+          ps.dead = true;
+          ps.deadT = 0.85;
+        } else {
+          playerController.die();
+        }
+      },
+      // 受击未死：受击音效 + 强震屏（接近死亡但略弱；远端不设置，避免影响房主权威模拟节奏）
+      onDamaged: () => {
+        spawnParticles(FX.hitSpark, ps.x, ps.y);
+        if (!isRemote()) {
+          sfx.hurt({ pan: panOfX(ps.x) });
+          gs.shake = Math.max(gs.shake, VIS.screen.hurtShake);
+        }
+      },
+    });
+  };
+  collisionBus.on('enter:player:enemy', enemyHandler);
+  collisionBus.on('stay:player:enemy', enemyHandler);
+
   // ── 可拾取物：通用 Collectible 组件 + 类型 tag（Orb/JumpBoost/Hook）分发 ──
   collisionBus.on('enter:player:pickup', ({ b, signals }) => {
     if (Collectible.collected[b]) return;
@@ -187,6 +245,44 @@ export function initCollisionHooks(): void {
         gs.toastT = 3;
         spawnParticles(FX.confetti, pos.x, pos.y);
         sfx.cp({ pan: panOfX(pos.x) });
+      }
+      return;
+    }
+
+    // ── 武器拾取（S2：AK / 手雷；武器并入背包体系，与普通道具一致占用背包格）──
+    if (hasComponent(world, b, WeaponPickup)) {
+      const s = targetState();
+      const kind = weaponFromCode(WeaponPickup.kind[b]);
+      const pos = { x: Position.x[b], y: Position.y[b] };
+
+      if (kind === 'grenade') {
+        // 手雷：背包占格（未拥有才装；已拥有 = 自动忽略重复拾取）
+        if (!hasItem(s.backpack, 'grenade') && !addItem(s.backpack, 'grenade')) {
+          if (!isRemote()) { gs.toast = '背包已满！'; gs.toastT = 2; }
+          return;
+        }
+        s.hasGrenade = true;
+      } else {
+        // AK：装备主武器 + 满弹（重复拾取 = 补弹；首次拾取才占用背包格）
+        if (!addItem(s.backpack, 'ak')) {
+          if (!hasItem(s.backpack, 'ak')) {
+            if (!isRemote()) { gs.toast = '背包已满！'; gs.toastT = 2; }
+            return;
+          }
+        }
+        s.weapon = 'ak';
+        s.ammo = WEAPONS.ak.ammo;
+        s.reloadT = 0;
+      }
+      // 自动选中该武器槽位，便于立即开火/投掷（与钩锁拾取同语义）
+      if (kind !== 'none') ITEMS[kind].onPickup?.(s);
+
+      Collectible.collected[b] = 1;
+      if (!isRemote()) {
+        spawnParticles(FX.weaponSpark, pos.x, pos.y);
+        sfx.weaponPickup({ pan: panOfX(pos.x) });
+        gs.toast = kind === 'grenade' ? '获得手雷！选中槽位投掷或右键' : '获得 AK！选中槽位左键开火';
+        gs.toastT = 2;
       }
       return;
     }

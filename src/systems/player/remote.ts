@@ -78,6 +78,16 @@ export interface NetPlayerTrackFields {
   grounded: boolean; dead: boolean; sprint: boolean;
   /** 水平移速倍率（1 = 常态，2 = 加速 buff） */
   speedMult: number;
+  /** 当前生命值（房主权威） */
+  hp: number;
+  /** 当前主武器（S2；客机渲染远程武器名用） */
+  weapon?: import('../../types').WeaponId;
+  /** 弹匣弹药（S2） */
+  ammo?: number;
+  /** 是否拥有手雷副武器（S2） */
+  hasGrenade?: boolean;
+  /** 换弹剩余时间（秒，S2） */
+  reloadT?: number;
   trackOn: boolean; trackDist: number; trackSpeed: number;
   trackEntry: number; trackExit: number;
   trackSegments: PathSegment[];
@@ -101,6 +111,13 @@ export function applyNetPlayers(players: NetPlayerTrackFields[]): void {
     rp.sprint = ps.sprint;
     // 加速倍率：房主模拟权威（加速光效随位置一起同步）
     rp.speedMult = ps.speedMult || 1;
+    // 生命值：房主权威（客机不自行结算伤害，血条 / 受击表现跟随此值）
+    rp.hp = ps.hp ?? rp.maxHp;
+    // 武器/弹药（S2）：房主权威，客机渲染远程武器状态用
+    if (ps.weapon) rp.weapon = ps.weapon;
+    if (ps.ammo !== undefined) rp.ammo = ps.ammo;
+    if (ps.hasGrenade !== undefined) rp.hasGrenade = ps.hasGrenade;
+    if (ps.reloadT !== undefined) rp.reloadT = ps.reloadT;
     // 轨道状态（无则渲染为自由运动）；问题 10：重建逻辑统一走 core/trackCodec
     rp.track = unpackTrack(ps);
   }

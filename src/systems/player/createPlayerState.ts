@@ -16,6 +16,8 @@
  * @param y 出生 Y（格）
  */
 import type { PlayerState } from '../../types';
+import { PLAYER_MAX_HP } from '../../config/combat';
+import { WEAPONS } from '../../config/weapons';
 
 export function createPlayerState(x: number, y: number): PlayerState {
   return {
@@ -27,7 +29,14 @@ export function createPlayerState(x: number, y: number): PlayerState {
     sprint: false, wasSpr: false, inv: 0,
     extraJumps: 0, extraJumpsMax: 0,
     shields: 0, shieldsMax: 0,
+    hp: PLAYER_MAX_HP, maxHp: PLAYER_MAX_HP,
     speedMult: 1,
+    // 武器为地图拾取物，出生不带主武器（'none'）且无手雷
+    weapon: 'none',
+    ammo: 0,
+    hasGrenade: false,
+    reloadT: 0,
+    fireCd: 0,
     modifiers: [],
     jumpWasDown: false, jumpFresh: false,
     impulses: [],

@@ -6,7 +6,7 @@ import './style.css';
 import { cv, VW, VH } from './core/canvas';
 import { initInput, setInputHandler } from './core/input';
 import { initMouseListeners } from './core/mouse';
-import { handleKeyDown, startLoop } from './systems/game';
+import { handleKeyDown, handleWheel, startLoop } from './systems/game';
 import { registerUIScenes } from './systems/ui/scenes';
 import { ui } from './core/uiComponent';
 import './netBridge'; // 装配 netBus（组合根，副作用）
@@ -66,9 +66,9 @@ window.addEventListener('mouseup', () => {
   ui.handleRelease();
 });
 
-// 滚轮 → UIManager 分发（选择页滚动等）；消费后阻止页面滚动
+// 滚轮 → UIManager 分发（选择页滚动等）；未消费时交游戏层切换背包槽位；消费后阻止页面滚动
 cv.addEventListener('wheel', (e: WheelEvent) => {
-  if (ui.handleWheel(e.deltaY)) {
+  if (ui.handleWheel(e.deltaY) || handleWheel(e.deltaY)) {
     e.preventDefault();
   }
 }, { passive: false });

@@ -14,8 +14,10 @@ import { world } from '../../core/ecs';
 import {
   Position, Velocity, Collider, PathMotion, SpringPad, Timer, Hazard,
   Collectible, RespawnPoint, Goal, Track, Aura, Renderable, Animator, TrackGeom,
-  Hookable, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, renderStyles,
+  Hookable, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, RecallPickup, WeaponPickup, renderStyles,
 } from '../../core/ecs';
+import { weaponToCode } from '../../config/weapons';
+import type { WeaponId } from '../../types';
 import type { PathSegment } from '../../types';
 import type { LaserSpawnData, MoverSpawnData, SpringPadSpawnData } from '../../types';
 import { DEFAULT_SPRING } from './springPresets';
@@ -32,6 +34,7 @@ export const STYLE_CHECKPOINT = 3;
 export const STYLE_NOVA = 4;
 export const STYLE_SHIELD = 5;
 export const STYLE_SPEED = 6;
+export const STYLE_RECALL = 7;
 
 /** 写入手写样式表（renderStyles 为 src/ecs 注册表；幂等） */
 function ensureStyles(): void {
@@ -44,6 +47,7 @@ function ensureStyles(): void {
     { bodyGrad: ['#f2e4ff', '#e3ccff', '#c07dff'], glow: '#c07dff' },                    // 4 nova
     { bodyGrad: ['#e8f0ff', '#b3c7ff', '#7d6bff'], glow: 'rgba(150,140,255,.85)' },      // 5 shield
     { bodyGrad: ['#eaffff', '#8ff6ff', '#59d4ff'], glow: 'rgba(120,230,255,.85)' },      // 6 speed
+    { bodyGrad: ['#ffffff', '#e8eeff', '#c4d2ff'], glow: 'rgba(238,242,255,.9)' },        // 7 recall
   );
 }
 
@@ -141,6 +145,35 @@ export function createSpeedPickup(x: number, y: number, phase: number): number {
   addComponent(world, e, SpeedPickup);
   setRenderable(e, 0.45, STYLE_SPEED);
   // 复用 hover 动画控制器（浮动/摇摆），绘制层按 speed 样式画「》》」双箭头
+  setAnimator(e, 'jumpBoost', createHoverAnimState({ phase }));
+  return e;
+}
+
+/** 重置箭头（主动道具：使用后回到上一个绑定的检查点） */
+export function createRecallPickup(x: number, y: number, phase: number): number {
+  ensureStyles();
+  const e = addEntity(world);
+  setPosition(e, x, y);
+  setCollider(e, 1.2, 1.2, 0);
+  addComponent(world, e, Collectible); Collectible.collected[e] = 0;
+  addComponent(world, e, RecallPickup);
+  setRenderable(e, 0.45, STYLE_RECALL);
+  // 复用 hover 动画控制器（浮动/摇摆），绘制层按 recall 样式画白色重置箭头
+  setAnimator(e, 'jumpBoost', createHoverAnimState({ phase }));
+  return e;
+}
+
+/** 武器拾取物（AK / 手雷；武器为地图拾取物，非玩家自带） */
+export function createWeaponPickup(x: number, y: number, kind: WeaponId, phase: number): number {
+  ensureStyles();
+  const e = addEntity(world);
+  setPosition(e, x, y);
+  setCollider(e, 1.2, 1.2, 0);
+  addComponent(world, e, Collectible); Collectible.collected[e] = 0;
+  addComponent(world, e, WeaponPickup);
+  WeaponPickup.kind[e] = weaponToCode(kind);
+  // 复用 hover 动画控制器（浮动/摇摆），绘制层按 kind 画 AK / 手雷
+  setRenderable(e, 0.5, STYLE_SPEED);
   setAnimator(e, 'jumpBoost', createHoverAnimState({ phase }));
   return e;
 }

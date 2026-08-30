@@ -9,7 +9,7 @@
  * 接 PlayerState 入参而非依赖 PlayerController，避免 level → player 的循环依赖。
  */
 import type { PlayerState, Rect } from '../../types';
-import { Collectible, RespawnPoint, Goal, Timer, Hazard } from '../../core/ecs';
+import { Collectible, RespawnPoint, Goal, Timer, Hazard, EnemyBrain } from '../../core/ecs';
 import { query, hasComponent } from 'bitecs';
 import { world, Position as Pos, Collider as Col } from '../../core/ecs';
 import { colliderWorldRect, aabbOverlap } from './OverlapUtils';
@@ -59,8 +59,9 @@ function emitTransitions(
     const type = getEnterEventType(e);
     if (type) collisionBus.emit(type, { a: -1, b: e, signals });
   } else if (overlap && was) {
-    // stay：仅危险物需要（激光可能进入区域后变 on，必须逐帧复查）
+    // stay：危险物 + 敌人需要逐帧复查（激光 on/off、敌人接触持续判定）
     if (isHazard(e)) collisionBus.emit('stay:player:hazard', { a: -1, b: e, signals });
+    else if (isEnemy(e)) collisionBus.emit('stay:player:enemy', { a: -1, b: e, signals });
   } else if (!overlap && was) {
     const type = getExitEventType(e);
     if (type) collisionBus.emit(type, { a: -1, b: e, signals });
@@ -70,6 +71,7 @@ function emitTransitions(
 /** 根据实体组件决定 enter 事件类型 */
 function getEnterEventType(e: number): string | null {
   if (isHazard(e)) return 'enter:player:hazard';
+  if (isEnemy(e)) return 'enter:player:enemy';
   if (isCollectible(e)) return 'enter:player:pickup';
   if (isRespawnPoint(e)) return 'enter:player:respawn';
   if (isGoal(e)) return 'enter:player:goal';
@@ -79,6 +81,7 @@ function getEnterEventType(e: number): string | null {
 /** 根据实体组件决定 exit 事件类型 */
 function getExitEventType(e: number): string | null {
   if (isHazard(e)) return 'exit:player:hazard';
+  if (isEnemy(e)) return 'exit:player:enemy';
   if (isRespawnPoint(e)) return 'exit:player:respawn';
   return null;
 }
@@ -87,6 +90,7 @@ function getExitEventType(e: number): string | null {
  * TypedArray（u8）槽位未写出 0，普通数组受 eid 复用残留影响，均不可靠） */
 function isCollectible(e: number): boolean { return hasComponent(world, e, Collectible); }
 function isHazard(e: number): boolean { return hasComponent(world, e, Hazard); }
+function isEnemy(e: number): boolean { return hasComponent(world, e, EnemyBrain); }
 function isRespawnPoint(e: number): boolean { return hasComponent(world, e, RespawnPoint); }
 function isGoal(e: number): boolean { return hasComponent(world, e, Goal); }
 

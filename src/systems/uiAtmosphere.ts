@@ -1,6 +1,6 @@
 /**
  * UI 氛围层 —— 与 menu.ts 同款：种子随机星空 / 极光辉斑 / 漂浮线框几何 / 流星。
- * 提供给 gallery / instructions / prepare 等弹窗复用，保证全 UI 视觉一致。
+ * 提供给 instructions / prepare 等弹窗复用，保证全 UI 视觉一致。
  */
 import { ctx, VW, VH, DPR } from '../core/canvas';
 import { rr } from '../core/math';
@@ -194,13 +194,13 @@ export function drawNeonTitle(
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.font = `900 italic ${fontSize}px Arial`;
   const wob = Math.sin(t * 1.1) * wobAmp;
-  ctx.fillStyle = 'rgba(0,229,255,.5)';
+  ctx.fillStyle = 'rgba(38, 0, 255, 0.5)';
   ctx.fillText(text, cx - 3 - wob, cy + dy);
   ctx.fillStyle = 'rgba(255,90,220,.5)';
   ctx.fillText(text, cx + 3 + wob, cy + dy);
   ctx.shadowColor = 'rgba(125,107,255,.9)'; ctx.shadowBlur = 26;
   const tg = ctx.createLinearGradient(0, cy + dy - fontSize, 0, cy + dy + 14);
-  tg.addColorStop(0, '#ffffff'); tg.addColorStop(.55, '#dff2ff'); tg.addColorStop(1, '#9fc6ff');
+  tg.addColorStop(0, '#ff0000ff'); tg.addColorStop(.55, '#dfe2ffff'); tg.addColorStop(1, '#9fc6ff');
   ctx.fillStyle = tg; ctx.fillText(text, cx, cy + dy);
 
   // 流光扫过

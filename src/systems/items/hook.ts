@@ -26,6 +26,7 @@ import { HOOK_MAX_RANGE, HOOK_SPEED, HOOK_COOLDOWN, HOOK_RETRACT_TIME } from '..
 import { hasItem, ITEMS, type ActiveItemContext } from './backpack';
 import { getHookTargets } from '../player';
 import { sfx } from '../../core/audio';
+import { raycastWorld, segRectT, type RayFace } from '../combat/raycast';
 
 /** 钩锁最小作用距离（格）：点射脚下的地板不产生退化滑索 */
 const HOOK_MIN_DIST = 1.4;
@@ -53,78 +54,16 @@ export function defaultAimDir(p: PlayerState): { x: number; y: number } {
 
 /* ==================== 射线检测 ==================== */
 
-/** 线段-矩形最近交点参数 t∈[0,1]（slab 法）；无交点/null/起点在矩形内返回 null */
-function segRectT(
-  ox: number, oy: number, ux: number, uy: number, r: Rect,
-): { t: number; face: 'left' | 'right' | 'bottom' | 'top' } | null {
-  let tmin = 0;
-  let tmax = 1;
-  let hitFace: 'left' | 'right' | 'bottom' | 'top' | null = null;
-
-  // X slab [r.x, r.x + r.w]
-  if (Math.abs(ux) < 1e-9) {
-    if (ox < r.x || ox > r.x + r.w) return null;
-  } else {
-    let t1 = (r.x - ox) / ux;
-    let t2 = (r.x + r.w - ox) / ux;
-    if (t1 > t2) { const tt = t1; t1 = t2; t2 = tt; }
-    tmin = Math.max(tmin, t1);
-    tmax = Math.min(tmax, t2);
-    if (tmin > tmax) return null;
-  }
-
-  // Y slab [r.y, r.top]（top = y + h）
-  if (Math.abs(uy) < 1e-9) {
-    if (oy < r.y || oy > r.top) return null;
-  } else {
-    let t1 = (r.y - oy) / uy;
-    let t2 = (r.top - oy) / uy;
-    if (t1 > t2) { const tt = t1; t1 = t2; t2 = tt; }
-    // 记录 tmin 前的值，用于判断哪个 slab 产生入口
-    const prevTmin = tmin;
-    tmin = Math.max(tmin, t1);
-    tmax = Math.min(tmax, t2);
-    if (tmin > tmax) return null;
-    // 如果 Y slab 的入口 t1 决定了新的 tmin，则命中面为 bottom 或 top
-    if (tmin === t1 && t1 > prevTmin) {
-      // uy > 0 → 射线向上 → 入口在 bottom 面 (y = r.y)
-      // uy < 0 → 射线向下 → 入口在 top 面 (y = r.top)
-      hitFace = (uy > 0) ? 'bottom' : 'top';
-    }
-  }
-
-  // 如果尚未确定面，则入口来自 X slab（或垂直射线）
-  if (hitFace === null) {
-    if (ux > 0) hitFace = 'left';
-    else if (ux < 0) hitFace = 'right';
-    else hitFace = 'bottom'; // 纯垂直射线，无法确定 X 方向，默认 bottom（安全兜底）
-  }
-
-  // 起点已在矩形内部（tmin=0）→ 本段命中无意义
-  if (tmin <= 0) return null;
-  return { t: tmin, face: hitFace };
-}
-
 /**
  * 钩锁方向射线：从 (ox,oy) 沿方向 (dirX,dirY) 发射，长度 maxLen 格，
  * 命中最近的固体（平台/墙壁）返回锚点世界坐标及命中面；否则 null。
+ * 几何复用公共 raycastWorld（systems/combat/raycast.ts）。
  */
 export function raycastHook(
   ox: number, oy: number, dirX: number, dirY: number, maxLen: number,
-): { x: number; y: number; face: 'left' | 'right' | 'bottom' | 'top' } | null {
-  const dLen = Math.hypot(dirX, dirY);
-  if (dLen < 1e-4) return null;
-  const ux = (dirX / dLen) * maxLen;
-  const uy = (dirY / dLen) * maxLen;
-
-  let best: { t: number; face: 'left' | 'right' | 'bottom' | 'top' } | null = null;
-  for (const r of getHookTargets()) {
-    const result = segRectT(ox, oy, ux, uy, r);
-    if (result === null) continue;
-    if (best === null || result.t < best.t) best = result;
-  }
-  if (best === null) return null;
-  const hit = { x: ox + ux * best.t, y: oy + uy * best.t, face: best.face };
+): { x: number; y: number; face: RayFace } | null {
+  const hit = raycastWorld(ox, oy, dirX, dirY, maxLen, getHookTargets());
+  if (!hit) return null;
   const hitDist = Math.hypot(hit.x - ox, hit.y - oy);
   if (hitDist < HOOK_MIN_DIST) return null;
   return hit;
@@ -251,6 +190,38 @@ function glowLine(x1: number, y1: number, x2: number, y2: number, color: string,
 }
 
 /**
+ * 鼠标准星（屏幕位置，呼吸；颜色可定制）——钩锁/武器瞄准共用。
+ */
+export function drawCrosshair(color: string = 'rgba(255,120,120,.8)'): void {
+  const mx = mouse.x, my = mouse.y;
+  const beat = 0.5 + 0.5 * Math.sin(t() * 6);
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.globalAlpha = 0.75 + 0.25 * beat;
+  const rr = 9;
+  ctx.beginPath();
+  ctx.moveTo(mx - rr - 4, my); ctx.lineTo(mx - rr, my);
+  ctx.moveTo(mx + rr, my); ctx.lineTo(mx + rr + 4, my);
+  ctx.moveTo(mx, my - rr - 4); ctx.lineTo(mx, my - rr);
+  ctx.moveTo(mx, my + rr); ctx.lineTo(mx, my + rr + 4);
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(mx, my, rr, 0, 6.283); ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * 武器瞄准准星（AK / 手雷）：鼠标已引导且选中武器槽时绘制鼠标准星。
+ * 钩锁有自己的 drawHookAim（含命中锚点菱形），此处只服务枪械类瞄准。
+ */
+export function drawWeaponAim(p: PlayerState): void {
+  if (p.dead || p.track || !mouse.used) return;
+  const sel = p.backpack[p.selectedSlot];
+  if (sel !== 'ak' && sel !== 'grenade') return;
+  drawCrosshair('rgba(255,200,110,.85)');
+}
+
+/**
  * 瞄准指示（游戏中、拥有钩锁、未死亡、未在轨且槽位选中时绘制）：
  * 只显示鼠标准星（屏幕位置）+ 命中锚点菱形；无虚线引导线。
  */
@@ -279,21 +250,7 @@ export function drawHookAim(p: PlayerState): void {
   }
 
   // 鼠标准星（屏幕位置，呼吸）
-  const mx = mouse.x, my = mouse.y;
-  const beat = 0.5 + 0.5 * Math.sin(t() * 6);
-  ctx.save();
-  ctx.strokeStyle = hit ? 'rgba(255,200,110,.9)' : 'rgba(255,120,120,.8)';
-  ctx.lineWidth = 1.5;
-  ctx.globalAlpha = 0.75 + 0.25 * beat;
-  const rr = 9;
-  ctx.beginPath();
-  ctx.moveTo(mx - rr - 4, my); ctx.lineTo(mx - rr, my);
-  ctx.moveTo(mx + rr, my); ctx.lineTo(mx + rr + 4, my);
-  ctx.moveTo(mx, my - rr - 4); ctx.lineTo(mx, my - rr);
-  ctx.moveTo(mx, my + rr); ctx.lineTo(mx, my + rr + 4);
-  ctx.stroke();
-  ctx.beginPath(); ctx.arc(mx, my, rr, 0, 6.283); ctx.stroke();
-  ctx.restore();
+  drawCrosshair(hit ? 'rgba(255,200,110,.9)' : 'rgba(255,120,120,.8)');
 }
 
 /** 滑索绳索渲染：玩家当前位置 → 锚点（段末点）的金色细线 + 锚点小钩 */

@@ -19,7 +19,7 @@
 import type { PlayerState, PlayerEvent, TrackState } from '../../types';
 import { createPlayerState } from './createPlayerState';
 import { recomputeStats } from '../effects';
-import { cpPoint } from '../../config';
+import { cpPoint, PLAYER_MAX_HP } from '../../config';
 import { getPlayerEid, mirrorPlayerState, storePlayerComponents, syncFromEcs } from './playerEntity';
 import { PlayerControl, Velocity } from '../../core/ecs';
 import { trail } from '../particles';
@@ -132,6 +132,8 @@ export class PlayerController {
     this.state.track = null;
     // 双跳为永久升级，复活保留 extraJumpsMax；但本次滞空期清零，着陆后刷新
     this.state.extraJumps = 0;
+    // 复活满血：死亡即满血复活（与位置 / 曳光复位同批，保证状态一致）
+    this.state.hp = this.state.maxHp;
     trail.length = 0;
     this.emitEvent({ type: 'player:respawned' });
     this.flush();
@@ -158,11 +160,19 @@ export class PlayerController {
     this.state.sprint = false;
     this.state.extraJumps = 0;
     this.state.extraJumpsMax = 0;
+    // 换图满血：含上限复位（Modifier 管道已清零，上限不应残留上图的加成）
+    this.state.maxHp = PLAYER_MAX_HP;
+    this.state.hp = PLAYER_MAX_HP;
     // Modifier 管道：换图清零全部数值修正（双跳票为"本图收集"语义）
     this.state.modifiers = [];
     recomputeStats(this.state);
-    // 换图重置背包（死亡保留；背包为"本图收集"语义）
+    // 换图重置背包（死亡保留；背包为"本图收集"语义）；武器已并入背包 → 一并清空
     this.state.backpack = [];
+    this.state.weapon = 'none';
+    this.state.hasGrenade = false;
+    this.state.ammo = 0;
+    this.state.reloadT = 0;
+    this.state.fireCd = 0;
     this.state.hookCd = 0;
     this.state.hookMissT = 0;
     this.state.selectedSlot = 0;
@@ -213,6 +223,8 @@ export class PlayerController {
       this.state.x = x;
       this.state.y = y;
       this.state.inv = inv;
+      // 权威复活 = 满血（房主是伤害与复活的唯一权威，客机不得自行恢复）
+      this.state.hp = this.state.maxHp;
     }
   }
 }

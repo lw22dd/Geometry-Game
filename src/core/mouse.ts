@@ -16,6 +16,10 @@ export const mouse = {
   down: false,
   /** 上一帧左键状态（由 game 层推进） */
   prevDown: false,
+  /** 右键是否按下（副武器 / 手雷投掷） */
+  rDown: false,
+  /** 上一帧右键状态（由 game 层推进） */
+  rPrevDown: false,
   /** 鼠标是否移动过（未移动时瞄准回退为面朝方向） */
   used: false,
 };
@@ -37,18 +41,21 @@ export function initMouseListeners(cv: HTMLCanvasElement): void {
     );
   });
   cv.addEventListener('mousedown', (e: MouseEvent) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.button !== 2) return;
     const rect = cv.getBoundingClientRect();
     setMousePos(
       (e.clientX - rect.left) / rect.width * 1280,
       (e.clientY - rect.top) / rect.height * 720,
     );
-    mouse.down = true;
+    if (e.button === 0) mouse.down = true;
+    else mouse.rDown = true;
   });
   window.addEventListener('mouseup', (e: MouseEvent) => {
-    if (e.button !== 0) return;
-    mouse.down = false;
+    if (e.button === 0) mouse.down = false;
+    else if (e.button === 2) mouse.rDown = false;
   });
+  // 阻止右键弹出上下文菜单（射击游戏标准行为）
+  cv.addEventListener('contextmenu', (e: MouseEvent) => e.preventDefault());
   // 失焦时复位，避免卡住
   window.addEventListener('blur', () => {
     mouse.down = false;

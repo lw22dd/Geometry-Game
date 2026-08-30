@@ -40,7 +40,8 @@ const DT = 1 / 120;
 
 const idleKeys = (): InputKeys => ({
   left: false, right: false, jump: false, sprint: false,
-  interact: false, hook: false, aimX: 0, aimY: 0,
+  interact: false, hook: false, fire: false, altFire: false, reload: false,
+  aimX: 0, aimY: 0,
 });
 
 const makeKeys = (o: Partial<InputKeys> = {}): InputKeys => ({ ...idleKeys(), ...o });
@@ -56,7 +57,9 @@ function freshPlayer(x = 6, y = 4): PlayerState {
     sprint: false, wasSpr: false, inv: 0,
     extraJumps: 0, extraJumpsMax: 0,
     shields: 0, shieldsMax: 0,
+    hp: 100, maxHp: 100,
     speedMult: 1,
+    weapon: 'ak', ammo: 30, hasGrenade: false, reloadT: 0, fireCd: 0,
     modifiers: [],
     jumpWasDown: false, jumpFresh: false,
     impulses: [],

@@ -13,24 +13,35 @@ import { query, hasComponent } from 'bitecs';
 import { gs } from '../game/gameState';
 import { playerController } from '../player';
 import { colliderWorldRect } from '../level';
-import { MAX_BACKPACK, type ItemId } from '../../types';
-import { HOOK_COOLDOWN } from '../../config';
+import { MAX_BACKPACK, type ItemId, type WeaponId, type PlayerState } from '../../types';
+import { HOOK_COOLDOWN, WEAPONS } from '../../config';
 import { orbCount } from '../interactions';
-import { drawJumpTicketIcon, drawHookIcon, drawSpeedIcon, drawShieldIcon } from './icons';
+import { drawItemIcon, ITEM_ICON_R } from '../../Prefabs/ItemVis';
 
 /* ==================== HUD ==================== */
 
-/** 背包栏槽位尺寸（px） */
+/** 背包栏槽位尺寸（px；MAX_BACKPACK=10 格，整栏居中） */
 const SLOT = 46;
 const SLOT_GAP = 8;
-const BAR_W = 5 * SLOT + 4 * SLOT_GAP;
+const BAR_W = MAX_BACKPACK * SLOT + (MAX_BACKPACK - 1) * SLOT_GAP;
 const BAR_X = (VW - BAR_W) / 2;
 const BAR_Y = VH - 50; // 底部留 4px，选中态发光 ±3px 不再越出屏幕
 
-/** 背包栏（玩家自带 5 格装备栏，屏幕最下方居中）；
- *  占用格显示道具图标：二段跳票 = 绿色上箭头（被动），钩锁 = 金色钩形（主动），护盾 = 蓝紫盾形（被动），加速 = 青色 》》双箭头（被动）。
- *  主动道具需选中对应槽位（数字键 1-5）才能使用，选中格高亮 + 键位数字提示。
- *  钩锁格在冷却中显示弧形遮罩。 */
+/** 各道具槽位描边色（绑定表：新增道具加一行即可，图标自动随 ItemVis 生效） */
+const SLOT_HUE: Record<ItemId, string> = {
+  doubleJump: 'rgba(120,255,170,.9)',
+  hook: 'rgba(255,190,90,.9)',
+  shield: 'rgba(150,140,255,.95)',
+  speed: 'rgba(90,225,255,.95)',
+  recall: 'rgba(238,242,255,.95)',
+  ak: 'rgba(255,180,90,.95)',
+  grenade: 'rgba(150,255,140,.95)',
+};
+
+/** 背包栏（玩家自带 MAX_BACKPACK=10 格装备栏，屏幕最下方居中）；
+ *  占用格图标由 Prefabs/ItemVis 绑定表绘制（道具 + 武器，与场景拾取物同形）。
+ *  主动道具（钩锁/AK/手雷）需选中对应槽位（数字键 1-9/0 + 滚轮）才能使用，
+ *  选中格高亮 + 键位数字提示（第 10 格 = 0）。钩锁格冷却中显示弧形遮罩。 */
 export function drawHUD(): void {
   if (gs.screen !== 'playing') return;
   const p = playerController.getState();
@@ -40,11 +51,7 @@ export function drawHUD(): void {
     const y = BAR_Y;
     const id: ItemId | null = p.backpack[i] ?? null;
     const selected = i === p.selectedSlot;
-    const active = id === 'hook';
-    const hue = id === null ? 'rgba(150,170,255,.25)'
-      : active ? 'rgba(255,190,90,.9)'
-      : id === 'speed' ? 'rgba(90,225,255,.95)'
-      : 'rgba(120,255,170,.9)';
+    const hue = id === null ? 'rgba(150,170,255,.25)' : SLOT_HUE[id];
 
     // 选中态发光底板
     if (selected) {
@@ -74,13 +81,10 @@ export function drawHUD(): void {
       ctx.stroke();
       ctx.restore();
     } else {
-      // 道具图标（与图鉴拾取物同形，缩小版；scale 按原槽位视觉尺寸取值）
+      // 道具/武器图标（绑定表驱动：建模单一来源 = Prefabs/ItemVis，新增道具自动生效）
       const cx = x + SLOT / 2;
       const cy = y + SLOT / 2;
-      if (id === 'doubleJump') drawJumpTicketIcon(cx, cy, 10);
-      else if (id === 'shield') drawShieldIcon(cx, cy - 1, 10);
-      else if (id === 'speed') drawSpeedIcon(cx, cy, 13);
-      else drawHookIcon(cx, cy, 10);
+      drawItemIcon(id, cx, cy, ITEM_ICON_R[id]);
 
       // 钩锁冷却：弧形遮罩 + 进度指示
       if (id === 'hook' && p.hookCd > 0) {
@@ -96,15 +100,147 @@ export function drawHUD(): void {
       }
     }
 
-    // 槽位数字键提示（1-5）
+    // 槽位数字键提示（1-9 / 0 代表第 10 格）
     ctx.save();
     ctx.font = '600 9px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = selected ? 'rgba(255,230,170,.95)' : 'rgba(170,190,255,.45)';
-    ctx.fillText(String(i + 1), x + 8, y + 8);
+    ctx.fillText(i === MAX_BACKPACK - 1 ? '0' : String(i + 1), x + 8, y + 8);
     ctx.restore();
   }
+
+  drawCombatHUD();
+  drawWeaponHUD();
+}
+
+/* ==================== 战斗 HUD（S1/S2：HP 条 + 武器/弹药） ==================== */
+
+/** 战斗面板：左上角 HP 条 + 当前武器名 + 弹药/换弹进度。纯只读，观感层。 */
+function drawCombatHUD(): void {
+  const p = playerController.getState();
+  const px = 18;
+  const py = 20;
+
+  // HP 条
+  const bw = 200;
+  const bh = 12;
+  ctx.save();
+  rr(ctx, px, py, bw, bh, 6);
+  ctx.fillStyle = 'rgba(8,6,26,.62)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,120,160,.55)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  const ratio = Math.max(0, Math.min(1, p.hp / p.maxHp));
+  if (ratio > 0) {
+    const grad = ctx.createLinearGradient(px, 0, px + bw, 0);
+    grad.addColorStop(0, ratio > 0.5 ? '#6aff8a' : ratio > 0.25 ? '#ffcf5a' : '#ff5a5a');
+    grad.addColorStop(1, ratio > 0.5 ? '#2fd66a' : ratio > 0.25 ? '#ff9a3d' : '#d62f4f');
+    ctx.fillStyle = grad;
+    rr(ctx, px + 2, py + 2, (bw - 4) * ratio, bh - 4, 4);
+    ctx.fill();
+  }
+  ctx.font = '600 10px Arial';
+  ctx.fillStyle = 'rgba(255,255,255,.92)';
+  ctx.fillText(String(Math.ceil(p.hp)) + ' / ' + p.maxHp, px + bw + 10, py + bh / 2 + 1);
+  ctx.restore();
+
+}
+
+/** 当前武器参数（单一事实源 = config/weapons；'none' 回退 ak，调用方仅在 weapon!=='none' 时使用） */
+function currentWeapon(p: { weapon: string }): { ammo: number; reloadTime: number } {
+  if (p.weapon === 'none') return WEAPONS.ak;
+  return WEAPONS[p.weapon as Exclude<WeaponId, 'none'>] ?? WEAPONS.ak;
+}
+
+/** 当前武器弹匣容量（HUD 只读） */
+function getMagSize(p: { weapon: string }): number {
+  return currentWeapon(p).ammo;
+}
+
+/** 当前武器换弹时长（HUD 只读） */
+function getReloadTime(p: { weapon: string }): number {
+  return currentWeapon(p).reloadTime;
+}
+
+/* ==================== 武器弹药 HUD（S2：持有后右下角显示弹药） ==================== */
+
+/** 当前"持有"的武器（与 stepWeapon 门控一致：选中对应武器槽位 + 已拥有；null = 未持有武器） */
+function heldWeapon(p: PlayerState): 'ak' | 'grenade' | null {
+  const sel = p.backpack[p.selectedSlot];
+  if (sel === 'ak' && p.weapon === 'ak') return 'ak';
+  if (sel === 'grenade' && p.hasGrenade) return 'grenade';
+  return null;
+}
+
+/** 右下角武器弹药面板：仅"持有"武器（选中武器槽位）时显示；AK 弹匣/换弹，手雷数量 */
+function drawWeaponHUD(): void {
+  const p = playerController.getState();
+  const kind = heldWeapon(p);
+  if (kind === null) return;
+
+  const w = 170, h = 54;
+  const x = VW - w - 18; // 右下角（背包栏右侧空档）
+  const y = VH - h - 58;
+
+  ctx.save();
+  // 底板
+  rr(ctx, x, y, w, h, 10);
+  ctx.fillStyle = 'rgba(8,6,26,.68)';
+  ctx.fill();
+  ctx.strokeStyle = kind === 'ak' ? 'rgba(255,180,90,.7)' : 'rgba(150,255,140,.7)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // 武器图标（建模单一来源 = ItemVis/WeaponVis）
+  drawItemIcon(kind, x + 26, y + h / 2, kind === 'ak' ? 12 : 9);
+
+  // 武器名
+  ctx.font = '700 14px "Segoe UI",Arial';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(220,235,255,.95)';
+  ctx.fillText(kind === 'ak' ? 'AK' : '手雷', x + 52, y + 15);
+
+  if (kind === 'ak') {
+    if (p.reloadT > 0) {
+      // 换弹中：进度条
+      ctx.font = '600 11px "Segoe UI",Arial';
+      ctx.fillStyle = '#ffcf5a';
+      ctx.fillText('换弹…', x + 52, y + 32);
+      const relMax = Math.max(1, getReloadTime(p));
+      const prog = 1 - p.reloadT / relMax;
+      rr(ctx, x + 96, y + 26, 62, 6, 3);
+      ctx.fillStyle = 'rgba(8,6,26,.6)';
+      ctx.fill();
+      if (prog > 0) {
+        ctx.fillStyle = '#ffcf5a';
+        rr(ctx, x + 96, y + 26, 62 * prog, 6, 3);
+        ctx.fill();
+      }
+    } else {
+      // 弹药数字 + 弹匣小格
+      ctx.font = '700 18px "Segoe UI",Arial';
+      ctx.fillStyle = 'rgba(255,233,168,.98)';
+      ctx.fillText(String(p.ammo), x + 52, y + 33);
+      ctx.font = '600 11px "Segoe UI",Arial';
+      ctx.fillStyle = 'rgba(190,205,235,.55)';
+      ctx.fillText('/ ' + getMagSize(p), x + 56 + ctx.measureText(String(p.ammo)).width + 4, y + 33);
+      const slots = 10, sw = 4, gap = 3;
+      const filled = Math.round((p.ammo / Math.max(1, getMagSize(p))) * slots);
+      for (let i = 0; i < slots; i++) {
+        ctx.fillStyle = i < filled ? '#ffe9a8' : 'rgba(255,233,168,.18)';
+        ctx.fillRect(x + 52 + i * (sw + gap), y + 42, sw, 6);
+      }
+    }
+  } else {
+    // 手雷数量（拥有 = 1 颗投掷物）
+    ctx.font = '700 18px "Segoe UI",Arial';
+    ctx.fillStyle = 'rgba(140,255,170,.98)';
+    ctx.fillText('× 1', x + 52, y + h / 2);
+  }
+  ctx.restore();
 }
 
 /* ==================== 小地图 ==================== */

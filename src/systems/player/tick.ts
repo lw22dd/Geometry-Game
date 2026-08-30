@@ -20,6 +20,7 @@
  */
 import type { FrameSignals, InputKeys, PlayerEvent, PlayerState } from '../../types';
 import { stepActiveItem } from '../items/activeItem';
+import { stepWeapon } from '../combat';
 import { stepBuffTimers } from '../effects';
 import { reconcileShield, reconcileSpeed, itemDefBySource } from '../items/backpack';
 import { stepPlayerAnimation } from '../../Prefabs/Player';
@@ -101,6 +102,8 @@ export function tickPlayer(
       p.track = null;
       p.impulses.length = 0;
       p.extraJumps = 0;
+      // 复活满血（死亡的唯一恢复点在此；与位置/曳光复位同批，保证状态一致）
+      p.hp = p.maxHp;
       ctx.onRespawn(p);
     }
     stepControlArbiter(p, eid);
@@ -129,6 +132,9 @@ export function tickPlayer(
     aim: ctx.aim,
     sfx: ctx.sfx,
   });
+
+  // ── 武器（S2：AK 射线 / 手雷；本地 + 房主模拟远端共用同一步进）──
+  stepWeapon(p, input, { dt: ctx.dt, aim: ctx.aim, isLocal: ctx.isLocal });
 
   // ── 限时 buff 计时 + 一致性收尾 ──
   const expired = stepBuffTimers(p, ctx.dt);

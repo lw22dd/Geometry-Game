@@ -41,6 +41,14 @@ netBus.on(e => {
     case 'fx:shieldbreak':
       net.sendHostEvent('fx_shieldbreak', { x: e.x, y: e.y, playerId: e.playerId });
       break;
+    // ── 开火反馈：房主是开火模拟权威，广播给客机补播（曳光/火光/音效）──
+    case 'fx:shot':
+      net.sendHostEvent('fx_shot', { mx: e.mx, my: e.my, hitX: e.hitX, hitY: e.hitY, hit: e.hit });
+      break;
+    // ── 敌人死亡（S3）：房主判定 → 广播 enemy_died → 客机播放死亡表现 ──
+    case 'enemy:died':
+      net.sendHostEvent('enemy_died', { x: e.x, y: e.y });
+      break;
   }
 });
 

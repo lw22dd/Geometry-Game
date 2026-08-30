@@ -177,14 +177,23 @@ export interface TrackState {
 
 /* ==================== 背包/道具 ==================== */
 
-/** 道具 id */
-export type ItemId = 'doubleJump' | 'hook' | 'shield' | 'speed';
+/** 道具 id（含武器：AK/手雷 作为背包主动道具，拾取占用背包格） */
+export type ItemId = 'doubleJump' | 'hook' | 'shield' | 'speed' | 'recall' | 'ak' | 'grenade';
+
+/**
+ * 武器 id（独立体系，不强绑 Backpack 道具槽）。
+ * 'none' = 未装备任何主武器（出生默认；武器为地图拾取物，非自带）。
+ */
+export type WeaponId = 'none' | 'ak' | 'grenade';
+
+/** 敌人种类 id（S3；行走兵起步，精英/Boss 为扩展位） */
+export type EnemyKind = 'walker';
 
 /** 道具类别：主动（玩家触发）/ 被动（拾取即生效常驻） */
 export type ItemCategory = 'active' | 'passive';
 
-/** 背包空格数量上限 */
-export const MAX_BACKPACK = 5;
+/** 背包空格数量上限（含武器格；数字键 1-10 选择，滚轮循环切换） */
+export const MAX_BACKPACK = 10;
 
 /** 双物理模式参数 */
 export interface PhysicsMode {
@@ -222,8 +231,22 @@ export interface PlayerState {
   shields: number;
   /** 护盾最大格数（由 modifier 管道重算；0 = 未激活） */
   shieldsMax: number;
+  /** 当前生命值（战斗；0 = 死亡。扣血一律经 applyEffect 的 DamageRequest 结算） */
+  hp: number;
+  /** 生命上限（出生 = PLAYER_MAX_HP；后期可由 modifier 管道扩展） */
+  maxHp: number;
   /** 水平移速倍率（由 modifier 管道重算；1 = 常态，2 = 加速 buff） */
   speedMult: number;
+  /** 当前主武器（'none' = 未装备；武器为地图拾取物，非自带） */
+  weapon: WeaponId;
+  /** 弹匣内弹药 */
+  ammo: number;
+  /** 是否拥有手雷副武器（拾取手雷道具后 true；选中 grenade 槽位左键投掷） */
+  hasGrenade: boolean;
+  /** 换弹剩余时间（秒；>0 = 换弹中，期间不可开火） */
+  reloadT: number;
+  /** 开火冷却剩余时间（秒；由武器系统逐帧递减） */
+  fireCd: number;
   /** 数值修正列表（Modifier 管道：影响来源投递，recomputeStats 重算 extraJumpsMax 等） */
   modifiers: StatModifier[];
   /** 上一物理步跳跃键是否按下（用于二段跳"新按下沿"检测：按下一次跳一次） */
@@ -241,7 +264,7 @@ export interface PlayerState {
   hookCd: number;
   /** 钩锁收回动画剩余时间（秒，>0 时绘制收回线） */
   hookMissT: number;
-  /** 当前选中的背包槽位（0-4，用于主动道具） */
+  /** 当前选中的背包槽位（0-9，用于主动道具/武器；数字键 1-10 与滚轮切换） */
   selectedSlot: number;
 }
 
@@ -338,7 +361,7 @@ export interface GameState {
   screen: 'menu' | 'prepare' | 'playing' | 'paused';
   /**
    * 基础 UI 场景真源（问题 3：单一场景真源）。
-   * pause/dev/gallery/instructions 等叠层由 UIManager.overlays 栈管理；
+   * pause/dev/instructions 等叠层由 UIManager.overlays 栈管理；
    * ui.currentName = 栈顶叠层 ?? gs.scene（派生只读）。
    */
   scene: 'menu' | 'prepare' | 'mapSelect' | 'charSelect' | 'lobby' | null;
@@ -423,10 +446,16 @@ export interface MapDefinition {
     shields?: [number, number][];
     /** 加速道具坐标（可选；限时加速：速度 ×2，超时自动失效） */
     speeds?: [number, number][];
+    /** 重置箭头坐标（可选；主动道具：使用后回到上一个绑定的检查点） */
+    recalls?: [number, number][];
+    /** 武器拾取物（可选；无 weapons 字段的地图玩家无武器，需先拾取） */
+    weapons?: { kind: WeaponId; x: number; y: number }[];
     checkpoints: [number, number][];
     nova: { x: number; y: number };
     /** 冲刺轨道（可选；无轨道的地图省略） */
     tracks?: TrackSpawnData[];
+    /** 敌人出生点（可选；S3。kind = EnemyKind） */
+    enemies?: { kind: EnemyKind; x: number; y: number }[];
   };
 }
 
@@ -442,12 +471,17 @@ export type NetBusEvent =
   // ── 特效同步：死亡/护盾破碎特效由房主广播（房主是判定权威）──
   | { type: 'fx:death'; x: number; y: number; playerId: number }
   | { type: 'fx:shieldbreak'; x: number; y: number; playerId: number }
+  /** 开火反馈：曳光/火光/音效由房主广播（房主是开火模拟权威），客机补播 */
+  | { type: 'fx:shot'; mx: number; my: number; hitX: number; hitY: number; hit: boolean }
   // ── 联机扩展 ──
   | { type: 'net:connected'; role: NetRole; playerId: number }
   | { type: 'net:playerJoined'; player: RemotePlayerInfo }
   | { type: 'net:playerLeft'; playerId: number }
   | { type: 'net:playerUpdated'; player: RemotePlayerInfo }
   | { type: 'net:disconnected'; reason: string }
+  // ── 战斗：敌人出生 / 死亡（S4 骨架：spawn/despawn 走事件流；快照流只同步存活敌人）──
+  | { type: 'enemy:spawn'; kind: string; x: number; y: number }
+  | { type: 'enemy:died'; x: number; y: number }
   // ── 玩家事件（问题 4：PlayerController 事件并入 netBus 单一事件通道）──
   | PlayerEvent;
 
@@ -487,12 +521,20 @@ export interface InputKeys {
   sprint: boolean;
   /** 交互键（E）：按下时 true，用于检查点等可交互物 */
   interact: boolean;
-  /** 钩锁左键按住状态（true = 按住中；房主端用 hold && !prev 还原发射沿） */
+  /** 钩锁按住状态（键盘 Q；房主端用 hold && !prev 还原发射沿） */
   hook: boolean;
+  /** 开火（左键按住状态；auto 武器边沿由消费方还原） */
+  fire: boolean;
+  /** 副武器（右键按住状态；手雷投掷沿由消费方还原） */
+  altFire: boolean;
+  /** 换弹（R 键按住状态；按下沿由消费方还原） */
+  reload: boolean;
   /** 鼠标瞄准世界坐标 X（格） */
   aimX: number;
   /** 鼠标瞄准世界坐标 Y（格） */
   aimY: number;
+  /** 当前选中的背包槽位（0-9；客机上报告知房主，用于主动道具/武器"持有才可使用"判定） */
+  slot?: number;
 }
 
 /** 玩家权威状态（房主 → 客机） */
@@ -509,6 +551,14 @@ export interface NetPlayerState {
   inv: number;
   /** 水平移速倍率（1 = 常态，2 = 加速 buff；用于客机渲染远程玩家加速光效） */
   speedMult: number;
+  /** 当前主武器（房主权威） */
+  weapon: WeaponId;
+  /** 弹匣内弹药（房主权威；客机换弹表现跟随此值） */
+  ammo: number;
+  /** 是否拥有手雷副武器（房主权威） */
+  hasGrenade: boolean;
+  /** 换弹剩余时间（秒；房主权威） */
+  reloadT: number;
   hasPlat: boolean;
   platDx: number;
   /** 轨道运动状态 */
@@ -524,6 +574,8 @@ export interface NetPlayerState {
   trackExit: number;
   /** 路径段定义（客户端由此重建 TrackState） */
   trackSegments: PathSegment[];
+  /** 当前生命值（房主权威；客机的伤害与复活一律跟随此值，不自行结算） */
+  hp: number;
   /** 背包道具（数字编码：单一事实源 = items/backpack ITEMS 条目的 code 字段） */
   backpack: number[];
 }

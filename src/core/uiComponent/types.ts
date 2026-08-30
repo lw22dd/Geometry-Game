@@ -60,7 +60,6 @@ export const UI_SCENE = {
   MAP_SELECT: 'mapSelect',
   CHAR_SELECT: 'charSelect',
   DEV: 'dev',
-  GALLERY: 'gallery',
   INSTRUCTIONS: 'instructions',
   SETTINGS: 'settings',
 } as const;
