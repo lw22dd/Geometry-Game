@@ -10,7 +10,7 @@ import { rr } from '../../core/math';
 import { maps } from '../../config/level';
 import { CHARACTERS, DEFAULT_CHARACTER, getCharacterById, setSelectedCharacter } from '../../Prefabs/Player';
 import type { CharacterStyle } from '../../Prefabs/Player';
-import type { MapDefinition } from '../../types';
+import type { GameModeKey, MapDefinition } from '../../types';
 import { Button, UI_SCENE, ui } from '../../core/uiComponent';
 import type { UIWidget, UIScene } from '../../core/uiComponent';
 import { drawBackdrop, drawHUDFrame, drawNeonTitle, drawDecoStar, ease } from '../uiAtmosphere';
@@ -22,6 +22,8 @@ export const prepare = {
   mode: 'prepare' as 'prepare' | 'maps' | 'chars',
   mapId: maps[0].id,
   charId: DEFAULT_CHARACTER.id,
+  /** 联机游戏模式（仅创建房间时选择）：'pve' 普通模式 / 'asym' 非对称对抗 */
+  gameMode: 'pve' as GameModeKey,
 };
 
 export function selectedMap(): MapDefinition {

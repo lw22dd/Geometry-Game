@@ -2,7 +2,7 @@
  * 房间状态 —— 联机会话的全局状态单例。
  * 供 systems/ui（连接界面）、systems/game（主循环分支）读取。
  */
-import type { NetRole, RemotePlayerInfo } from '../types';
+import type { GameModeKey, NetRole, RemotePlayerInfo } from '../types';
 
 interface RoomState {
   /** 角色：standalone 单机 / host 房主 / client 客机 */
@@ -20,6 +20,8 @@ interface RoomState {
   port: number;
   /** 输入帧序号（客机 → 房主，房主回包比对外） */
   inputSeq: number;
+  /** 联机游戏模式（房主创建房间时选定，广播给全部玩家） */
+  mode: GameModeKey;
 }
 
 export const room: RoomState = {
@@ -31,6 +33,7 @@ export const room: RoomState = {
   host: '',
   port: 8810,
   inputSeq: 0,
+  mode: 'pve',
 };
 
 /** 重置为单机状态 */
@@ -41,6 +44,7 @@ export function resetRoom(): void {
   room.players = [];
   room.host = '';
   room.inputSeq = 0;
+  room.mode = 'pve';
 }
 
 /** 我是房主？ */

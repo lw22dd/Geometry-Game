@@ -15,15 +15,17 @@ type Room struct {
 	Clients map[int]*Player
 	nextId  int
 	port    int
+	Mode    string // "pve" | "asym"（房主创建房间时写入，广播给全部玩家）
 }
 
 type Player struct {
-	Id     int
-	Name   string
-	Char   string
-	Ready  bool
-	Conn   *WSConn
-	closed bool
+	Id      int
+	Name    string
+	Char    string
+	Ready   bool
+	Faction string // "keeper" | "survivor"（非对称模式；"" = 未选择）
+	Conn    *WSConn
+	closed  bool
 }
 
 func NewRoom(port int) *Room {
@@ -34,29 +36,60 @@ func NewRoom(port int) *Room {
 	}
 }
 
-// 新玩家加入房间。第一个加入的自动成为房主。
-func (r *Room) Join(name string, char string, conn *WSConn) *Player {
+// 新玩家加入房间。第一个加入的自动成为房主（并写入房间模式）。
+func (r *Room) Join(name string, char string, mode string, conn *WSConn) *Player {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	p := &Player{
-		Id:   r.nextId,
-		Name: name,
-		Char: char,
-		Conn: conn,
+		Id:      r.nextId,
+		Name:    name,
+		Char:    char,
+		Faction: "survivor", // 默认多方；非对称模式玩家可在房间内换阵营
+		Conn:    conn,
 	}
 	r.nextId++
 
 	if r.Host == nil {
-		// 第一个连接 → 房主
+		// 第一个连接 → 房主（创建房间时带模式）
 		r.Host = p
-		log.Printf("[房间] 房主加入: %s (id=%d)", p.Name, p.Id)
+		if mode == "asym" {
+			r.Mode = "asym"
+			p.Faction = "keeper" // 房主默认少方（守关者），可在房间内交换
+		} else {
+			r.Mode = "pve"
+		}
+		log.Printf("[房间] 房主加入: %s (id=%d) | 模式: %s", p.Name, p.Id, r.Mode)
 	} else {
 		r.Clients[p.Id] = p
 		log.Printf("[房间] 玩家加入: %s (id=%d) | 当前在线: %d", p.Name, p.Id, len(r.Clients)+1)
 	}
 
 	return p
+}
+
+// 某阵营当前已占槽位数量（不含指定玩家；用于槽位仲裁）
+func (r *Room) FactionCount(faction string, excludeId int) int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	n := 0
+	if r.Host != nil && r.Host.Faction == faction && r.Host.Id != excludeId {
+		n++
+	}
+	for _, c := range r.Clients {
+		if c.Faction == faction && c.Id != excludeId {
+			n++
+		}
+	}
+	return n
+}
+
+// 阵营槽位上限（keeper 1 / survivor 4；非对称模式专用）
+func factionLimit(faction string) int {
+	if faction == "keeper" {
+		return 1
+	}
+	return 4
 }
 
 // 玩家离开房间
@@ -107,10 +140,10 @@ func (r *Room) PlayerList() []PlayerInfo {
 
 	list := make([]PlayerInfo, 0, len(r.Clients)+1)
 	if r.Host != nil {
-		list = append(list, PlayerInfo{Id: r.Host.Id, Name: r.Host.Name, Char: r.Host.Char, Ready: r.Host.Ready})
+		list = append(list, PlayerInfo{Id: r.Host.Id, Name: r.Host.Name, Char: r.Host.Char, Ready: r.Host.Ready, Faction: r.Host.Faction})
 	}
 	for _, p := range r.Clients {
-		list = append(list, PlayerInfo{Id: p.Id, Name: p.Name, Char: p.Char, Ready: p.Ready})
+		list = append(list, PlayerInfo{Id: p.Id, Name: p.Name, Char: p.Char, Ready: p.Ready, Faction: p.Faction})
 	}
 	return list
 }

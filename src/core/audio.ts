@@ -16,6 +16,7 @@
  * 背景音乐调度已拆出至 core/music.ts（本模块只提供底层合成原语与总线）。
  */
 import { Settings } from './settings';
+import { playAKFire, playAKReload, playAKDryfire, playAKPickup } from '../Audio';
 
 /** 全局音频状态（向后兼容：ctx / on / master / noise 字段名保持不变） */
 export const AU = {
@@ -457,6 +458,8 @@ const MIN_GAP: Record<string, number> = {
   /** 宝箱冷却拒绝：按住 E 时不要每帧都响 */
   chestLocked: 0.35,
   weaponSwap: 0.06,
+  /** 空膛点击：防连续扣扳机时每帧都响 */
+  shotDry: 0.05,
 };
 
 const lastAt = new Map<string, number>();
@@ -680,19 +683,13 @@ export const sfx = {
 
   /* ── 战斗音效（S2/S3）── */
 
-  /** AK 开火：四层叠加 —— 爆音主体 + 低频冲击 + 枪机泛音 + 空间余响尾巴 */
+  /**
+   * AK 开火 —— 实现迁移至 src/Audio/weapons/ak.ts（playAKFire），
+   * 这里只保留节流 gate 与声像透传（zombie-world 模型：每武器一个播放函数）。
+   */
   shot(opts?: SfxOpts): void {
-    const k = scale(opts);
-    if (k === null || gate('shot')) return;
-    const t = now();
-    // ① 爆音主体（宽带噪声，极短起音）
-    noise({ at: t, dur: 0.09, vol: PEAK * 0.55 * k, hp: 900, lp: 3800, attack: 0.002, release: 0.07, pan: opts?.pan });
-    // ② 低频冲击（胸腔感：sine 下扫比原 square 更厚）
-    osc('sine', 150, { at: t, dur: 0.11, vol: PEAK * 0.42 * k, f1: 48, lp: 900, attack: 0.002, release: 0.08, pan: opts?.pan });
-    // ③ 中频金属"啪"（枪机往复的高频泛音）
-    osc('square', 620, { at: t + 0.008, dur: 0.05, vol: PEAK * 0.16 * k, f1: 300, lp: 3200, attack: 0.001, release: 0.04, pan: opts?.pan });
-    // ④ 空间余响（低通噪声尾巴，让枪声"落在场景里"而不是干响）
-    noise({ at: t + 0.05, dur: 0.26, vol: PEAK * 0.14 * k, lp: 700, attack: 0.01, release: 0.2, pan: opts?.pan });
+    if (gate('shot')) return;
+    playAKFire(opts?.pan);
   },
 
   /** 命中反馈：清脆短促高频（hitscan 命中敌人时） */
@@ -712,19 +709,15 @@ export const sfx = {
     noise({ at: t, dur: 0.12, vol: PEAK * 0.3 * k, hp: 700, lp: 2400, pan: opts?.pan });
   },
 
-  /** 换弹：弹匣脱出 → 插入闷响 → 卡榫到位（三段，比原两段咔嗒更有重量感） */
+  /** AK 换弹 —— 实现迁移至 src/Audio/weapons/ak.ts（playAKReload），这里只透传声像 */
   reload(opts?: SfxOpts): void {
-    const k = scale(opts);
-    if (k === null) return;
-    const t = now();
-    // ① 弹匣脱出（金属脆咔）
-    osc('square', 400, { at: t, dur: 0.05, vol: PEAK * 0.22 * k, lp: 2200, attack: 0.002, release: 0.03, pan: opts?.pan });
-    noise({ at: t, dur: 0.06, vol: PEAK * 0.14 * k, hp: 1600, pan: opts?.pan });
-    // ② 弹匣插入到位（闷响：比"咔"更沉，低频 sine + 低通噪声）
-    osc('sine', 190, { at: t + 0.15, dur: 0.1, vol: PEAK * 0.34 * k, f1: 90, lp: 700, attack: 0.003, release: 0.07, pan: opts?.pan });
-    noise({ at: t + 0.15, dur: 0.07, vol: PEAK * 0.16 * k, lp: 900, pan: opts?.pan });
-    // ③ 到位卡榫（清脆收尾，给"装好了"的确认感）
-    osc('square', 700, { at: t + 0.24, dur: 0.045, vol: PEAK * 0.18 * k, lp: 3000, attack: 0.002, release: 0.03, pan: opts?.pan });
+    playAKReload(opts?.pan);
+  },
+
+  /** AK 空膛点击 —— 实现迁移至 src/Audio/weapons/ak.ts（playAKDryfire），保留节流 gate */
+  shotDry(opts?: SfxOpts): void {
+    if (gate('shotDry')) return;
+    playAKDryfire(opts?.pan);
   },
 
   /** 手雷投掷：短促上滑 */
@@ -852,16 +845,12 @@ export const sfx = {
 
   /* ── 武器音效（拾取差异化 / 切枪）── */
 
-  /** AK 拾取：弹匣拍入 → 拉柄到位 → 上扬确认（比原版更"重"） */
+  /**
+   * AK 拾取 —— 实现迁移至 src/Audio/weapons/ak.ts（playAKPickup），
+   * 原四段设计（弹匣拍入 / 卡笋锁定 / 拉柄到位 / 厚重确认）与全部参数原样保留。
+   */
   weaponPickupAK(opts?: SfxOpts): void {
-    const k = scale(opts);
-    if (k === null) return;
-    const t = now();
-    osc('square', 330, { at: t, dur: 0.07, vol: PEAK * 0.32 * k, f1: 200, lp: 2000, attack: 0.002, release: 0.05, pan: opts?.pan });
-    noise({ at: t, dur: 0.06, vol: PEAK * 0.16 * k, hp: 1400, pan: opts?.pan });
-    osc('square', 880, { at: t + 0.09, dur: 0.06, vol: PEAK * 0.26 * k, f1: 1320, lp: 4200, attack: 0.001, release: 0.04, pan: opts?.pan });
-    osc('sine', 1760, { at: t + 0.1, dur: 0.22, vol: PEAK * 0.14 * k, attack: 0.002, release: 0.18, pan: opts?.pan });
-    osc('triangle', 780, { at: t + 0.14, dur: 0.18, vol: PEAK * 0.4 * k, f1: 1170, attack: 0.004, release: 0.12, pan: opts?.pan });
+    playAKPickup(opts?.pan);
   },
 
   /** 手雷拾取：金属 ping + 保险片弹开（更"轻"更脆，与 AK 明确区分） */

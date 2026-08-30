@@ -17,6 +17,7 @@ import { buildDevScene } from './dev';
 import { buildInstructionsScene } from './instructions';
 import { buildSettingsScene } from './settings';
 import { prepare, buildPrepareScene, buildMapSelectScene, buildCharSelectScene } from './prepare';
+import { buildModeSelectScene } from './modeSelect';
 import { net } from '../../net';
 import { resetRoom, room } from '../../net/room';
 import { resetRemotes } from '../player/remote';
@@ -96,8 +97,9 @@ export function registerUIScenes(): void {
       startGame();
     },
     onCreateRoom: () => {
-      lobby.mode = 'create';
-      ui.show('lobby');
+      // 创建房间 → 先选玩法模式（普通 / 非对称对抗），再进创建表单
+      prepare.mode = 'prepare';
+      ui.show('modeSelect');
     },
     onJoinRoom: () => {
       lobby.mode = 'join';
@@ -109,6 +111,19 @@ export function registerUIScenes(): void {
   }));
   ui.register(buildMapSelectScene(() => { prepare.mode = 'prepare'; ui.show('prepare'); }));
   ui.register(buildCharSelectScene(() => { prepare.mode = 'prepare'; ui.show('prepare'); }));
+
+  // ── 模式选择（仅创建房间路径；选中后设置 prepare.gameMode → 创建表单）──
+  ui.register(buildModeSelectScene({
+    onSelect: (mode) => {
+      prepare.gameMode = mode;
+      lobby.mode = 'create';
+      ui.show('lobby');
+    },
+    onBack: () => {
+      prepare.mode = 'prepare';
+      ui.show('prepare');
+    },
+  }));
 
   // 初始场景：菜单
   ui.show('menu');

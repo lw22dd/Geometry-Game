@@ -84,9 +84,10 @@ func main() {
 			name = "玩家"
 		}
 		char := r.URL.Query().Get("char")
+		mode := r.URL.Query().Get("mode")
 
 		wc := NewWSConn(conn)
-		p := room.Join(name, char, wc)
+		p := room.Join(name, char, mode, wc)
 
 		// 发送房间信息
 		info := RoomInfoMsg{
@@ -95,6 +96,7 @@ func main() {
 			PlayerId: p.Id,
 			Players:  room.PlayerList(),
 			Port:     *port,
+			Mode:     room.Mode,
 		}
 		if room.IsHost(p.Id) {
 			info.Role = "host"
@@ -106,7 +108,7 @@ func main() {
 		if !room.IsHost(p.Id) {
 			joinData, _ := json.Marshal(PlayerJoinedMsg{
 				Type:   "player_joined",
-				Player: PlayerInfo{Id: p.Id, Name: p.Name, Char: p.Char, Ready: p.Ready},
+				Player: PlayerInfo{Id: p.Id, Name: p.Name, Char: p.Char, Ready: p.Ready, Faction: p.Faction},
 			})
 			room.Broadcast(joinData)
 		}

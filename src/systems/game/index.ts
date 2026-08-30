@@ -855,7 +855,8 @@ function render(dt: number): void {
   if (ui.currentName === 'menu' || ui.currentName === 'lobby'
       || ui.currentName === 'instructions'
       || ui.currentName === 'settings'
-      || ui.currentName === 'prepare' || ui.currentName === 'mapSelect' || ui.currentName === 'charSelect') {
+      || ui.currentName === 'prepare' || ui.currentName === 'mapSelect' || ui.currentName === 'charSelect'
+      || ui.currentName === 'modeSelect') {
     ui.draw(uiTime);
     return;
   }
@@ -1156,6 +1157,15 @@ function wirePlayerEvents(): void {
 
 /** 按键逻辑（由 core/input 的 keydown 回调调用） */
 export function handleKeyDown(e: KeyboardEvent): void {
+  // 模式选择页（创建房间前）：ESC 返回准备界面（Enter/Space 不触发单机开局）
+  if (ui.currentName === 'modeSelect') {
+    if (e.code === 'Escape') {
+      prepare.mode = 'prepare';
+      ui.show('prepare');
+    }
+    return;
+  }
+
   // 准备流程（含两个选择子页）：ESC 逐级返回，Enter/Space 单机开始（场景经 ui.show 唯一入口）
   if (gs.screen === 'prepare') {
     if (prepare.mode === 'maps' || prepare.mode === 'chars') {

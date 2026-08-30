@@ -14,6 +14,8 @@ import { resetRemotes } from '../player/remote';
 import { prepare } from './prepare';
 import { CHARACTERS, getCharacterById, setSelectedCharacter } from '../../Prefabs/Player';
 import type { CharacterStyle } from '../../Prefabs/Player';
+import type { Faction } from '../../types';
+import { KEEPER_SLOTS, SURVIVOR_SLOTS } from '../../types';
 import { Button, TextInput, UI_SCENE, ui } from '../../core/uiComponent';
 import type { UIWidget, UIScene } from '../../core/uiComponent';
 import { tickLocal, ease, drawMask, drawGlassPanel, drawTitle, resetHover } from './primitives';
@@ -31,6 +33,10 @@ export const lobby = {
   myReady: false,
   /** 本机所选角色 id（房间内选角） */
   myChar: '' as string,
+  /** 本机阵营（非对称模式；red=少方蓝=多方，服务器仲裁为准） */
+  myFaction: '' as Faction | '',
+  /** 最近一次阵营请求（用于反馈"已申请，等待对手…"） */
+  factionPending: false,
 };
 
 /* ---------- 大厅动画计时 ---------- */
@@ -119,6 +125,104 @@ class CharCard implements UIWidget {
   }
 }
 
+/** 非对称模式阵营槽位元数据（红槽×1 少方 + 蓝槽×4 多方） */
+export const FACTIONS: { faction: Faction; label: string; color: string; glow: string }[] = [
+  { faction: 'keeper', label: '少方 · 守关者', color: '#ff6a7a', glow: 'rgba(255,90,120,.75)' },
+  { faction: 'survivor', label: '多方 · 幸存者', color: '#5ab8ff', glow: 'rgba(90,170,255,.7)' },
+];
+
+/** 阵营槽位卡片（轻量 UIWidget，纯绘制 + 命中；点击选择阵营） */
+class FactionCard implements UIWidget {
+  readonly id: string;
+  readonly faction: Faction;
+  visible = true;
+  hover = false;
+  focusable = false;
+  focused = false;
+  onClick?: () => void;
+  x = 0;
+  y = 0;
+  w = 200;
+  h = 150;
+
+  constructor(faction: Faction) {
+    this.id = 'lobby_faction_' + faction;
+    this.faction = faction;
+  }
+
+  hit(lx: number, ly: number): boolean {
+    return lx >= this.x && lx <= this.x + this.w && ly >= this.y && ly <= this.y + this.h;
+  }
+
+  draw(t: number): void {
+    void t;
+    const meta = FACTIONS.find(f => f.faction === this.faction)!;
+    const isKeeper = this.faction === 'keeper';
+    const limit = isKeeper ? KEEPER_SLOTS : SURVIVOR_SLOTS;
+    // 当前阵营占用玩家
+    const members = room.players.filter(p => p.faction === this.faction);
+    const occupied = members.length >= limit;
+    const me = room.players.find(p => p.id === room.playerId);
+    const isMine = me?.faction === this.faction;
+    const cx = this.x + this.w / 2;
+
+    ctx.save();
+    ctx.shadowColor = isMine ? meta.glow : this.hover ? 'rgba(140,200,255,.4)' : 'rgba(80,60,200,.2)';
+    ctx.shadowBlur = isMine ? 26 : this.hover ? 18 : 10;
+    rr(ctx, this.x, this.y, this.w, this.h, 14);
+    ctx.fillStyle = this.hover ? 'rgba(30,20,70,.85)' : 'rgba(14,11,38,.82)';
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = isMine ? meta.color : 'rgba(130,160,255,.35)';
+    ctx.lineWidth = isMine ? 2 : 1.5;
+    ctx.stroke();
+
+    // 阵营名 + 占用数
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '700 17px "Segoe UI","Microsoft YaHei",Arial';
+    ctx.fillStyle = isMine ? '#fff' : '#eaf6ff';
+    ctx.fillText(meta.label, cx, this.y + 26);
+    ctx.font = '500 13px "Segoe UI","Microsoft YaHei",Arial';
+    ctx.fillStyle = occupied ? '#ffb0a0' : 'rgba(160,185,255,.75)';
+    ctx.fillText(members.length + ' / ' + limit + (occupied && !isMine ? ' · 已满' : ''), cx, this.y + 50);
+
+    // 成员列表（每人一行：名字 + 准备状态）
+    ctx.textAlign = 'left';
+    ctx.font = '500 13px "Segoe UI","Microsoft YaHei",Arial';
+    members.forEach((m, i) => {
+      const my = this.y + 76 + i * 24;
+      if (my > this.y + this.h - 8) return;
+      ctx.fillStyle = m.id === room.playerId ? '#7df9ff' : 'rgba(175,195,255,.85)';
+      ctx.fillText(m.name, this.x + 18, my);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = m.ready ? '#8ff6a0' : 'rgba(150,170,220,.45)';
+      ctx.fillText(m.ready ? '✓' : '○', this.x + this.w - 18, my);
+      ctx.textAlign = 'left';
+    });
+
+    // 底部提示：加入 / 我的阵营
+    if (isMine) {
+      ctx.font = '600 12px "Segoe UI","Microsoft YaHei",Arial';
+      ctx.fillStyle = '#7df9ff';
+      ctx.fillText('✓ 我的阵营（点击可换）', cx, this.y + this.h - 12);
+    } else if (this.hover && !occupied) {
+      ctx.font = '600 12px "Segoe UI","Microsoft YaHei",Arial';
+      ctx.fillStyle = '#7df9ff';
+      ctx.fillText('点击加入此阵营', cx, this.y + this.h - 12);
+    } else if (occupied) {
+      ctx.font = '500 11px "Segoe UI","Microsoft YaHei",Arial';
+      ctx.fillStyle = 'rgba(255,180,160,.6)';
+      ctx.fillText('此阵营已满', cx, this.y + this.h - 12);
+    } else {
+      ctx.font = '500 11px "Segoe UI","Microsoft YaHei",Arial';
+      ctx.fillStyle = 'rgba(160,185,255,.55)';
+      ctx.fillText('点击加入', cx, this.y + this.h - 12);
+    }
+    ctx.restore();
+  }
+}
+
 /** 构建大厅场景。需要先调用 openCreateLobby / openJoinLobby 设置 mode。 */
 export function buildLobbyScene(a: LobbyActions): UIScene {
   // ---- 输入框组件（连接阶段） ----
@@ -198,6 +302,12 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     c.onClick = () => selectChar(c.id);
   }
 
+  // 阵营卡片（非对称模式专用；红槽少方 + 蓝槽多方）
+  const factionCards: FactionCard[] = FACTIONS.map(f => new FactionCard(f.faction));
+  for (const fc of factionCards) {
+    fc.onClick = () => selectFaction(fc);
+  }
+
   const myReadyNow = (): boolean => {
     const p = room.players.find(x => x.id === room.playerId);
     return p?.ready ?? false;
@@ -217,8 +327,17 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     if (room.players.length === 0) return false;
     return room.players.every(p => p.ready);
   };
+  /** 非对称模式可否开始：至少 1 少方 + 1 多方 且全员已准备 */
+  const canStartAsym = (): boolean => {
+    if (!allReady()) return false;
+    const k = room.players.filter(p => p.faction === 'keeper').length;
+    const s = room.players.filter(p => p.faction === 'survivor').length;
+    return k >= 1 && s >= 1;
+  };
   const startGameClick = (): void => {
-    if (room.role !== 'host' || !allReady()) return;
+    if (room.role !== 'host') return;
+    if (room.mode === 'asym' && !canStartAsym()) return;
+    if (room.mode !== 'asym' && !allReady()) return;
     lobby.mode = 'none';
     lobby.inRoom = false;
     lobby.myReady = false;
@@ -261,6 +380,7 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
 
     // 连接阶段：隐藏房间阶段的角色卡与按钮（否则按默认 (0,0) 叠在屏幕左上角）
     for (const c of charCards) c.visible = false;
+    for (const fc of factionCards) fc.visible = false;
     btnReady.visible = false;
     btnStart.visible = false;
     btnLeave.visible = false;
@@ -269,6 +389,7 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
   function layoutRoom(): void {
     const pw = 960, ph = 560;
     const px = VW / 2 - pw / 2, py = VH / 2 - ph / 2;
+    const asym = room.mode === 'asym';
 
     // 角色卡片：右侧两列
     const cardW = 240, cardH = 170, gap = 18;
@@ -277,6 +398,14 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
       c.x = px + 430 + col * (cardW + gap);
       c.y = py + 160 + row * (cardH + gap);
       c.w = cardW; c.h = cardH;
+    });
+
+    // 阵营卡片（非对称模式）：左侧纵向排列（红槽少方 + 蓝槽多方）
+    const fw = 370, fh = 180, fgap = 16;
+    factionCards.forEach((fc, i) => {
+      fc.x = px + 40;
+      fc.y = py + 118 + i * (fh + fgap);
+      fc.w = fw; fc.h = fh;
     });
 
     // 底部按钮：准备 / 开始（房主）/ 退出
@@ -289,6 +418,7 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     btnConnect.visible = false;
     btnBack.visible = false;
     for (const c of charCards) c.visible = true;
+    for (const fc of factionCards) fc.visible = asym;
     btnReady.visible = true;
     btnLeave.visible = true;
     btnStart.visible = room.role === 'host';
@@ -296,7 +426,11 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     // 按钮文案
     const r = myReadyNow();
     btnReady.label = r ? '✓ 已准备（点击取消）' : '准备';
-    btnStart.label = allReady() ? '▶ 开始游戏' : '▶ 开始游戏（等待中）';
+    if (asym) {
+      btnStart.label = canStartAsym() ? '▶ 开始游戏' : '▶ 开始游戏（等待中）';
+    } else {
+      btnStart.label = allReady() ? '▶ 开始游戏' : '▶ 开始游戏（等待中）';
+    }
   }
 
   // ---- 背景绘制 ----
@@ -363,14 +497,22 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     drawGlassPanel(px, py, pw, ph, 18);
 
     // 标题
+    const asym = room.mode === 'asym';
     drawTitle(room.role === 'host' ? '🏠 我的房间' : '🔗 已加入房间', py + 48, 26);
     ctx.font = '500 12px "Segoe UI","Microsoft YaHei",Arial';
-    ctx.fillStyle = 'rgba(150,180,255,.55)';
-    ctx.fillText('房间中的玩家选择角色，点击「准备」；全部准备后房主可开始', VW / 2, py + 84);
+    ctx.fillStyle = asym ? 'rgba(255,150,190,.8)' : 'rgba(150,180,255,.55)';
+    ctx.textAlign = 'center';
+    ctx.fillText(
+      asym
+        ? '非对称对抗：1 名少方布置敌人，最多 4 名多方破译密码机求生'
+        : '房间中的玩家选择角色，点击「准备」；全部准备后房主可开始',
+      VW / 2, py + 84,
+    );
+    ctx.textAlign = 'left';
 
-    // 左：玩家列表（高度收缩，给底部状态提示留位；超出部分裁剪）
+    // 左：玩家列表 / 阵营槽位（非对称模式；高度收缩，给底部状态提示留位；超出部分裁剪）
     const lx = px + 40, ly = py + 118;
-    const listH = 320;
+    const listH = asym ? 376 : 320;
     rr(ctx, lx, ly, 360, listH, 12);
     ctx.fillStyle = 'rgba(6,4,20,.6)';
     ctx.fill();
@@ -385,9 +527,18 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     ctx.textAlign = 'left';
     ctx.font = '700 16px "Segoe UI","Microsoft YaHei",Arial';
     ctx.fillStyle = '#8ff6ff';
-    ctx.fillText('玩家列表（' + room.players.length + '）', lx + 18, ly + 28);
+    if (asym) {
+      ctx.fillText('选择阵营', lx + 18, ly + 26);
+      ctx.font = '500 11px "Segoe UI","Microsoft YaHei",Arial';
+      ctx.fillStyle = 'rgba(160,185,255,.55)';
+      ctx.fillText('红=少方 ×1 · 蓝=多方 ×4', lx + 18, ly + 46);
+      // 阵营卡片由组件层绘制（widgets 中的 FactionCard），此处仅留面板背景
+    } else {
+      ctx.fillText('玩家列表（' + room.players.length + '）', lx + 18, ly + 28);
+    }
 
     room.players.forEach((p, i) => {
+      if (asym) return; // 非对称模式：玩家由阵营卡片展示，不重复绘制列表
       const ry = ly + 62 + i * 56;
       const isMe = p.id === room.playerId;
       const charName = p.char ? getCharacterById(p.char).name : '未选角';
@@ -430,12 +581,25 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     ctx.fillStyle = 'rgba(160,185,255,.55)';
     ctx.fillText('点击卡片选择，重新选择后需重新准备', px + 430, py + 148);
 
-    // 全员未准备提示
+    // 全员未准备提示（非对称模式额外提示需要双方阵营）
     ctx.textAlign = 'left';
     ctx.font = '500 13px "Segoe UI","Microsoft YaHei",Arial';
     if (room.role === 'client') {
       ctx.fillStyle = 'rgba(190,205,255,.6)';
       ctx.fillText('等待房主开始游戏…', px + 40, py + ph - 108);
+    } else if (asym) {
+      const k = room.players.filter(p => p.faction === 'keeper').length;
+      const s = room.players.filter(p => p.faction === 'survivor').length;
+      if (k === 0 || s === 0) {
+        ctx.fillStyle = 'rgba(255,190,120,.75)';
+        ctx.fillText('需要至少 1 名少方 + 1 名多方（点击左侧阵营）', px + 40, py + ph - 108);
+      } else if (!allReady()) {
+        ctx.fillStyle = 'rgba(255,190,120,.75)';
+        ctx.fillText('还有玩家未准备，无法开始', px + 40, py + ph - 108);
+      } else {
+        ctx.fillStyle = '#8ff6a0';
+        ctx.fillText('双方阵营已就绪且全员准备，点击「开始游戏」', px + 40, py + ph - 108);
+      }
     } else if (!allReady()) {
       ctx.fillStyle = 'rgba(255,190,120,.75)';
       ctx.fillText('还有玩家未准备，无法开始', px + 40, py + ph - 108);
@@ -450,7 +614,7 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     name: UI_SCENE.LOBBY,
     widgets: [
       fields.name, fields.ip, fields.port, btnConnect, btnBack,
-      ...charCards, btnReady, btnStart, btnLeave,
+      ...charCards, ...factionCards, btnReady, btnStart, btnLeave,
     ],
     draw: drawPanel,
     onEnter: () => {
@@ -461,6 +625,7 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
         const me = room.players.find(p => p.id === room.playerId);
         lobby.myChar = me?.char ?? prepare.charId;
         lobby.myReady = me?.ready ?? false;
+        lobby.myFaction = me?.faction ?? '';
         layoutRoom();
         return;
       }
@@ -472,7 +637,7 @@ export function buildLobbyScene(a: LobbyActions): UIScene {
     },
     onExit: () => {
       for (const f of Object.values(fields)) f.focused = false;
-      resetHover(btnConnect, btnBack, btnReady, btnStart, btnLeave, ...charCards);
+      resetHover(btnConnect, btnBack, btnReady, btnStart, btnLeave, ...charCards, ...factionCards);
     },
   };
 }
@@ -491,6 +656,32 @@ function selectChar(charId: string): void {
   }
 }
 
+/**
+ * 房间内选阵营（非对称模式）：
+ * 点击阵营卡片 → 本地合并检查（已满则拒绝）→ 上报服务器仲裁 → 换阵营后重置准备。
+ * 服务器为最终权威；客户端仅做前置提示。
+ */
+function selectFaction(fc: FactionCard): void {
+  const me = room.players.find(p => p.id === room.playerId);
+  if (me?.faction === fc.faction) return; // 已在同阵营，无需切换
+
+  const isKeeper = fc.faction === 'keeper';
+  const limit = isKeeper ? KEEPER_SLOTS : SURVIVOR_SLOTS;
+  const members = room.players.filter(p => p.faction === fc.faction);
+  if (members.length >= limit) {
+    lobby.status = isKeeper ? '✕ 少方阵营已满' : '✕ 多方阵营已满（上限 4 人）';
+    lobby.statusColor = '#ff8ab0';
+    return;
+  }
+  // 换阵营：上报服务器（服务器仲裁并取消准备）
+  lobby.status = '切换阵营中…';
+  lobby.statusColor = '#bfe9ff';
+  lobby.myFaction = fc.faction;
+  net.sendFactionSelect(fc.faction);
+  // 乐观取消准备（服务器仲裁成功后广播，届时以广播为准）
+  lobby.myReady = false;
+}
+
 /** 本机是否已准备（以房间列表为准） */
 function myReady(): boolean {
   const p = room.players.find(x => x.id === room.playerId);
@@ -506,6 +697,8 @@ function leaveRoom(): void {
   }
   lobby.inRoom = false;
   lobby.myReady = false;
+  lobby.myFaction = '';
+  lobby.factionPending = false;
   lobby.mode = 'none';
   ui.show('prepare');
 }
@@ -528,7 +721,9 @@ async function connectLobby(
   lobby.statusColor = '#bfe9ff';
 
   try {
-    await net.connect(host, finalPort, name, prepare.charId);
+    // 创建房间时把所选玩法模式一并上报（房主权威；客机 join 不传）
+    const mode = lobby.mode === 'create' ? prepare.gameMode : undefined;
+    await net.connect(host, finalPort, name, prepare.charId, mode);
     // 连接成功 → 进入房间界面（不再立即开始游戏）
     lobby.inRoom = true;
     lobby.myReady = false;

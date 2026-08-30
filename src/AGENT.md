@@ -14,10 +14,12 @@ src/
 ├── vite-env.d.ts  # Vite 环境类型声明
 ├── AGENT.md  # 本文档
 ├── assets/  # 图片 / 图集等运行期加载的静态资源
-├── Audio/  # 音频资源
+├── Audio/  # 音效播放函数（Web Audio 实时合成，zombie-world 模型）：脉冲原语 + 每武器一个文件
 │   ├── enemy/  # 空目录
 │   ├── system/  # 空目录
-│   └── weapons/  # 空目录
+│   ├── weapons/  # 武器音效（ak.ts：playAKFire / playAKReload / playAKDryfire / playAKPickup）
+│   ├── utils.ts  # 原语：sweep / noiseHit（峰值起步 + 指数衰减）
+│   └── index.ts  # barrel 导出
 ├── core/ecs/  # ECS 全部组件集中定义：core/ecs/components.ts（SoA 数值组件 + 标签组件 + AoS 侧表）
 ├── config/  # 纯数据 + 注册表：物理参数、关卡布局、背景装饰、cpPoint 复活点
 ├── core/  # 无业务逻辑的底座：画布、输入、鼠标、音效与分层 BGM、玩家设置持久化、相机、数学、路径几何、轨道编解码、netBus、ECS、UI
@@ -32,8 +34,8 @@ src/
 │   │   ├── characters/  # 角色样式注册表（纯数据）
 │   │   └── default/  # 默认角色「霓虹跑者」：FSM（states/animation）+ 纯绘制（render）+ 组合（defaultPrefab）
 │   ├── Animations/  # 实体动画控制器注册表：registry + 通用输出辅助 getAnimOutput
-│   ├── Scenes/  # 场景道具建模：platforms / hazards / items / atmosphere / tracks + sceneFactory（统一实体工厂）+ itemsAnimators（动画控制器）+ theme（风格令牌）
-│   └── WeaponVis/  # 规划中（尚未创建）
+│   ├── Scenes/  # 场景道具建模：platforms / hazards / items / atmosphere / tracks + sceneFactory（统一实体工厂）+ itemsAnimators（动画控制器）+ theme（风格令牌）+ material（材质原语）
+│   └── WeaponVis/  # 武器外观预制体（已实现）：AK 步枪 / 手雷 本体建模与图标（武器形状唯一来源）
 ├── systems/  # 玩法逻辑：game / player / level / ui / animation / interactions / effects / items + 粒子/后效运行时
 │   ├── animation/  # 统一实体动画系统：stepAnimation(dt) 遍历 Animator 实体步进 FSM
 │   ├── combat/  # 规划中（尚未创建）

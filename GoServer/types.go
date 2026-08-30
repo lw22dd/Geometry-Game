@@ -76,13 +76,21 @@ type RoomInfoMsg struct {
 	PlayerId int          `json:"playerId"`
 	Players  []PlayerInfo `json:"players"`
 	Port     int          `json:"port"`
+	Mode     string       `json:"mode"` // "pve" | "asym"（房主创建房间选定）
 }
 
 type PlayerInfo struct {
-	Id    int    `json:"id"`
-	Name  string `json:"name"`
-	Char  string `json:"char,omitempty"`
-	Ready bool   `json:"ready"`
+	Id      int    `json:"id"`
+	Name    string `json:"name"`
+	Char    string `json:"char,omitempty"`
+	Ready   bool   `json:"ready"`
+	Faction string `json:"faction,omitempty"` // "keeper" | "survivor"（非对称模式）
+}
+
+// 房间内选阵营（非对称模式）：客户端上报所选阵营（服务器仲裁槽位并广播）
+type FactionSelectMsg struct {
+	Type    string `json:"type"` // "faction_select"
+	Faction string `json:"faction"` // "keeper" | "survivor"
 }
 
 type PlayerJoinedMsg struct {

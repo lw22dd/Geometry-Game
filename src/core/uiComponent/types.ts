@@ -59,6 +59,7 @@ export const UI_SCENE = {
   PREPARE: 'prepare',
   MAP_SELECT: 'mapSelect',
   CHAR_SELECT: 'charSelect',
+  MODE_SELECT: 'modeSelect',
   DEV: 'dev',
   INSTRUCTIONS: 'instructions',
   SETTINGS: 'settings',

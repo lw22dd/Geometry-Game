@@ -68,7 +68,7 @@ export class UIManager {
       gs.screen = 'prepare';
       gs.scene = 'prepare';
       this.overlays.length = 0;
-    } else if (name === 'mapSelect' || name === 'charSelect' || name === 'lobby') {
+    } else if (name === 'mapSelect' || name === 'charSelect' || name === 'modeSelect' || name === 'lobby') {
       gs.scene = name;
       this.overlays.length = 0;
     } else {

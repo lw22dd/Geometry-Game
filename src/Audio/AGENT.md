@@ -1,32 +1,22 @@
-# Audio 文件夹 — 音频资源
+# Audio —— 音效播放函数（参考 zombie-world 模型）
 
-<details>
-<summary>Audio — 音频资源目录（enemy / system / weapons 子目录）</summary>
+无音频文件，全部用 Web Audio 实时合成（`core/audio.ts` 提供 OSC 总线与 ADSR 原语，本目录提供脉冲模型原语与武器播放函数）。
 
-本目录存放运行期加载的音频资源文件（.ogg/.wav/.mp3）。当前游戏所有音频均为 WebAudio 代码合成（音效见 `core/audio.ts`，分层动态 BGM 见 `core/music.ts`），无需外部音频文件。子目录按用途分类：enemy（敌人音效）、system（系统音效）、weapons（武器音效）。
+## 文件
 
-> 音画升级后仍是纯代码合成路线：音效走分轨总线（sfx/bgm/master + 限幅器）并支持声像与节流，BGM 为 bass / arp / pad / perc 四层动态织体。若将来要换成采样素材，把文件放进对应子目录并在 `core/audio.ts` 增加 AudioBuffer 解码通路即可，接口不变。
-</details>
+| 文件 | 职责 |
+|---|---|
+| `utils.ts` | 脉冲模型原语：`sweep`（扫频冲击）/ `noiseHit`（滤波噪声打击）。峰值起步 + 指数衰减，支持 delay / pan |
+| `weapons/ak.ts` | AK 武器音效：`playAKFire` / `playAKReload` / `playAKDryfire` / `playAKPickup` |
+| `index.ts` | 统一导出所有播放函数 |
 
-```
-Audio/
-├── enemy/    # 敌人音效（预留）
-├── system/   # 系统音效（预留）
-└── weapons/  # 武器音效（预留）
-```
+## 模型对比（vs core/audio）
 
-# 数据流
+- `core/audio` 的 `osc` / `noise` 走 **ADSR**（attack/decay/sustain/release），适合持续音与起音柔的音色；
+- `utils.ts` 的 `sweep` / `noiseHit` 走**脉冲 + 指数衰减**（峰值起步、按指数自然衰掉），天然贴合枪声、弹匣、机械咔哒——能量瞬间注入。
 
-1. 依赖：流入的方向和原因
+## 约定
 
-
-（预留）将依赖 Vite 静态资源导入机制 + WebAudio API（AudioBuffer 解码）。
-
-2. 本模块：经过 Audio 做了什么
-
-
-（预留）存放音频源文件，按用途分类。可通过 `core/audio` 的 AudioBuffer 解码加载，替代当前代码合成音效。
-
-3. 输出：流出的方向和目的
-
-（预留）解码后的 AudioBuffer → `core/audio` 的 sfx 音效表，供 `systems/player`（跳跃/冲刺/死亡/收集）、`systems/combat`（开火/爆炸）、`systems/enemy`（敌人音效）等播放。
+- 只放「如何发声」的函数，不放游戏逻辑；游戏通过 `core/audio.ts` 的 `sfx` 表薄分发调用。
+- 新增音效 = 在对应子目录写 `playX()`，在 `index.ts` 导出，在 `core/audio.ts` 的 `sfx` 分发里挂一条。
+- 原语全部挂 `sfxBus`、支持 `pan`、节点 `onended` 主动 disconnect（防泄漏）。

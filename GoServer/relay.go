@@ -50,9 +50,43 @@ func handleMessage(room *Room, p *Player, raw []byte) {
 		// 房间内准备 → 更新并广播
 		handleReady(room, p, raw)
 
+	case "faction_select":
+		// 房间内选阵营（非对称模式）→ 仲裁并广播
+		handleFactionSelect(room, p, raw)
+
 	default:
 		log.Printf("[消息] 未知类型: %s", base.Type)
 	}
+}
+
+// 房间内选阵营：仲裁槽位（keeper ≤1 / survivor ≤4）→ 更新玩家 → 广播（含发送者）
+func handleFactionSelect(room *Room, p *Player, raw []byte) {
+	var msg FactionSelectMsg
+	if err := json.Unmarshal(raw, &msg); err != nil {
+		return
+	}
+	if msg.Faction != "keeper" && msg.Faction != "survivor" {
+		return
+	}
+
+	room.mu.Lock()
+	// 槽位仲裁：目标阵营名额已满（且不是自己当前占的位）→ 拒绝
+	if p.Faction != msg.Faction {
+		if room.FactionCount(msg.Faction, p.Id) >= factionLimit(msg.Faction) {
+			room.mu.Unlock()
+			return // 满员，不广播（客户端保持原阵营）
+		}
+		p.Faction = msg.Faction
+		// 换阵营后取消准备（与选角一致：需重新准备）
+		p.Ready = false
+	}
+	room.mu.Unlock()
+
+	update, _ := json.Marshal(PlayerUpdateMsg{
+		Type: "player_update",
+		Player: PlayerInfo{Id: p.Id, Name: p.Name, Char: p.Char, Ready: p.Ready, Faction: p.Faction},
+	})
+	room.Broadcast(update)
 }
 
 // 房间内选人：更新玩家角色 → 广播给全体（含发送者）
@@ -68,7 +102,7 @@ func handleCharSelect(room *Room, p *Player, raw []byte) {
 
 	update, _ := json.Marshal(PlayerUpdateMsg{
 		Type: "player_update",
-		Player: PlayerInfo{Id: p.Id, Name: p.Name, Char: p.Char, Ready: p.Ready},
+		Player: PlayerInfo{Id: p.Id, Name: p.Name, Char: p.Char, Ready: p.Ready, Faction: p.Faction},
 	})
 	room.Broadcast(update)
 }
@@ -86,7 +120,7 @@ func handleReady(room *Room, p *Player, raw []byte) {
 
 	update, _ := json.Marshal(PlayerUpdateMsg{
 		Type: "player_update",
-		Player: PlayerInfo{Id: p.Id, Name: p.Name, Char: p.Char, Ready: p.Ready},
+		Player: PlayerInfo{Id: p.Id, Name: p.Name, Char: p.Char, Ready: p.Ready, Faction: p.Faction},
 	})
 	room.Broadcast(update)
 }

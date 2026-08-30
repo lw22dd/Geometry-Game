@@ -88,17 +88,20 @@ class NetClient {
   }
 
   /** 连接服务器，Promise 在收到 room_info 后 resolve */
-  connect(host: string, port: number, name: string, charId?: string): Promise<void> {
+  connect(host: string, port: number, name: string, charId?: string, mode?: string): Promise<void> {
     this.host = host;
     this.port = port;
     room.host = host;
     room.port = port;
     room.name = name;
+    // 创建房间时带入模式（房主权威；客机加入时模式以服务器广播为准）
+    if (mode) room.mode = mode as typeof room.mode;
 
     return new Promise((resolve, reject) => {
       session.connect();
       const url = `ws://${host}:${port}/ws?name=${encodeURIComponent(name)}`
-        + (charId ? `&char=${encodeURIComponent(charId)}` : '');
+        + (charId ? `&char=${encodeURIComponent(charId)}` : '')
+        + (mode ? `&mode=${encodeURIComponent(mode)}` : '');
       const ws = new WebSocket(url);
       this.ws = ws;
 
@@ -184,6 +187,11 @@ class NetClient {
     this.sendJSON({ type: 'ready', ready });
   }
 
+  /** 房间内选择阵营（非对称模式）：keeper 少方 / survivor 多方 */
+  sendFactionSelect(faction: 'keeper' | 'survivor'): void {
+    this.sendJSON({ type: 'faction_select', faction });
+  }
+
   /* ==================== 房主 → 服务器 → 全部 ==================== */
 
   /** 房主发送权威状态广播 */
@@ -220,6 +228,7 @@ class NetClient {
         room.role = msg.role;
         room.playerId = msg.playerId;
         room.players = msg.players;
+        room.mode = msg.mode === 'asym' ? 'asym' : 'pve';
         room.connected = true;
         session.ready();
         emit('connected', msg.role, msg.playerId, msg.players);

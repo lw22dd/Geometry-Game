@@ -222,7 +222,8 @@ export function stepWeapon(p: PlayerState, input: InputKeys, ctx: WeaponStepCtx)
         if (def.kind === 'hitscan') fireHitscan(p, def, ctx);
         else throwGrenade(p, def, ctx);
       } else {
-        // 空膛自动换弹（与 R 手动换弹同路径）
+        // 空膛：扣扳机只响干涩"咔哒"（击锤空击），随后自动进入换弹（与 R 手动同路径）
+        if (ctx.isLocal) sfx.shotDry({ pan: panOfX(p.x) });
         p.reloadT = def.reloadTime;
       }
     }

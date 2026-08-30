@@ -364,7 +364,7 @@ export interface GameState {
    * pause/dev/instructions 等叠层由 UIManager.overlays 栈管理；
    * ui.currentName = 栈顶叠层 ?? gs.scene（派生只读）。
    */
-  scene: 'menu' | 'prepare' | 'mapSelect' | 'charSelect' | 'lobby' | null;
+  scene: 'menu' | 'prepare' | 'mapSelect' | 'charSelect' | 'modeSelect' | 'lobby' | null;
   toast: string;
   toastT: number;
   flash: number;
@@ -516,6 +516,16 @@ export type PlayerEvent =
 /** 角色：单机 / 房主 / 客机 */
 export type NetRole = 'standalone' | 'host' | 'client';
 
+/** 联机游戏模式：'pve' 普通模式（简单 PVE）/ 'asym' 非对称对抗 */
+export type GameModeKey = 'pve' | 'asym';
+
+/** 阵营：'keeper' 少方（守关者，1 人）/ 'survivor' 多方（幸存者，上限 4 人） */
+export type Faction = 'keeper' | 'survivor';
+
+/** 非对称模式槽位常量（红槽 1 + 蓝槽 4） */
+export const KEEPER_SLOTS = 1;
+export const SURVIVOR_SLOTS = 4;
+
 /** 远程玩家摘要信息（房间列表） */
 export interface RemotePlayerInfo {
   id: number;
@@ -524,6 +534,8 @@ export interface RemotePlayerInfo {
   char?: string;
   /** 是否已准备（房间流程） */
   ready?: boolean;
+  /** 阵营（非对称模式：房主创建房间时选定；客机加入时同步） */
+  faction?: Faction;
 }
 
 /** 按键输入快照（网络传输格式） */
