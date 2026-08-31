@@ -11,13 +11,11 @@ import type { UIScene, UIWidget } from '../../core/uiComponent';
 import { Settings } from '../../core/settings';
 import { sfx } from '../../core/audio';
 import type { QualityTier } from '../../config/visuals';
-import { tickLocal, drawMask, drawGlassPanel, drawTitle, makeBackButton, resetHover } from './primitives';
+import { tickLocal, drawMask, drawGlassPanel, drawTitle, makeBackButton, resetHover, ease } from './primitives';
 import { F } from './theme';
 
 /** 场景动画计时 */
 const _setTime = { t: 0, last: 0 };
-
-const _ease = (t: number): number => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
 
 /** 画质档位说明表（按钮 + 描述文案同源，避免两处维护） */
 const TIERS: { id: QualityTier; label: string; desc: string }[] = [
@@ -134,7 +132,7 @@ export function buildSettingsScene(a: SettingsActions): UIScene {
   /** 面板绘制（组件之下的装饰层） */
   function drawPanel(_t: number): void {
     const tt = tickLocal(_setTime);
-    const en = _ease(tt / 0.28);
+    const en = ease(tt / 0.28);
     if (en <= 0) return;
     const off = (1 - en) * 24;
 

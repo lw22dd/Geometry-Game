@@ -14,13 +14,7 @@ import { FX } from '../../Prefabs/Fx';
 import { sfx } from '../../core/audio';
 import { gs } from '../game/gameState';
 import { VIS } from '../../config';
-import { sx } from '../../core/camera';
-import { VW } from '../../core/canvas';
-
-function panOfX(worldX: number): number {
-  const q = (sx(worldX) / VW - 0.5) * 1.4;
-  return q < -1 ? -1 : q > 1 ? 1 : q;
-}
+import { panOfX } from '../../core/camera';
 
 /** 击杀一个敌人（幂等：非敌人实体 / 已移除静默跳过） */
 export function killEnemy(eid: number): void {

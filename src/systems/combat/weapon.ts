@@ -25,7 +25,7 @@ import { spawnParticles } from '../particles';
 import { FX } from '../../Prefabs/Fx';
 import { sfx } from '../../core/audio';
 import { ctx, VW, VH } from '../../core/canvas';
-import { sx, sy, view } from '../../core/camera';
+import { sx, sy, view, panOfX } from '../../core/camera';
 import { netBus } from '../../core/netBus';
 
 /** 武器步进上下文 */
@@ -221,12 +221,6 @@ function throwProjectile(p: PlayerState, def: WeaponDef, ctx: WeaponStepCtx): vo
   if (ctx.isLocal) {
     sfx.grenadeThrow({ pan: panOfX(p.x) });
   }
-}
-
-/** 世界 X → 声像 -1..1（按事件在屏幕上的左右位置映射） */
-function panOfX(worldX: number): number {
-  const q = (sx(worldX) / VW - 0.5) * 1.4;
-  return q < -1 ? -1 : q > 1 ? 1 : q;
 }
 
 /* ==================== 主入口 ==================== */

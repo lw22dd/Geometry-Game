@@ -165,6 +165,11 @@ export const WEAPONS: Record<Exclude<WeaponId, 'none'>, WeaponDef> = {
 /** 武器 id → 数字编码（PlayerControl SoA 投影用；单一事实源 = WEAPONS 键序） */
 export const WEAPON_IDS = Object.keys(WEAPONS) as Exclude<WeaponId, 'none'>[];
 
+/** 字符串是否为武器 id（'none' 占位除外） */
+export function isWeaponId(id: string): id is Exclude<WeaponId, 'none'> {
+  return (WEAPON_IDS as readonly string[]).includes(id);
+}
+
 /** WeaponId → 数字编码（写入 PlayerControl.weapon；'none' = -1） */
 export function weaponToCode(id: WeaponId): number {
   return WEAPON_IDS.indexOf(id as Exclude<WeaponId, 'none'>);

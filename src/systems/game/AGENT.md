@@ -3,13 +3,20 @@
 <details>
 <summary>systems/game — 主循环编排 + 全局状态/物理模式单例</summary>
 
-本目录存放游戏调度中枢：全局状态单例（gameState.ts）、物理模式选择器（gameMode.ts）、主循环 step/render/frame 函数、按键回调 handleKeyDown、联机网络事件绑定。负责按固定时间步长（1/120s）驱动 player/particles/interactions 子系统，并在每帧编排所有绘制函数的调用顺序。
+本目录存放游戏调度中枢：全局状态单例（gameState.ts）、物理模式选择器（gameMode.ts），以及从原上帝模块 index.ts 按职责拆分出的子模块——进场流程（lifecycle）、房主模拟与交互集线（host）、渲染管线（render）、网络事件绑定（netEvents）、玩家事件订阅（playerEvents）、输入回调（input）；index.ts 保留帧循环 step/render 调度并统一对外导出。负责按固定时间步长（1/120s）驱动 player/particles/interactions 子系统，并在每帧编排所有绘制函数的调用顺序。
 </details>
 
 ```
 systems/game/
-├── index.ts        # step/render/frame 主循环 + handleKeyDown 输入回调 + startGame/startLoop
-│                   # + 联机事件绑定（wireNetEvents）+ PlayerController 事件订阅（wirePlayerEvents）
+├── index.ts        # 主循环编排：frame/step/stepPresentation/syncMusic/startLoop
+│                   # + 对外 re-export（applyLevel/startGame/startMultiplayerGame/handleKeyDown/handleWheel）
+├── lifecycle.ts    # 进场流程：applyLevel（切图串联）/ startGame / startMultiplayerGame
+├── host.ts         # 房主权威模拟 + 玩家交互集线：stepHostClients（远端模拟+节流广播）/
+│                   #   broadcastHostState/collect*States/runPlayerInteractions（本地/远端共用交互步）/getLocalInputKeys
+├── render.ts       # 渲染管线：render/renderGame/applyShake/drawRemotePlayer + snapshotRenderPrev 渲染插值
+├── netEvents.ts    # 客机网络事件绑定：wireNetEvents + 权威状态应用（apply*States）
+├── playerEvents.ts # 玩家事件订阅：wirePlayerEvents（netBus player:* → gs/sfx/粒子）
+├── input.ts        # 输入回调：handleKeyDown / handleWheel
 ├── gameState.ts    # 全局游戏状态 gs（GameState 单例，规避 systems 循环依赖）
 └── gameMode.ts     # 物理模式选择器 getMode/setMode（tuned / classic，独立于 gs）
 ```

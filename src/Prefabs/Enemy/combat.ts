@@ -10,15 +10,10 @@ import { spawnParticles } from '../../systems/particles';
 import { FX } from '../Fx';
 import { sfx } from '../../core/audio';
 import { gs } from '../../systems/game/gameState';
-import { VIS } from '../../config';
-import { sx } from '../../core/camera';
-import { VW } from '../../core/canvas';
+import { VIS, DEATH_VISUAL_T } from '../../config';
+import { panOfX } from '../../core/camera';
 
-/** 世界 X → 声像 -1..1 */
-export function panOfX(worldX: number): number {
-  const q = (sx(worldX) / VW - 0.5) * 1.4;
-  return q < -1 ? -1 : q > 1 ? 1 : q;
-}
+export { panOfX };
 
 /**
  * 敌人专属攻击结算玩家（自爆/砸地/投石共用）：
@@ -37,7 +32,7 @@ export function damagePlayerFromEnemy(
         playerController.die();
       } else {
         ps.dead = true;
-        ps.deadT = 0.85;
+        ps.deadT = DEATH_VISUAL_T;
       }
     },
     onDamaged: () => {

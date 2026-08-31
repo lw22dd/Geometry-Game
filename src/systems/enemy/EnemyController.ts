@@ -26,6 +26,7 @@ import {
 } from '../../Prefabs/Enemy';
 import type { EnemyState } from '../../Prefabs/Enemy';
 import { getSolids } from '../player';
+import { colliderWorldRect, aabbOverlap } from '../level';
 
 /** 敌人生成数据（MapDefinition.entitySpawners.enemies 条目） */
 export interface EnemySpawnData {
@@ -84,24 +85,14 @@ export function stepEnemies(dt: number, players: { state: PlayerState }[]): void
   }
 }
 
-/** 敌人 AABB（半宽碰撞箱，中心 = Position） */
-function enemyRect(e: number): { x: number; y: number; top: number; w: number; h: number } {
-  const half = Collider.w[e] / 2;
-  const hh = Collider.h[e] / 2;
-  return { x: Position.x[e] - half, y: Position.y[e] - hh, top: Position.y[e] + hh, w: half * 2, h: hh * 2 };
-}
-
-/** AABB 重叠（纯数学） */
-function overlap(
-  a: { x: number; y: number; top: number; w: number; h: number },
-  b: { x: number; y: number; top: number; w: number; h: number },
-): boolean {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.top && a.top > b.y;
+/** 敌人底面 Y（worldRect 的 y = 底边） */
+function enemyFootY(e: number): number {
+  return colliderWorldRect(e).y;
 }
 
 /** 敌人前面（朝向 dir 侧）是否仍有地面支撑（悬崖检测：前方一小段内无固体顶面） */
 function groundAhead(e: number, dir: 1 | -1): boolean {
-  const r = enemyRect(e);
+  const r = colliderWorldRect(e);
   const half = Collider.w[e] / 2;
   const probeX = Position.x[e] + dir * (half + 0.15);
   const footY = r.y; // 敌人底边 Y
@@ -166,9 +157,9 @@ function stepEnemy(e: number, dt: number, players: { state: PlayerState }[]): vo
 
   /* ── 6. 撞墙掉头 + 巡逻边界（非锁定期间；越过顶面不算墙）── */
   if (!res.hold) {
-    const r = enemyRect(e);
+    const r = colliderWorldRect(e);
     for (const s of getSolids()) {
-      if (!overlap(r, s)) continue;
+      if (!aabbOverlap(r, s)) continue;
       if (Position.y[e] - Collider.h[e] / 2 >= s.top - 0.02) continue; // 站在上面，不算墙
       // 撞墙：推回 + 掉头
       if (st.dir > 0) Position.x[e] = s.x - Collider.w[e] / 2;
@@ -186,9 +177,9 @@ function stepEnemy(e: number, dt: number, players: { state: PlayerState }[]): vo
   st.grounded = false;
   Velocity.y[e] -= 22 * dt;
   Position.y[e] += Velocity.y[e] * dt;
-  const r2 = enemyRect(e);
+  const r2 = colliderWorldRect(e);
   for (const s of getSolids()) {
-    if (!overlap(r2, s)) continue;
+    if (!aabbOverlap(r2, s)) continue;
     if (Velocity.y[e] <= 0) {
       Position.y[e] = s.top + Collider.h[e] / 2;
       Velocity.y[e] = 0;

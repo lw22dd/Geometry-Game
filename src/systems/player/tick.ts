@@ -19,6 +19,7 @@
  * 死亡分支中的复活点来自 ctx.spawnX/Y（本地=cpPoint，远端=rp.cpX/cpY）。
  */
 import type { FrameSignals, InputKeys, PlayerEvent, PlayerState } from '../../types';
+import { DEATH_VISUAL_T, RESPAWN_OFFSET_Y, RESPAWN_INV } from '../../config/combat';
 import { stepActiveItem } from '../items/activeItem';
 import { stepWeapon } from '../combat';
 import { stepBuffTimers } from '../effects';
@@ -80,7 +81,7 @@ export function tickPlayer(
   // ── 本帧物理内坠落死亡边沿：登记死亡（死亡帧仍走完整管线，与旧 controller.step 一致）──
   let diedThisFrame = false;
   if (p.dead && !wasDead) {
-    p.deadT = 0.85;
+    p.deadT = DEATH_VISUAL_T;
     ctx.onDiedEdge(p);
     diedThisFrame = true;
   }
@@ -89,15 +90,15 @@ export function tickPlayer(
   if (p.dead && !diedThisFrame) {
     if (ctx.deathMode === 'wait') {
       // 客机：维持死亡视觉，等待房主权威复活
-      p.deadT = 0.85;
+      p.deadT = DEATH_VISUAL_T;
     } else if (p.deadT <= 0) {
       // 房主/单机/远端：到点复活
       p.dead = false;
       p.x = ctx.spawnX;
-      p.y = ctx.spawnY + 1.2;
+      p.y = ctx.spawnY + RESPAWN_OFFSET_Y;
       p.velocity.x = 0;
       p.velocity.y = 0;
-      p.inv = 1.2;
+      p.inv = RESPAWN_INV;
       p.plat = null;
       p.track = null;
       p.impulses.length = 0;

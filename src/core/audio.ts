@@ -14,26 +14,13 @@
  * ⑤ 回收：每个发声节点的 onended 主动 disconnect，长时间游玩不累积节点。
  *
  * 背景音乐调度已拆出至 core/music.ts（本模块只提供底层合成原语与总线）。
+ * 全局状态 AU 已提取至 core/audioState.ts（叶子模块），供 Audio/ 反向读取而不循环。
  */
 import { Settings } from './settings';
 import { playAKFire, playAKReload, playAKDryfire, playAKPickup } from '../Audio';
+import { AU } from './audioState';
 
-/** 全局音频状态（向后兼容：ctx / on / master / noise 字段名保持不变） */
-export const AU = {
-  ctx: null as AudioContext | null,
-  /** 总开关（= !Settings.muted，随设置同步） */
-  on: true,
-  /** 主总线增益节点 */
-  master: null as GainNode | null,
-  /** 白噪声缓冲（噪声类音效共用） */
-  noise: null as AudioBuffer | null,
-  /** 音效总线 */
-  sfxBus: null as GainNode | null,
-  /** 音乐总线 */
-  bgmBus: null as GainNode | null,
-  /** 限幅器（防叠加削波） */
-  comp: null as DynamicsCompressorNode | null,
-};
+export { AU };
 
 /** 音效可选参数：空间感与增益缩放 */
 export interface SfxOpts {

@@ -17,6 +17,15 @@ export const PLAYER_MAX_HP = 100;
  */
 export const HIT_INV = 0.6;
 
+/** 死亡视觉时长（秒）：deadT 从该值递减到 0，期间显示死亡遮罩 / 保持死亡爆裂 */
+export const DEATH_VISUAL_T = 0.85;
+
+/** 复活 / 重置出生点垂直偏移（格）：在复活点上方生成，避免出生即嵌地 */
+export const RESPAWN_OFFSET_Y = 1.2;
+
+/** 复活 / 重置后的受击无敌时长（秒）：复活瞬间的短暂保护 */
+export const RESPAWN_INV = 1.2;
+
 /** 受击击退冲量的持续时长（秒） */
 export const HIT_IMPULSE_DUR = 0.18;
 

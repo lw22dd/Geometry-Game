@@ -17,6 +17,7 @@ import type { PlayerState } from '../../types';
 import type { DrawView, GorillaDef, GorillaState, StepInput, StepResult } from './types';
 import { createWalkerState } from './walker';
 import { damagePlayerFromEnemy, panOfX } from './combat';
+import { hitFlashAlpha, drawAlert, drawHealthBar } from './drawShared';
 /**
  * 大猩猩绘制：横板游戏 2.5D 斜侧视。
  *
@@ -41,11 +42,7 @@ export function drawGorilla(
   const cy = sy(v.y);
   const S = view.SZ;
 
-  let flash = 1;
-
-  if (v.inv > 0) {
-    flash = Math.floor(gs.time * 20) % 2 === 0 ? 0.55 : 1;
-  }
+  const flash = hitFlashAlpha(v.inv);
 
   const atk = v.attack?.phase ?? null;
   const atkT = v.attack?.t ?? 0;
@@ -85,9 +82,7 @@ export function drawGorilla(
   blackGrad.addColorStop(0.45, '#111318');
   blackGrad.addColorStop(1, '#050608');
 
-  const hitFlash =
-    v.inv > 0 &&
-    Math.floor(gs.time * 20) % 2 === 0;
+  const hitFlash = flash < 1;
 
   const stroke = hitFlash
     ? 'rgba(255,255,255,.92)'
@@ -646,54 +641,14 @@ export function drawGorilla(
    * 攻击 / 追击警戒符号。
    */
   if (atk || v.mode === 'chase') {
-    ctx.fillStyle = atk
-      ? '#ffcf5a'
-      : '#ff5a5a';
-
-    ctx.font = `bold ${Math.round(S * 0.6)}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.fillText(
-      '!',
-      0,
-      -S * 1.75,
-    );
+    drawAlert(0, -S * 1.75, S * 0.6, atk ? '#ffcf5a' : '#ff5a5a');
   }
 
   /**
    * 血条。
    */
   if (v.hp < v.maxHp) {
-    const healthW = S * 1.6;
-    const healthH = Math.max(2, S * 0.2);
-
-    ctx.globalAlpha = flash;
-
-    ctx.fillStyle = 'rgba(10,6,20,.7)';
-    ctx.fillRect(
-      -healthW / 2,
-      -S * 1.95,
-      healthW,
-      healthH,
-    );
-
-    const ratio = Math.max(
-      0,
-      v.hp / v.maxHp,
-    );
-
-    ctx.fillStyle =
-      ratio > 0.5
-        ? '#6aff8a'
-        : ratio > 0.25
-          ? '#ffcf5a'
-          : '#ff5a5a';
-
-    ctx.fillRect(
-      -healthW / 2,
-      -S * 1.95,
-      healthW * ratio,
-      healthH,
-    );
+    drawHealthBar(0, -S * 1.95, S * 1.6, Math.max(2, S * 0.2), v.hp, v.maxHp, flash);
   }
 
   ctx.restore();

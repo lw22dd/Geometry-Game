@@ -29,15 +29,9 @@ import { FX } from '../../Prefabs/Fx';
 import { sfx } from '../../core/audio';
 import { gs } from '../game/gameState';
 import { VIS } from '../../config';
-import { sx, sy, view } from '../../core/camera';
+import { sx, sy, view, panOfX } from '../../core/camera';
 import { ctx, VW } from '../../core/canvas';
 import { drawWeaponIcon } from '../ui/icons';
-
-/** 世界 X → 声像 -1..1 */
-function panOfX(worldX: number): number {
-  const q = (sx(worldX) / VW - 0.5) * 1.4;
-  return q < -1 ? -1 : q > 1 ? 1 : q;
-}
 
 /** 弹种编码（source 写入用） */
 const SRC_GRENADE = weaponToCode('grenade');

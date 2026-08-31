@@ -22,9 +22,112 @@ import {
   PlayerModifiers, ControlMode,
 } from '../../core/ecs';
 import { qLocalPlayer } from '../../core/ecs';
-import type { PlayerState, TrackState } from '../../types';
+import type { PlayerState, TrackState, WeaponId } from '../../types';
 import { PLAYER_MAX_HP } from '../../config/combat';
 import { weaponFromCode, weaponToCode } from '../../config/weapons';
+
+/* ═══════════ 字段映射表（单一事实源） ═══════════ */
+
+/**
+ * 玩家 ECS ↔ PlayerState 字段映射 —— 单一事实源。
+ * loadPlayerComponents / storePlayerComponents / mirrorPlayerState / syncFromEcs
+ * 四处由同一张表驱动：新增 PlayerState 字段只在此登记一行，杜绝四处平行手写漏改。
+ *
+ * - kind 缺省 = 标量数值：comp[prop][e] 直接读写（读侧可带 def 兜底）。
+ * - kind 'bool'：ECS 存 0/1，PlayerState 为 boolean。
+ * - kind 'weapon'：ECS 存 weaponToCode 编码，PlayerState 为 WeaponId。
+ * - side 字段 = AoS 侧表引用（引用共享）：load 侧惰性建空数组（lazy），
+ *   syncFromEcs 渲染视图侧拷副本保持独立（slice）。
+ */
+interface PlayerFieldSpec {
+  /** PlayerState 字段路径（1-2 级；velocity.x 用 ['velocity','x']） */
+  path: readonly [string] | readonly [string, string];
+  /** SoA 标量：组件对象 + 属性名（kind 缺省 / 'bool' / 'weapon' 使用） */
+  comp?: Record<string, number[]>;
+  prop?: string;
+  kind?: 'bool' | 'weapon';
+  /** 读取兜底默认值（ECS 槽位未初始化时） */
+  def?: number;
+  /** AoS 侧表数组（引用字段使用；与 comp 二选一） */
+  side?: unknown[];
+  /** load 侧惰性初始化空数组（impulses / backpack / modifiers） */
+  lazy?: boolean;
+  /** syncFromEcs 渲染视图侧 slice 拷贝（impulses / backpack / modifiers） */
+  slice?: boolean;
+}
+
+const PLAYER_FIELDS: PlayerFieldSpec[] = [
+  // 位置 / 速度
+  { path: ['x'], comp: Position, prop: 'x' },
+  { path: ['y'], comp: Position, prop: 'y' },
+  { path: ['velocity', 'x'], comp: Velocity, prop: 'x' },
+  { path: ['velocity', 'y'], comp: Velocity, prop: 'y' },
+  // PlayerControl 标量
+  { path: ['half'], comp: PlayerControl, prop: 'half' },
+  { path: ['grounded'], comp: PlayerControl, prop: 'grounded', kind: 'bool' },
+  { path: ['coyote'], comp: PlayerControl, prop: 'coyote' },
+  { path: ['jbuf'], comp: PlayerControl, prop: 'jbuf' },
+  { path: ['face'], comp: PlayerControl, prop: 'face' },
+  { path: ['dead'], comp: PlayerControl, prop: 'dead', kind: 'bool' },
+  { path: ['deadT'], comp: PlayerControl, prop: 'deadT' },
+  { path: ['sprint'], comp: PlayerControl, prop: 'sprint', kind: 'bool' },
+  { path: ['wasSpr'], comp: PlayerControl, prop: 'wasSpr', kind: 'bool' },
+  { path: ['inv'], comp: PlayerControl, prop: 'inv' },
+  { path: ['jumpWasDown'], comp: PlayerControl, prop: 'jumpWasDown', kind: 'bool' },
+  { path: ['jumpFresh'], comp: PlayerControl, prop: 'jumpFresh', kind: 'bool' },
+  { path: ['hookCd'], comp: PlayerControl, prop: 'hookCd' },
+  { path: ['hookMissT'], comp: PlayerControl, prop: 'hookMissT' },
+  { path: ['selectedSlot'], comp: PlayerControl, prop: 'selectedSlot' },
+  { path: ['speedMult'], comp: PlayerControl, prop: 'speedMult', def: 1 },
+  // 生命 / 武器（战斗投影）
+  { path: ['hp'], comp: PlayerControl, prop: 'hp', def: PLAYER_MAX_HP },
+  { path: ['maxHp'], comp: PlayerControl, prop: 'maxHp', def: PLAYER_MAX_HP },
+  { path: ['weapon'], comp: PlayerControl, prop: 'weapon', kind: 'weapon' },
+  { path: ['ammo'], comp: PlayerControl, prop: 'ammo', def: 0 },
+  { path: ['hasGrenade'], comp: PlayerControl, prop: 'hasGrenade', kind: 'bool' },
+  { path: ['reloadT'], comp: PlayerControl, prop: 'reloadT', def: 0 },
+  { path: ['fireCd'], comp: PlayerControl, prop: 'fireCd', def: 0 },
+  // 能力充能
+  { path: ['extraJumps'], comp: JumpCharges, prop: 'left' },
+  { path: ['extraJumpsMax'], comp: JumpCharges, prop: 'max' },
+  { path: ['shields'], comp: ShieldCharges, prop: 'left' },
+  { path: ['shieldsMax'], comp: ShieldCharges, prop: 'max' },
+  // AoS 侧表引用（引用共享；复杂对象）
+  { path: ['plat'], side: PlayerPlat },
+  { path: ['impulses'], side: ImpulseQueue, lazy: true, slice: true },
+  { path: ['track'], side: PlayerTrackState },
+  { path: ['backpack'], side: Backpack, lazy: true, slice: true },
+  { path: ['modifiers'], side: PlayerModifiers, lazy: true, slice: true },
+];
+
+/** 读 PlayerState 路径值（1-2 级；velocity.x 特例） */
+function getPath(p: PlayerState, path: readonly [string] | readonly [string, string]): unknown {
+  const rec = p as unknown as Record<string, unknown>;
+  if (path.length === 1) return rec[path[0]];
+  return (rec[path[0]] as Record<string, unknown>)[path[1]];
+}
+
+/** 写 PlayerState 路径值（1-2 级；velocity.x 特例） */
+function setPath(p: PlayerState, path: readonly [string] | readonly [string, string], v: unknown): void {
+  const rec = p as unknown as Record<string, unknown>;
+  if (path.length === 1) rec[path[0]] = v;
+  else (rec[path[0]] as Record<string, unknown>)[path[1]] = v;
+}
+
+/** ECS 槽位 → 标量值（bool/weapon/默认值转换） */
+function readScalar(f: PlayerFieldSpec, e: number): unknown {
+  const raw = f.comp![f.prop!][e];
+  if (f.kind === 'bool') return raw === 1;
+  if (f.kind === 'weapon') return weaponFromCode(raw);
+  return raw ?? f.def;
+}
+
+/** 标量值 → ECS 槽位（bool/weapon 转换） */
+function writeScalar(f: PlayerFieldSpec, e: number, v: unknown): void {
+  if (f.kind === 'bool') { f.comp![f.prop!][e] = v ? 1 : 0; return; }
+  if (f.kind === 'weapon') { f.comp![f.prop!][e] = weaponToCode(v as WeaponId); return; }
+  f.comp![f.prop!][e] = v as number;
+}
 
 /** 本地玩家实体 eid（未创建 = -1） */
 let playerEid = -1;
@@ -91,42 +194,17 @@ export function ensurePlayerEntity(playerId: number): number {
  * @param out 模块级复用工作副本（scratch / 渲染视图镜像目标）
  */
 export function loadPlayerComponents(e: number, out: PlayerState): void {
-  out.x = Position.x[e];
-  out.y = Position.y[e];
-  out.velocity.x = Velocity.x[e];
-  out.velocity.y = Velocity.y[e];
-  out.half = PlayerControl.half[e];
-  out.grounded = PlayerControl.grounded[e] === 1;
-  out.coyote = PlayerControl.coyote[e];
-  out.jbuf = PlayerControl.jbuf[e];
-  out.face = PlayerControl.face[e];
-  out.dead = PlayerControl.dead[e] === 1;
-  out.deadT = PlayerControl.deadT[e];
-  out.plat = PlayerPlat[e];
-  out.sprint = PlayerControl.sprint[e] === 1;
-  out.wasSpr = PlayerControl.wasSpr[e] === 1;
-  out.inv = PlayerControl.inv[e];
-  out.extraJumps = JumpCharges.left[e];
-  out.extraJumpsMax = JumpCharges.max[e];
-  out.shields = ShieldCharges.left[e];
-  out.shieldsMax = ShieldCharges.max[e];
-  out.hp = PlayerControl.hp[e] ?? PLAYER_MAX_HP;
-  out.maxHp = PlayerControl.maxHp[e] ?? PLAYER_MAX_HP;
-  out.weapon = weaponFromCode(PlayerControl.weapon[e]);
-  out.ammo = PlayerControl.ammo[e] ?? 0;
-  out.hasGrenade = PlayerControl.hasGrenade[e] === 1;
-  out.reloadT = PlayerControl.reloadT[e] ?? 0;
-  out.fireCd = PlayerControl.fireCd[e] ?? 0;
-  out.jumpWasDown = PlayerControl.jumpWasDown[e] === 1;
-  out.jumpFresh = PlayerControl.jumpFresh[e] === 1;
-  out.impulses = ImpulseQueue[e] ?? (ImpulseQueue[e] = []);
-  out.track = PlayerTrackState[e];
-  out.backpack = Backpack[e] ?? (Backpack[e] = []);
-  out.modifiers = PlayerModifiers[e] ?? (PlayerModifiers[e] = []);
-  out.hookCd = PlayerControl.hookCd[e];
-  out.hookMissT = PlayerControl.hookMissT[e];
-  out.selectedSlot = PlayerControl.selectedSlot[e];
-  out.speedMult = PlayerControl.speedMult[e] ?? 1;
+  for (let i = 0; i < PLAYER_FIELDS.length; i++) {
+    const f = PLAYER_FIELDS[i];
+    if (f.side) {
+      // 复杂对象：引用共享（惰性建空数组写回侧表，物理原地变更天然落位）
+      let v = f.side[e];
+      if (v === undefined && f.lazy) v = f.side[e] = [];
+      setPath(out, f.path, v);
+    } else {
+      setPath(out, f.path, readScalar(f, e));
+    }
+  }
 }
 
 /**
@@ -135,42 +213,12 @@ export function loadPlayerComponents(e: number, out: PlayerState): void {
  */
 export function storePlayerComponents(e: number, p: PlayerState): void {
   if (e < 0) return;
-  Position.x[e] = p.x;
-  Position.y[e] = p.y;
-  Velocity.x[e] = p.velocity.x;
-  Velocity.y[e] = p.velocity.y;
-  PlayerControl.half[e] = p.half;
-  PlayerControl.grounded[e] = p.grounded ? 1 : 0;
-  PlayerControl.coyote[e] = p.coyote;
-  PlayerControl.jbuf[e] = p.jbuf;
-  PlayerControl.face[e] = p.face;
-  PlayerControl.dead[e] = p.dead ? 1 : 0;
-  PlayerControl.deadT[e] = p.deadT;
-  PlayerControl.sprint[e] = p.sprint ? 1 : 0;
-  PlayerControl.wasSpr[e] = p.wasSpr ? 1 : 0;
-  PlayerControl.inv[e] = p.inv;
-  PlayerControl.jumpWasDown[e] = p.jumpWasDown ? 1 : 0;
-  PlayerControl.jumpFresh[e] = p.jumpFresh ? 1 : 0;
-  PlayerControl.hookCd[e] = p.hookCd;
-  PlayerControl.hookMissT[e] = p.hookMissT;
-  PlayerControl.selectedSlot[e] = p.selectedSlot;
-  PlayerControl.speedMult[e] = p.speedMult;
-  JumpCharges.left[e] = p.extraJumps;
-  JumpCharges.max[e] = p.extraJumpsMax;
-  ShieldCharges.left[e] = p.shields;
-  ShieldCharges.max[e] = p.shieldsMax;
-  PlayerControl.hp[e] = p.hp;
-  PlayerControl.maxHp[e] = p.maxHp;
-  PlayerControl.weapon[e] = weaponToCode(p.weapon);
-  PlayerControl.ammo[e] = p.ammo;
-  PlayerControl.hasGrenade[e] = p.hasGrenade ? 1 : 0;
-  PlayerControl.reloadT[e] = p.reloadT;
-  PlayerControl.fireCd[e] = p.fireCd;
-  ImpulseQueue[e] = p.impulses;
-  PlayerTrackState[e] = p.track;
-  PlayerPlat[e] = p.plat;
-  Backpack[e] = p.backpack;
-  PlayerModifiers[e] = p.modifiers;
+  for (let i = 0; i < PLAYER_FIELDS.length; i++) {
+    const f = PLAYER_FIELDS[i];
+    const v = getPath(p, f.path);
+    if (f.side) f.side[e] = v;
+    else writeScalar(f, e, v);
+  }
 }
 
 /**
@@ -178,42 +226,10 @@ export function storePlayerComponents(e: number, p: PlayerState): void {
  * 复杂对象引用共享（目标数组与源指向同一数组）。
  */
 export function mirrorPlayerState(target: PlayerState, source: PlayerState): void {
-  target.x = source.x;
-  target.y = source.y;
-  target.velocity.x = source.velocity.x;
-  target.velocity.y = source.velocity.y;
-  target.half = source.half;
-  target.grounded = source.grounded;
-  target.coyote = source.coyote;
-  target.jbuf = source.jbuf;
-  target.face = source.face;
-  target.dead = source.dead;
-  target.deadT = source.deadT;
-  target.plat = source.plat;
-  target.sprint = source.sprint;
-  target.wasSpr = source.wasSpr;
-  target.inv = source.inv;
-  target.extraJumps = source.extraJumps;
-  target.extraJumpsMax = source.extraJumpsMax;
-  target.shields = source.shields;
-  target.shieldsMax = source.shieldsMax;
-  target.hp = source.hp;
-  target.maxHp = source.maxHp;
-  target.weapon = source.weapon;
-  target.ammo = source.ammo;
-  target.hasGrenade = source.hasGrenade;
-  target.reloadT = source.reloadT;
-  target.fireCd = source.fireCd;
-  target.jumpWasDown = source.jumpWasDown;
-  target.jumpFresh = source.jumpFresh;
-  target.impulses = source.impulses;
-  target.track = source.track;
-  target.backpack = source.backpack;
-  target.modifiers = source.modifiers;
-  target.hookCd = source.hookCd;
-  target.hookMissT = source.hookMissT;
-  target.selectedSlot = source.selectedSlot;
-  target.speedMult = source.speedMult;
+  for (let i = 0; i < PLAYER_FIELDS.length; i++) {
+    const f = PLAYER_FIELDS[i];
+    setPath(target, f.path, getPath(source, f.path));
+  }
 }
 
 /* ═══════════ 保留接口（网络 / UI / 测试读写侧） ═══════════ */
@@ -228,48 +244,24 @@ export function syncToEcs(p: PlayerState): void {
 
 /**
  * 玩家实体 → 派生 PlayerState 视图（渲染 / UI / 网络读取侧）。
- * 返回新对象；track/plat/backpack/impulses 均为独立引用（slice / 重建），
+ * 返回新对象；track/plat 直接引用、impulses/backpack/modifiers 独立 slice，
  * 仅作只读派生视图，不参与物理真源。
  */
 export function syncFromEcs(e: number = playerEid): PlayerState | null {
   if (e < 0) return null;
-  return {
-    x: Position.x[e],
-    y: Position.y[e],
-    velocity: { x: Velocity.x[e], y: Velocity.y[e] },
-    half: PlayerControl.half[e],
-    grounded: PlayerControl.grounded[e] === 1,
-    coyote: PlayerControl.coyote[e],
-    jbuf: PlayerControl.jbuf[e],
-    face: PlayerControl.face[e],
-    dead: PlayerControl.dead[e] === 1,
-    deadT: PlayerControl.deadT[e],
-    plat: PlayerPlat[e],
-    sprint: PlayerControl.sprint[e] === 1,
-    wasSpr: PlayerControl.wasSpr[e] === 1,
-    inv: PlayerControl.inv[e],
-    extraJumps: JumpCharges.left[e],
-    extraJumpsMax: JumpCharges.max[e],
-    shields: ShieldCharges.left[e],
-    shieldsMax: ShieldCharges.max[e],
-    hp: PlayerControl.hp[e] ?? PLAYER_MAX_HP,
-    maxHp: PlayerControl.maxHp[e] ?? PLAYER_MAX_HP,
-    weapon: weaponFromCode(PlayerControl.weapon[e]),
-    ammo: PlayerControl.ammo[e] ?? 0,
-    hasGrenade: PlayerControl.hasGrenade[e] === 1,
-    reloadT: PlayerControl.reloadT[e] ?? 0,
-    fireCd: PlayerControl.fireCd[e] ?? 0,
-    jumpWasDown: PlayerControl.jumpWasDown[e] === 1,
-    jumpFresh: PlayerControl.jumpFresh[e] === 1,
-    impulses: (ImpulseQueue[e] ?? []).slice(),
-    track: PlayerTrackState[e],
-    backpack: (Backpack[e] ?? []).slice(),
-    modifiers: (PlayerModifiers[e] ?? []).slice(),
-    hookCd: PlayerControl.hookCd[e],
-    hookMissT: PlayerControl.hookMissT[e],
-    selectedSlot: PlayerControl.selectedSlot[e],
-    speedMult: PlayerControl.speedMult[e] ?? 1,
-  };
+  // 骨架：仅需保证嵌套对象存在（velocity），其余字段由字段表逐项覆盖
+  const out = { velocity: { x: 0, y: 0 } } as PlayerState;
+  for (let i = 0; i < PLAYER_FIELDS.length; i++) {
+    const f = PLAYER_FIELDS[i];
+    if (f.side) {
+      // 渲染视图：slice 字段拷副本保持独立，非 slice（plat/track）直接引用
+      const v = f.side[e] as unknown[] | undefined;
+      setPath(out, f.path, f.slice ? (v ?? []).slice() : v);
+    } else {
+      setPath(out, f.path, readScalar(f, e));
+    }
+  }
+  return out;
 }
 
 /* ═══════════ 远程玩家实体（A 路线：统一物理真源） ═══════════ */

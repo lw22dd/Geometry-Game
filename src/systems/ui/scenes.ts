@@ -7,6 +7,7 @@
  * instructions 弹窗为叠层（push/pop）；pause/dev 亦为叠层。
  * 预制体图鉴已迁移至 工具/gallery（单文件 HTML + sync-prefabs.mjs 同步脚本）。
  */
+import type { GameState } from '../../types';
 import { gs } from '../game/gameState';
 import { startGame, startMultiplayerGame } from '../game';
 import { ui } from '../../core/uiComponent';
@@ -24,6 +25,15 @@ import { resetRemotes } from '../player/remote';
 
 /** 注册全部 UI 场景（由 main.ts 导入时副作用调用） */
 export function registerUIScenes(): void {
+  // 注入基础场景真源读写：UIManager 不直接依赖 gs（core 零业务依赖），经此绑定。
+  // core 接口用宽类型（可含叠层名），此层收窄到 gs 的字面量联合 —— 依据 `ui.show()`
+  // 只对基础场景写 scene（叠层仅压栈 + 可能改 screen），不会把叠层名写入 gs.scene。
+  ui.bindSceneState({
+    getScene: () => gs.scene,
+    setScene: (name) => { gs.scene = name as GameState['scene']; },
+    setScreen: (mode) => { if (mode !== null) gs.screen = mode as GameState['screen']; },
+  });
+
   // ── 菜单场景（开始游戏 → 准备界面）──
   ui.register(buildMenuScene(() => {
     prepare.mode = 'prepare';

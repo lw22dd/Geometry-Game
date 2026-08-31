@@ -14,10 +14,9 @@ import { world, Position, Collider, Timer, Hazard, EnemyBrain, Collectible, Resp
 import { getEnemyKind } from '../../Prefabs/Enemy';
 import { weaponFromCode, WEAPONS } from '../../config/weapons';
 import { collisionBus } from '../../core/collisionBus';
-import { sx } from '../../core/camera';
-import { VW } from '../../core/canvas';
+import { panOfX } from '../../core/camera';
 import { gs } from '../game/gameState';
-import { VIS, SPIKE_DAMAGE, LASER_DAMAGE } from '../../config';
+import { VIS, SPIKE_DAMAGE, LASER_DAMAGE, DEATH_VISUAL_T } from '../../config';
 import { dealDamage } from '../combat';
 import { playerController } from '../player';
 import { FX } from '../../Prefabs/Fx';
@@ -29,12 +28,6 @@ import { addItem, hasItem, ITEMS } from '../items/backpack';
 import { activateCheckpoint } from './RespawnPointSystem';
 import { orbCount } from './ItemPickupSystem';
 import type { ItemId, PlayerState } from '../../types';
-
-/** 世界 X → 声像 -1..1（按事件在屏幕上的左右位置映射，增强空间感） */
-function panOfX(worldX: number): number {
-  const p = (sx(worldX) / VW - 0.5) * 1.4;
-  return p < -1 ? -1 : p > 1 ? 1 : p;
-}
 
 /* ==================== 道具拾取规则表（问题 12：四段同构拾取样板收敛） ==================== */
 
@@ -159,7 +152,7 @@ export function initCollisionHooks(): void {
         if (isRemote()) {
           // 远端死亡：房主权威直接置死（死亡特效/广播由 tick 死亡边沿处理）
           ps.dead = true;
-          ps.deadT = 0.85;
+          ps.deadT = DEATH_VISUAL_T;
         } else {
           playerController.die();
         }
@@ -211,7 +204,7 @@ export function initCollisionHooks(): void {
         if (isRemote()) {
           // 远端死亡：房主权威直接置死（死亡特效/广播由 tick 死亡边沿处理）
           ps.dead = true;
-          ps.deadT = 0.85;
+          ps.deadT = DEATH_VISUAL_T;
         } else {
           playerController.die();
         }

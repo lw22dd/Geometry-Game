@@ -2,12 +2,12 @@
  * 玩家设置存储 —— 音量 / 静音 / 画质档位，localStorage 持久化。
  *
  * 职责边界：本模块只管「数据 + 持久化 + 变更通知」，不直接操作音频节点或渲染管线。
- * 音频侧（core/audio）与视觉侧（config/visuals + systems/postfx）各自订阅变更并自行应用，
- * 避免本模块反向依赖 audio / systems 形成循环。
+ * 音频侧（core/audio）订阅变更应用音量；视觉侧（systems/postfx）订阅变更应用画质档位。
+ * 本模块不依赖任何 config / systems / audio，保持 core 纯底座定位。
  *
  * 读取失败（隐私模式 / 存储禁用 / 脏数据）一律静默回退默认值，不抛错。
  */
-import { VIS, applyQuality, type QualityTier } from '../config/visuals';
+import type { QualityTier } from '../types';
 
 /** 持久化键（带版本号；未来结构变更直接换键，不做迁移逻辑） */
 const STORAGE_KEY = 'dash.settings.v1';
@@ -60,8 +60,8 @@ class SettingsStore {
   private listeners: Listener[] = [];
 
   /**
-   * 从 localStorage 载入并应用（启动时调用一次）。
-   * 应用动作：画质档位写回 VIS；音量与静音由订阅者（core/audio）自行读取。
+   * 从 localStorage 载入并通知（启动时调用一次）。
+   * 应用动作由订阅者完成：音量（core/audio）、画质档位（systems/postfx）。
    */
   load(): void {
     let raw: string | null = null;
@@ -85,11 +85,10 @@ class SettingsStore {
         // 脏数据：保持默认值
       }
     }
-    applyQuality(this.data.quality);
     this.emit();
   }
 
-  /** 修改一项或多项（自动钳制、持久化、通知） */
+  /** 修改一项或多项（自动钳制、持久化、通知；应用动作由订阅者完成） */
   set(patch: Partial<SettingsData>): void {
     if (patch.master !== undefined) this.data.master = num(patch.master, this.data.master);
     if (patch.sfx !== undefined) this.data.sfx = num(patch.sfx, this.data.sfx);
@@ -97,8 +96,6 @@ class SettingsStore {
     if (patch.muted !== undefined) this.data.muted = patch.muted === true;
     if (patch.quality !== undefined) this.data.quality = tier(patch.quality);
     if (patch.postfxOn !== undefined) this.data.postfxOn = patch.postfxOn === true;
-    // 画质档位立即写回视觉参数表
-    applyQuality(this.data.quality);
     this.save();
     this.emit();
   }
@@ -123,14 +120,6 @@ class SettingsStore {
       const i = this.listeners.indexOf(fn);
       if (i >= 0) this.listeners.splice(i, 1);
     };
-  }
-
-  /**
-   * 后期特效是否启用 —— 画质档位与总开关的合取。
-   * systems/postfx 的 drawPostFX 用此做总闸（关闭时零开销）。
-   */
-  get postfxEnabled(): boolean {
-    return this.data.postfxOn && VIS.postfx.bloomOn !== undefined;
   }
 
   /** 音量是否完全静默（静音开关或任意一条为 0） */

@@ -13,7 +13,7 @@
  * 避免传送后立即被危险物判定致死。
  */
 import type { RemotePlayer, PlayerState } from '../../types';
-import { cpPoint } from '../../config';
+import { cpPoint, RESPAWN_OFFSET_Y, RESPAWN_INV } from '../../config';
 import { ITEMS, type ActiveItemContext } from './backpack';
 import { sfx } from '../../core/audio';
 
@@ -33,10 +33,10 @@ function recallActivate(p: PlayerState, ctx: ActiveItemContext): void {
 
   // 传送复位（清速度/平台/轨道/外力；无敌帧防传送贴脸危险判定）
   p.x = tx;
-  p.y = ty + 1.2;
+  p.y = ty + RESPAWN_OFFSET_Y;
   p.velocity.x = 0;
   p.velocity.y = 0;
-  p.inv = 1.2;
+  p.inv = RESPAWN_INV;
   p.plat = null;
   p.track = null;
   p.impulses.length = 0;

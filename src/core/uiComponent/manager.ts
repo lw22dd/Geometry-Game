@@ -7,17 +7,36 @@
  *   ui.handleMove(lx, ly)    // 鼠标移动 → 悬停
  *   ui.handleKey(e)           // 键盘
  *   ui.draw(t)                // 绘制当前场景
+ *
+ * 基础场景真源（menu / prepare / mapSelect / charSelect / lobby / null）
+ * 通过注入的 UISceneState 读写，由 systems/ui 绑定到 gs —— core 保持零业务依赖。
  */
 import { ctx } from '../canvas';
-import { gs } from '../../systems/game/gameState';
 import type { UIWidget, UIScene, UISceneName } from './types';
+
+/** 基础场景状态读写接口（由外层如 systems/ui 注入；core 不依赖任何业务模块） */
+export interface UISceneState {
+  /** 读取当前基础场景名（menu / prepare / ... / null = 游戏中） */
+  getScene(): UISceneName;
+  /** 设置基础场景名 */
+  setScene(name: UISceneName): void;
+  /** 设置屏幕模式（'playing' / 'menu' / 'prepare' / 'paused'；null = 保持不变） */
+  setScreen(mode: string | null): void;
+}
+
+/** 未注入时的内存兜底（仅满足接口；真实读写由 bindSceneState 覆盖） */
+const memState: UISceneState = {
+  getScene: () => null,
+  setScene: () => {},
+  setScreen: () => {},
+};
 
 /**
  * UI 管理器（问题 3：单一真源 + 叠层栈）。
- *  - 基础场景真源：gs.scene（menu / prepare / mapSelect / charSelect / lobby / null）
+ *  - 基础场景真源：注入的 UISceneState（systems/ui 绑定到 gs.scene）
  *  - 叠层栈：pause / dev / instructions（可覆盖基础场景）
- *  - currentName = 栈顶叠层 ?? gs.scene（派生只读，不再由 syncUI 的 if 推导）
- *  - 所有写入走唯一入口 show(...)（内部写真源 gs.screen / gs.scene / 叠层栈后重算派生）
+ *  - currentName = 栈顶叠层 ?? 基础场景（派生只读，不再由 syncUI 的 if 推导）
+ *  - 所有写入走唯一入口 show(...)（内部写基础场景 / 叠层栈后重算派生）
  */
 export class UIManager {
   private scenes = new Map<string, UIScene>();
@@ -27,16 +46,23 @@ export class UIManager {
   private _focusedId: string | null = null;
   /** 叠层栈（pause/dev/instructions） */
   private overlays: UISceneName[] = [];
+  /** 基础场景真源读写（默认内存兜底；由 systems/ui 注入绑定 gs） */
+  private sceneState: UISceneState = memState;
+
+  /** 注入基础场景真源读写（systems/ui 初始化时调用一次） */
+  bindSceneState(s: UISceneState): void {
+    this.sceneState = s;
+  }
 
   /** 注册场景（通常由各 UI 模块在初始化时调用） */
   register(scene: UIScene): void {
     this.scenes.set(scene.name, scene);
   }
 
-  /** 当前场景名（派生只读：栈顶叠层 ?? 基础场景 gs.scene） */
+  /** 当前场景名（派生只读：栈顶叠层 ?? 基础场景） */
   get currentName(): UISceneName {
     if (this.overlays.length > 0) return this.overlays[this.overlays.length - 1];
-    return gs.scene;
+    return this.sceneState.getScene();
   }
 
   /** 当前场景对象（供外部操作组件可见性等；与 currentName 同源，实时解析） */
@@ -52,29 +78,29 @@ export class UIManager {
   /**
    * 唯一写入口：切换 UI 场景（同时写真源）。
    *  - null：进入游戏画面（playing，无 UI 覆盖）
-   *  - menu / prepare / mapSelect / charSelect / lobby：基础场景（写 gs.scene，清空叠层）
+   *  - menu / prepare / mapSelect / charSelect / lobby：基础场景（写基础场景，清空叠层）
    *  - pause / dev / instructions：叠层（压栈）
    */
   show(name: UISceneName): void {
     if (name === null) {
-      gs.screen = 'playing';
-      gs.scene = null;
+      this.sceneState.setScreen('playing');
+      this.sceneState.setScene(null);
       this.overlays.length = 0;
     } else if (name === 'menu') {
-      gs.screen = 'menu';
-      gs.scene = 'menu';
+      this.sceneState.setScreen('menu');
+      this.sceneState.setScene('menu');
       this.overlays.length = 0;
     } else if (name === 'prepare') {
-      gs.screen = 'prepare';
-      gs.scene = 'prepare';
+      this.sceneState.setScreen('prepare');
+      this.sceneState.setScene('prepare');
       this.overlays.length = 0;
     } else if (name === 'mapSelect' || name === 'charSelect' || name === 'modeSelect' || name === 'lobby') {
-      gs.scene = name;
+      this.sceneState.setScene(name);
       this.overlays.length = 0;
     } else {
       // 叠层：pause / dev / instructions
       if (!this.overlays.includes(name)) this.overlays.push(name);
-      if (name === 'pause') gs.screen = 'paused';
+      if (name === 'pause') this.sceneState.setScreen('paused');
     }
     this.applyScene();
   }
@@ -95,7 +121,7 @@ export class UIManager {
   /**
    * 当前场景对象 —— 按 currentName **实时解析**，而非读缓存。
    *
-   * 背景：外部代码若绕过 show() 直接写 gs.scene（历史上 startGame 就这么做过），
+   * 背景：外部代码若绕过 show() 直接写真源（历史上 startGame 就这么写过 gs.scene），
    * 派生的 currentName 会变而缓存的 current 不变，于是"画面已经是游戏、
    * 点击却打在菜单按钮上"。事件分发与绘制一律走本 getter，保证与真源一致。
    */

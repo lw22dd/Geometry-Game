@@ -4,8 +4,8 @@
  */
 import { ctx } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
-import { gs } from '../../systems/game/gameState';
 import type { DrawView, WalkerDef, WalkerState, StepInput, StepResult } from './types';
+import { hitFlashAlpha, drawAlert, drawHealthBar } from './drawShared';
 
 /** 行走兵初始状态（共享字段工厂） */
 export function createWalkerState(x: number, dir: 1 | -1): WalkerState {
@@ -24,8 +24,7 @@ export function drawWalker(v: DrawView, def: WalkerDef): void {
   const r = v.half * view.SZ;
 
   // 受击闪白（无敌帧内高频闪烁）
-  let flash = 1;
-  if (v.inv > 0) flash = Math.floor(gs.time * 20) % 2 === 0 ? 0.55 : 1;
+  const flash = hitFlashAlpha(v.inv);
 
   ctx.save();
   ctx.translate(cx, cy);
@@ -53,21 +52,12 @@ export function drawWalker(v: DrawView, def: WalkerDef): void {
 
   // 追击态：头顶警戒「!」
   if (v.mode === 'chase') {
-    ctx.fillStyle = '#ff5a5a';
-    ctx.font = `bold ${Math.round(r * 1.2)}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.fillText('!', 0, -r * 2.1);
+    drawAlert(0, -r * 2.1, r * 1.2, '#ff5a5a');
   }
 
   // 血条（受伤时显示）
   if (v.hp < v.maxHp) {
-    const bw = r * 1.6;
-    const bh = Math.max(2, r * 0.24);
-    ctx.fillStyle = 'rgba(10,6,20,.7)';
-    ctx.fillRect(-bw / 2, -r * 1.7, bw, bh);
-    const ratio = Math.max(0, v.hp / v.maxHp);
-    ctx.fillStyle = ratio > 0.5 ? '#6aff8a' : ratio > 0.25 ? '#ffcf5a' : '#ff5a5a';
-    ctx.fillRect(-bw / 2, -r * 1.7, bw * ratio, bh);
+    drawHealthBar(0, -r * 1.7, r * 1.6, Math.max(2, r * 0.24), v.hp, v.maxHp, flash);
   }
 
   ctx.restore();

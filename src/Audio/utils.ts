@@ -17,7 +17,7 @@
  *  - 支持 delay（相对当前时刻延迟，秒），用于叠放"错开"的机械层次；
  *  - 支持 pan（-1..1）声像，挂 sfxBus，遵循 2D 横版"按事件左右位置"的空间感约定。
  */
-import { AU } from '../core/audio';
+import { AU } from '../core/audioState';
 
 /** 可否发声（上下文就绪且未静音；AU.on 由 settings 的 muted 同步） */
 function canPlay(): boolean {

@@ -3,11 +3,11 @@
  * 提供给 instructions / prepare 等弹窗复用，保证全 UI 视觉一致。
  */
 import { ctx, VW, VH, DPR } from '../core/canvas';
-import { rr } from '../core/math';
+import { rr, lerp } from '../core/math';
+import { ease } from './ui/primitives';
 
-/* ---------- 基础小工具 ---------- */
-export const ease = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
-export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+export { ease };
+export { lerp };
 
 export function seed(a: number): () => number {
   return () => {

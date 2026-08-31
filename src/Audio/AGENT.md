@@ -20,3 +20,4 @@
 - 只放「如何发声」的函数，不放游戏逻辑；游戏通过 `core/audio.ts` 的 `sfx` 表薄分发调用。
 - 新增音效 = 在对应子目录写 `playX()`，在 `index.ts` 导出，在 `core/audio.ts` 的 `sfx` 分发里挂一条。
 - 原语全部挂 `sfxBus`、支持 `pan`、节点 `onended` 主动 disconnect（防泄漏）。
+- 依赖方向：本目录（utils.ts）只读 `core/audioState` 的 `AU`（叶子模块），不 import `core/audio`，避免模块级循环依赖（core/audio → Audio → core/audio）。

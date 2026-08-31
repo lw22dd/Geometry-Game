@@ -22,14 +22,14 @@ core/uiComponent/
 1. 依赖：流入的方向和原因
 
 
-`core/canvas`（ctx 绘制上下文）。需要画布来绘制 UI 场景与组件。不读取游戏状态，只做渲染与事件分发。
+`core/canvas`（ctx 绘制上下文）。需要画布来绘制 UI 场景与组件。基础场景真源经 `bindSceneState()` 注入（由 `systems/ui/scenes.ts` 绑定到 gs）——core 不 import 任何业务模块，保持零业务依赖。
 
 2. 本模块：经过 core/uiComponent 做了什么
 
 
 维护当前 UI 场景（menu / pause / lobby / settings / null 等）与焦点/悬停状态，统一分发点击、按下、鼠标移动、键盘、滚轮事件。`main.ts` 每帧调用 `ui.draw(t)` 绘制当前场景，事件回调调用 `ui.handleClick/handlePress/handleMove/handleKey/handleWheel`；`handleRelease()` 由 window 的 mouseup 驱动，用于结束滑块拖拽（拖出画布也能结束）。`handleClick` 会把点击处的逻辑坐标传给 `onClick(lx, ly)`；按下经 `handlePress` 分发 `onPress`（拖拽起点，必须早于 click，否则 mouseup 先过境导致拖拽状态残留）；拖拽期间 `UIWidget.dragging` 为真时，`handleMove` 持续回调 `onDrag(lx, ly)`。
 
-**场景一致性约定**：所有事件分发与 `draw()` 一律按 `currentName` **实时解析**场景（`active` getter），并在入口先 `syncScene()` 补齐 onExit/onEnter —— 绝不依赖缓存的 `current` 字段做事件源。原因：外部若绕过 `show()` 直接写 `gs.scene`（历史上 `startGame` 曾这么做），派生的 `currentName` 已变而缓存 `current` 不变，会造成「画面已是游戏、点击却命中菜单按钮」的图层错位。因此任何进入/退出 UI 的路径都必须走 `ui.show(...)` 唯一写入口。`systems/ui/$`（index/pause/lobby/scenes）用 `buildXxxScene()` 构建场景后 `ui.register()` 注册。
+**场景一致性约定**：所有事件分发与 `draw()` 一律按 `currentName` **实时解析**场景（`active` getter），并在入口先 `syncScene()` 补齐 onExit/onEnter —— 绝不依赖缓存的 `current` 字段做事件源。原因：外部若绕过 `show()` 直接写真源（历史上 `startGame` 曾直接写 `gs.scene`），派生的 `currentName` 已变而缓存 `current` 不变，会造成「画面已是游戏、点击却命中菜单按钮」的图层错位。因此任何进入/退出 UI 的路径都必须走 `ui.show(...)` 唯一写入口。基础场景真源统一挂在注入的 `UISceneState`（`systems/ui/scenes.ts` 的 `registerUIScenes()` 调用 `ui.bindSceneState(...)` 绑定到 `gs`），叠层栈由 UIManager 自持。`systems/ui/$`（index/pause/lobby/scenes）用 `buildXxxScene()` 构建场景后 `ui.register()` 注册。
 
 3. 输出：流出的方向和目的
 

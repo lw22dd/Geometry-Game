@@ -1,5 +1,5 @@
 /**
- * 鼠标输入 —— 维护游戏逻辑层鼠标状态（画布逻辑坐标 1280×720）。
+ * 鼠标输入 —— 维护游戏逻辑层鼠标状态（画布逻辑坐标 VW×VH）。
  * UI（btn/输入框）有自己的监听；本模块只服务游戏玩法（钩锁瞄准/发射）。
  * 世界坐标换算由调用方用 view（core/camera）反算。
  *
@@ -7,6 +7,7 @@
  *   const edge = mouse.down && !mouse.prevDown; mouse.prevDown = mouse.down;
  * 即使暂停/菜单期间也推进 prevDown，避免暂停期间的点击在恢复后误触发。
  */
+import { VW, VH } from './canvas';
 export const mouse = {
   /** 逻辑 X（0~VW） */
   x: 0,
@@ -31,22 +32,23 @@ export function setMousePos(lx: number, ly: number): void {
   mouse.used = true;
 }
 
+/** 事件 → 逻辑坐标（画布尺寸 → VW×VH 逻辑分辨率） */
+function localPoint(cv: HTMLCanvasElement, e: MouseEvent): [number, number] {
+  const rect = cv.getBoundingClientRect();
+  return [
+    (e.clientX - rect.left) / rect.width * VW,
+    (e.clientY - rect.top) / rect.height * VH,
+  ];
+}
+
 /** 监听画布鼠标事件（main.ts 调用） */
 export function initMouseListeners(cv: HTMLCanvasElement): void {
   cv.addEventListener('mousemove', (e: MouseEvent) => {
-    const rect = cv.getBoundingClientRect();
-    setMousePos(
-      (e.clientX - rect.left) / rect.width * 1280,
-      (e.clientY - rect.top) / rect.height * 720,
-    );
+    setMousePos(...localPoint(cv, e));
   });
   cv.addEventListener('mousedown', (e: MouseEvent) => {
     if (e.button !== 0 && e.button !== 2) return;
-    const rect = cv.getBoundingClientRect();
-    setMousePos(
-      (e.clientX - rect.left) / rect.width * 1280,
-      (e.clientY - rect.top) / rect.height * 720,
-    );
+    setMousePos(...localPoint(cv, e));
     if (e.button === 0) mouse.down = true;
     else mouse.rDown = true;
   });

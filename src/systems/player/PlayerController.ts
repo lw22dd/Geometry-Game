@@ -19,7 +19,7 @@
 import type { PlayerState, PlayerEvent, TrackState } from '../../types';
 import { createPlayerState } from './createPlayerState';
 import { recomputeStats } from '../effects';
-import { cpPoint, PLAYER_MAX_HP } from '../../config';
+import { cpPoint, PLAYER_MAX_HP, DEATH_VISUAL_T, RESPAWN_OFFSET_Y, RESPAWN_INV } from '../../config';
 import { getPlayerEid, mirrorPlayerState, storePlayerComponents, syncFromEcs } from './playerEntity';
 import { PlayerControl, Velocity } from '../../core/ecs';
 import { trail } from '../particles';
@@ -113,7 +113,7 @@ export class PlayerController {
   die(): void {
     if (this.state.dead || this.state.inv > 0) return;
     this.state.dead = true;
-    this.state.deadT = 0.85;
+    this.state.deadT = DEATH_VISUAL_T;
     this.deathCount++;
     this.emitEvent({ type: 'player:died', deaths: this.deathCount });
     this.flush();
@@ -123,10 +123,10 @@ export class PlayerController {
   respawn(): void {
     this.state.dead = false;
     this.state.x = cpPoint.x;
-    this.state.y = cpPoint.y + 1.2;
+    this.state.y = cpPoint.y + RESPAWN_OFFSET_Y;
     this.state.velocity.x = 0;
     this.state.velocity.y = 0;
-    this.state.inv = 1.2;
+    this.state.inv = RESPAWN_INV;
     this.state.plat = null;
     this.state.impulses.length = 0;
     this.state.track = null;
@@ -153,7 +153,7 @@ export class PlayerController {
     this.state.grounded = false;
     this.state.coyote = 0;
     this.state.jbuf = 0;
-    this.state.inv = 1.2;
+    this.state.inv = RESPAWN_INV;
     this.state.plat = null;
     this.state.impulses.length = 0;
     this.state.track = null;
@@ -184,7 +184,7 @@ export class PlayerController {
    * 客机专用：维持死亡视觉效果，不推进计时（等待房主权威复活）。
    */
   maintainDeathVisual(): void {
-    this.state.deadT = 0.85;
+    this.state.deadT = DEATH_VISUAL_T;
   }
 
   /* ==================== 网络权威矫正 ==================== */
@@ -216,7 +216,7 @@ export class PlayerController {
     if (dead && !this.state.dead) {
       // 房主权威判定死亡
       this.state.dead = true;
-      this.state.deadT = 0.85;
+      this.state.deadT = DEATH_VISUAL_T;
     } else if (!dead && this.state.dead) {
       // 房主已复活
       this.state.dead = false;

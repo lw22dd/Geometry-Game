@@ -15,6 +15,7 @@ import { VIS } from '../../config';
 import type { CreeperDef, CreeperState, DrawView, StepInput, StepResult } from './types';
 import { createWalkerState } from './walker';
 import { damagePlayerFromEnemy, panOfX } from './combat';
+import { hitFlashAlpha, drawAlert, drawHealthBar } from './drawShared';
 /**
  * 苦力怕绘制：
  * 横板游戏 2.5D 斜侧视。
@@ -34,11 +35,7 @@ export function drawCreeper(v: DrawView, def: CreeperDef): void {
   const cy = sy(v.y);
   const S = view.SZ;
 
-  let flash = 1;
-
-  if (v.inv > 0) {
-    flash = Math.floor(gs.time * 20) % 2 === 0 ? 0.55 : 1;
-  }
+  const flash = hitFlashAlpha(v.inv);
 
   /**
    * 引爆态判定。
@@ -600,47 +597,14 @@ export function drawCreeper(v: DrawView, def: CreeperDef): void {
    * 头顶警戒符号。
    */
   if (fusing || v.mode === 'chase') {
-    ctx.fillStyle = flashWhite
-      ? '#ffffff'
-      : '#ff5a5a';
-
-    ctx.font = `bold ${Math.round(S * 0.55)}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.fillText('!', 0, -S * 1.35);
+    drawAlert(0, -S * 1.35, S * 0.55, flashWhite ? '#ffffff' : '#ff5a5a');
   }
 
   /**
    * 血条。
    */
   if (v.hp < v.maxHp) {
-    const healthW = S * 1.2;
-    const healthH = Math.max(2, S * 0.18);
-
-    ctx.globalAlpha = flash;
-    ctx.fillStyle = 'rgba(10,6,20,.7)';
-
-    ctx.fillRect(
-      -healthW / 2,
-      -S * 1.6,
-      healthW,
-      healthH,
-    );
-
-    const ratio = Math.max(0, v.hp / v.maxHp);
-
-    ctx.fillStyle =
-      ratio > 0.5
-        ? '#6aff8a'
-        : ratio > 0.25
-          ? '#ffcf5a'
-          : '#ff5a5a';
-
-    ctx.fillRect(
-      -healthW / 2,
-      -S * 1.6,
-      healthW * ratio,
-      healthH,
-    );
+    drawHealthBar(0, -S * 1.6, S * 1.2, Math.max(2, S * 0.18), v.hp, v.maxHp, flash);
   }
 
   ctx.restore();

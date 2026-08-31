@@ -19,6 +19,12 @@ export const sx = (x: number): number => (x - view.SL) * view.SZ;
 /** 世界坐标 → 屏幕像素 Y（Y 轴向上） */
 export const sy = (y: number): number => VH - (y - view.SB) * view.SZ;
 
+/** 世界 X → 声像 -1..1（按世界坐标在视口中的左右位置映射，供音效 pan） */
+export const panOfX = (worldX: number): number => {
+  const q = (sx(worldX) / VW - 0.5) * 1.4;
+  return q < -1 ? -1 : q > 1 ? 1 : q;
+};
+
 /** 更新相机（每帧在 render 中调用） */
 export function updateCamera(
   dt: number,

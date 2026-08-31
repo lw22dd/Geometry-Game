@@ -189,6 +189,9 @@ export type WeaponId = 'none' | 'ak' | 'grenade' | 'shotgun' | 'awm' | 'rocket' 
 /** 敌人种类 id（S3；行走兵起步，苦力怕/大猩猩/精英/Boss 为扩展位） */
 export type EnemyKind = 'walker' | 'creeper' | 'gorilla';
 
+/** 画质档位（core/settings 与 config/visuals 共用；'auto' = 自适应降级） */
+export type QualityTier = 'low' | 'medium' | 'high' | 'auto';
+
 /** 道具类别：主动（玩家触发）/ 被动（拾取即生效常驻） */
 export type ItemCategory = 'active' | 'passive';
 

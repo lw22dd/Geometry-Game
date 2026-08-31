@@ -10,7 +10,7 @@ import { room } from '../../net/room';
 import { rr } from '../../core/math';
 import { Button, ui, UI_SCENE } from '../../core/uiComponent';
 import type { UIScene } from '../../core/uiComponent';
-import { tickLocal, drawMask, drawGlassPanel, drawTitle, resetHover } from './primitives';
+import { tickLocal, drawMask, drawGlassPanel, drawTitle, resetHover, ease } from './primitives';
 
 /** 暂停菜单动画计时 */
 const _pauseTime = { t: 0, last: 0 };
@@ -79,7 +79,7 @@ export function buildPauseScene(a: PauseActions): UIScene {
   // 场景绘制：面板 + 联机状态 + 右侧玩家列表（组件之外的装饰）
   function drawPanel(t: number): void {
     const tt = tickLocal(_pauseTime);
-    const en = _ease(tt / 0.3);
+    const en = ease(tt / 0.3);
     if (en <= 0) return;
 
     const off = (1 - en) * 30;
@@ -160,5 +160,3 @@ export function syncPauseWidgets(scene: UIScene): void {
   const btnDisconnect = get('pause_disconnect');
   if (btnDisconnect) btnDisconnect.visible = connected;
 }
-
-const _ease = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);

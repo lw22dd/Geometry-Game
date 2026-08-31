@@ -6,10 +6,8 @@
  * ItemPickupSystem 坐标版检测链已删除（无调用点），仅保留 orbCount 计数。
  */
 export { initCollisionHooks, resetCollisionHooks, tryInteractCheckpoint, setCollisionSim } from './CollisionHooks';
-export { updateCollectSystem } from './CollectSystem';
 export { orbCount } from './ItemPickupSystem';
 export { updateRespawnPointSystem } from './RespawnPointSystem';
-export { updateGoalSystem } from './GoalSystem';
 export { checkHazardOverlap } from './hazard';
 export { updateCipherSystem, resetCipherSpark, cipherCount, cipherDoneCount } from './CipherSystem';
 export { stepChests, updateChestSystem, resetChestState } from './ChestSystem';

@@ -4,7 +4,6 @@
  * 导出的物理函数（纯函数，无副作用）：
  *  - stepPlayerGeneric(p, input, dt, isLocal, outSignals)
  *  - buildSolids()
- *  - boxHit(s)
  *  - boxHitFor(p, s)
  *
  * PlayerController 管理玩家生命周期与事件：
@@ -105,17 +104,7 @@ export function buildHookTargets(): void {
   }
 }
 
-/** AABB 碰撞检测（对 P 使用） */
-export function boxHit(s: Rect): boolean {
-  return (
-    P.x - P.half < s.x + s.w &&
-    P.x + P.half > s.x &&
-    P.y - P.half < s.top &&
-    P.y + P.half > s.y
-  );
-}
-
-/** AABB 碰撞检测（通用版，对任意玩家状态） */
+/** AABB 碰撞检测（对任意玩家状态） */
 export function boxHitFor(p: PlayerState, s: Rect): boolean {
   return (
     p.x - p.half < s.x + s.w &&

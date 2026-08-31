@@ -1,4 +1,7 @@
-import type { MapTheme } from '../types';
+import type { MapTheme, QualityTier } from '../types';
+
+/** 画质档位（定义在 types，供 core/settings 与 config 共用；此处 re-export 兼容旧引用） */
+export type { QualityTier };
 
 /**
  * 视觉参数注册表 —— 后期特效 / 粒子 / 屏幕反馈 / 速度线的集中调参。
@@ -11,9 +14,6 @@ import type { MapTheme } from '../types';
  * 重要：VIS.postfx 与 systems/postfx 的 PFX 是**同一个对象引用**，
  * 档位切换必须原地写字段（applyQuality），禁止整体替换，否则外部持有的引用失效。
  */
-
-/** 画质档位 */
-export type QualityTier = 'low' | 'medium' | 'high' | 'auto';
 
 /** 后期特效参数组 */
 export interface PostFXTuning {

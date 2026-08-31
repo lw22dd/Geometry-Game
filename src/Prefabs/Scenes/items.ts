@@ -780,37 +780,56 @@ export function drawNOVA(p: number): void {
   ctx.textAlign = 'left';
 }
 
+/**
+ * 拾取物通用绘制 —— 泛光圈 + 旋转本体。
+ * 六个拾取物函数（双跳票/钩锁/护盾/加速/重置/武器）高度同构，收敛于此：
+ * 差异只剩 tag 组件（query 过滤）、泛光/发光色、本体绘制函数。
+ * @param e 实体 id
+ * @param o 泛光圈颜色（rgba 开头）+ 本体发光色 + 本体绘制
+ * @param dy 本体垂直偏移（相对半径，默认 0.1；钩锁 0.2）
+ */
+function drawPickupModel(
+  e: number,
+  o: { halo: string; glow: string; body: (R: number) => void },
+  dy = 0.1,
+): void {
+  const out = getAnimOutput(e);
+  const r = colliderWorldRect(e);
+  const cx = sx(r.x + r.w / 2);
+  const cy = sy(r.top + r.h / 2 + out.offsetY);
+  const R = Renderable.radius[e] * view.SZ;
+
+  // ① 泛光圈（外发光层）
+  ctx.globalAlpha = out.alpha;
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.4);
+  g.addColorStop(0, o.halo);
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+
+  // ② 道具本体（建模单一来源 = Prefabs/ItemVis，与背包图标同形）
+  ctx.save();
+  ctx.translate(cx, cy + R * dy);
+  ctx.rotate(out.rotation);
+  ctx.shadowColor = o.glow;
+  ctx.shadowBlur = T.glowMovable;
+  o.body(R);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
 /** 双跳增益箭（绿色箭头 + 淡绿泛光圈，拾取后获得一次二段跳） */
 export function drawJumpBoosts(): void {
   for (const e of query(world, [Position, Collider, Collectible, Renderable, Animator, JumpBoost])) {
     if (Collectible.collected[e] === 1) continue;
-    const ren = { radius: Renderable.radius[e] };
-    const out = getAnimOutput(e);
-    const r = colliderWorldRect(e);
-    const cx = sx(r.x + r.w / 2);
-    const cy = sy(r.top + r.h / 2 + out.offsetY);
-    const R = Renderable.radius[e] * view.SZ;
-
-    // ① 淡绿泛光圈（外发光层）
-    ctx.globalAlpha = out.alpha;
-    ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.4);
-    g.addColorStop(0, 'rgba(120,255,170,.28)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
-    ctx.globalCompositeOperation = 'source-over';
-
-    // ② 道具本体（建模单一来源 = Prefabs/ItemVis，与背包图标同形）
-    ctx.save();
-    ctx.translate(cx, cy + R * 0.1);
-    ctx.rotate(out.rotation);
-    ctx.shadowColor = 'rgba(120,255,170,.9)';
-    ctx.shadowBlur = T.glowMovable;
-    drawItemModel('doubleJump', R);
-    ctx.shadowBlur = 0;
-    ctx.restore();
-    ctx.globalAlpha = 1;
+    drawPickupModel(e, {
+      halo: 'rgba(120,255,170,.28)',
+      glow: 'rgba(120,255,170,.9)',
+      body: (R) => drawItemModel('doubleJump', R),
+    });
   }
 }
 
@@ -818,33 +837,11 @@ export function drawJumpBoosts(): void {
 export function drawHookPickups(): void {
   for (const e of query(world, [Position, Collider, Collectible, Renderable, Animator, Hook])) {
     if (Collectible.collected[e] === 1) continue;
-    const ren = { radius: Renderable.radius[e] };
-    const out = getAnimOutput(e);
-    const r = colliderWorldRect(e);
-    const cx = sx(r.x + r.w / 2);
-    const cy = sy(r.top + r.h / 2 + out.offsetY);
-    const R = Renderable.radius[e] * view.SZ;
-
-    // ① 淡金泛光圈（外发光层）
-    ctx.globalAlpha = out.alpha;
-    ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.4);
-    g.addColorStop(0, 'rgba(255,190,90,.30)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
-    ctx.globalCompositeOperation = 'source-over';
-
-    // ② 道具本体（建模单一来源 = Prefabs/ItemVis，与背包图标同形）
-    ctx.save();
-    ctx.translate(cx, cy + R * 0.2);
-    ctx.rotate(out.rotation);
-    ctx.shadowColor = 'rgba(255,180,70,.9)';
-    ctx.shadowBlur = T.glowMovable;
-    drawItemModel('hook', R);
-    ctx.shadowBlur = 0;
-    ctx.restore();
-    ctx.globalAlpha = 1;
+    drawPickupModel(e, {
+      halo: 'rgba(255,190,90,.30)',
+      glow: 'rgba(255,180,70,.9)',
+      body: (R) => drawItemModel('hook', R),
+    }, 0.2);
   }
 }
 
@@ -852,32 +849,11 @@ export function drawHookPickups(): void {
 export function drawShieldPickups(): void {
   for (const e of query(world, [Position, Collider, Collectible, Renderable, Animator, ShieldPickup])) {
     if (Collectible.collected[e] === 1) continue;
-    const out = getAnimOutput(e);
-    const r = colliderWorldRect(e);
-    const cx = sx(r.x + r.w / 2);
-    const cy = sy(r.top + r.h / 2 + out.offsetY);
-    const R = Renderable.radius[e] * view.SZ;
-
-    // ① 蓝紫泛光圈（外发光层）
-    ctx.globalAlpha = out.alpha;
-    ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.4);
-    g.addColorStop(0, 'rgba(150,140,255,.30)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
-    ctx.globalCompositeOperation = 'source-over';
-
-    // ② 道具本体（建模单一来源 = Prefabs/ItemVis，与背包图标同形）
-    ctx.save();
-    ctx.translate(cx, cy + R * 0.1);
-    ctx.rotate(out.rotation);
-    ctx.shadowColor = 'rgba(150,140,255,.9)';
-    ctx.shadowBlur = T.glowMovable;
-    drawItemModel('shield', R);
-    ctx.shadowBlur = 0;
-    ctx.restore();
-    ctx.globalAlpha = 1;
+    drawPickupModel(e, {
+      halo: 'rgba(150,140,255,.30)',
+      glow: 'rgba(150,140,255,.9)',
+      body: (R) => drawItemModel('shield', R),
+    });
   }
 }
 
@@ -885,32 +861,11 @@ export function drawShieldPickups(): void {
 export function drawSpeedPickups(): void {
   for (const e of query(world, [Position, Collider, Collectible, Renderable, Animator, SpeedPickup])) {
     if (Collectible.collected[e] === 1) continue;
-    const out = getAnimOutput(e);
-    const r = colliderWorldRect(e);
-    const cx = sx(r.x + r.w / 2);
-    const cy = sy(r.top + r.h / 2 + out.offsetY);
-    const R = Renderable.radius[e] * view.SZ;
-
-    // ① 青白泛光圈（外发光层）
-    ctx.globalAlpha = out.alpha;
-    ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.4);
-    g.addColorStop(0, 'rgba(140,246,255,.32)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
-    ctx.globalCompositeOperation = 'source-over';
-
-    // ② 道具本体（建模单一来源 = Prefabs/ItemVis，与背包图标同形）
-    ctx.save();
-    ctx.translate(cx, cy + R * 0.1);
-    ctx.rotate(out.rotation);
-    ctx.shadowColor = 'rgba(120,230,255,.9)';
-    ctx.shadowBlur = T.glowMovable;
-    drawItemModel('speed', R);
-    ctx.shadowBlur = 0;
-    ctx.restore();
-    ctx.globalAlpha = 1;
+    drawPickupModel(e, {
+      halo: 'rgba(140,246,255,.32)',
+      glow: 'rgba(120,230,255,.9)',
+      body: (R) => drawItemModel('speed', R),
+    });
   }
 }
 
@@ -918,32 +873,11 @@ export function drawSpeedPickups(): void {
 export function drawRecallPickups(): void {
   for (const e of query(world, [Position, Collider, Collectible, Renderable, Animator, RecallPickup])) {
     if (Collectible.collected[e] === 1) continue;
-    const out = getAnimOutput(e);
-    const r = colliderWorldRect(e);
-    const cx = sx(r.x + r.w / 2);
-    const cy = sy(r.top + r.h / 2 + out.offsetY);
-    const R = Renderable.radius[e] * view.SZ;
-
-    // ① 白色泛光圈（外发光层）
-    ctx.globalAlpha = out.alpha;
-    ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.4);
-    g.addColorStop(0, 'rgba(238,242,255,.30)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
-    ctx.globalCompositeOperation = 'source-over';
-
-    // ② 道具本体（建模单一来源 = Prefabs/ItemVis，与背包图标同形）
-    ctx.save();
-    ctx.translate(cx, cy + R * 0.1);
-    ctx.rotate(out.rotation);
-    ctx.shadowColor = 'rgba(238,242,255,.9)';
-    ctx.shadowBlur = T.glowMovable;
-    drawItemModel('recall', R);
-    ctx.shadowBlur = 0;
-    ctx.restore();
-    ctx.globalAlpha = 1;
+    drawPickupModel(e, {
+      halo: 'rgba(238,242,255,.30)',
+      glow: 'rgba(238,242,255,.9)',
+      body: (R) => drawItemModel('recall', R),
+    });
   }
 }
 
@@ -953,33 +887,13 @@ export function drawRecallPickups(): void {
 export function drawWeaponPickups(): void {
   for (const e of query(world, [Position, Collider, Collectible, Renderable, Animator, WeaponPickup])) {
     if (Collectible.collected[e] === 1) continue;
-    const out = getAnimOutput(e);
-    const r = colliderWorldRect(e);
-    const cx = sx(r.x + r.w / 2);
-    const cy = sy(r.top + r.h / 2 + out.offsetY);
-    const R = Renderable.radius[e] * view.SZ;
     const kind = weaponFromCode(WeaponPickup.kind[e]);
-
-    // ① 橙金泛光圈（外发光层）
-    ctx.globalAlpha = out.alpha;
-    ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.4);
-    g.addColorStop(0, 'rgba(255,180,90,.34)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(cx, cy, R * 2.4, 0, 6.283); ctx.fill();
-    ctx.globalCompositeOperation = 'source-over';
-
-    ctx.save();
-    ctx.translate(cx, cy + R * 0.1);
-    ctx.rotate(out.rotation);
-    ctx.shadowColor = 'rgba(255,150,60,.9)';
-    ctx.shadowBlur = T.glowMovable;
     // 建模单一来源 = Prefabs/WeaponVis（按武器种类分发；'none' 防御回退 ak）
-    drawWeaponModel(kind === 'none' ? 'ak' : kind, R);
-    ctx.shadowBlur = 0;
-    ctx.restore();
-    ctx.globalAlpha = 1;
+    drawPickupModel(e, {
+      halo: 'rgba(255,180,90,.34)',
+      glow: 'rgba(255,150,60,.9)',
+      body: (R) => drawWeaponModel(kind === 'none' ? 'ak' : kind, R),
+    });
   }
 }
 

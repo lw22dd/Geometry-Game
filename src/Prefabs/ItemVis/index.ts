@@ -14,6 +14,7 @@
  */
 import { ctx } from '../../core/canvas';
 import type { ItemId } from '../../types';
+import { isWeaponId } from '../../config/weapons';
 import { drawWeaponModel, drawWeaponIcon } from '../WeaponVis';
 
 /* ==================== 本体形状（原点绘制；r 为尺度单位） ==================== */
@@ -192,7 +193,7 @@ export const ITEM_ICON_R: Record<ItemId, number> = {
 export function drawItemIcon(id: ItemId, cx: number, cy: number, r: number): void {
   ctx.save();
   ctx.translate(cx, cy);
-  if (id === 'ak' || id === 'grenade' || id === 'shotgun' || id === 'awm' || id === 'rocket' || id === 'iceBomb') {
+  if (isWeaponId(id)) {
     drawWeaponIcon(0, 0, r, id);
     ctx.restore();
     return;

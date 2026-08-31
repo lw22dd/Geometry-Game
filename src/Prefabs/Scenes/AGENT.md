@@ -8,7 +8,7 @@
 - **实体工厂**（sceneFactory.ts）：`createXxx` 函数将组件装配成 bitECS 实体，由 `config/level` 的 `initECSFromLevel` 调用（取代旧分散的 `*Entity.ts` 工厂）。
 - **动画控制器**（itemsAnimators.ts）：光球 / NOVA / 双跳票 / 钩锁的实体动画 FSM（自注册进 `Prefabs/Animations` 注册表）。
 
-纯绘制不含游戏逻辑；实体工厂只负责组件装配，不参与运行时。
+场景道具预制体 = 绘制 + 动画控制器（itemsAnimators 的 FSM step/getOutput）；交互 / 破译 / 开启等行为由 `systems/interactions` 结算（预制体不实现交互行为）。实体工厂只负责组件装配，不参与运行时。
 </details>
 
 ```

@@ -480,100 +480,70 @@ export function drawWeaponModel(kind: 'ak' | 'grenade' | 'shotgun' | 'awm' | 'ro
   else drawAKShape(r);
 }
 
-/** AK 图标（双层发光：外柔晕 + 内紧晕；中心绘制） */
+/**
+ * 武器图标通用模板（双层发光：外柔晕 + 内紧晕；中心绘制）。
+ * 各枪械图标只是「图形 + 倾角 + 双色」不同，统一收敛。
+ */
+function glowIcon(
+  shape: (r: number) => void,
+  rot: number,
+  outer: string,
+  inner: string,
+  cx: number,
+  cy: number,
+  r: number,
+): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  if (rot !== 0) ctx.rotate(rot);
+  ctx.shadowColor = outer;
+  ctx.shadowBlur = 8;
+  shape(r);
+  ctx.shadowColor = inner;
+  ctx.shadowBlur = 3;
+  shape(r);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+/** AK 图标 */
 export function drawAKIcon(cx: number, cy: number, r: number): void {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(-0.15);
-  ctx.shadowColor = 'rgba(255,150,60,.9)';
-  ctx.shadowBlur = 8;
-  drawAKShape(r);
-  ctx.shadowColor = 'rgba(255,214,150,.95)';
-  ctx.shadowBlur = 3;
-  drawAKShape(r);
-  ctx.shadowBlur = 0;
-  ctx.restore();
+  glowIcon(drawAKShape, -0.15, 'rgba(255,150,60,.9)', 'rgba(255,214,150,.95)', cx, cy, r);
 }
 
-/** 手雷图标（双层发光；中心绘制） */
+/** 手雷图标 */
 export function drawGrenadeIcon(cx: number, cy: number, r: number): void {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.shadowColor = 'rgba(150,255,140,.9)';
-  ctx.shadowBlur = 8;
-  drawGrenadeShape(r);
-  ctx.shadowColor = 'rgba(214,255,206,.95)';
-  ctx.shadowBlur = 3;
-  drawGrenadeShape(r);
-  ctx.shadowBlur = 0;
-  ctx.restore();
+  glowIcon(drawGrenadeShape, 0, 'rgba(150,255,140,.9)', 'rgba(214,255,206,.95)', cx, cy, r);
 }
 
-/** 霰弹枪图标（双层发光；中心绘制） */
+/** 霰弹枪图标 */
 export function drawShotgunIcon(cx: number, cy: number, r: number): void {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(-0.12);
-  ctx.shadowColor = 'rgba(255,120,70,.9)';
-  ctx.shadowBlur = 8;
-  drawShotgunShape(r);
-  ctx.shadowColor = 'rgba(255,198,150,.95)';
-  ctx.shadowBlur = 3;
-  drawShotgunShape(r);
-  ctx.shadowBlur = 0;
-  ctx.restore();
+  glowIcon(drawShotgunShape, -0.12, 'rgba(255,120,70,.9)', 'rgba(255,198,150,.95)', cx, cy, r);
 }
 
-/** AWM 图标（双层发光；中心绘制） */
+/** AWM 图标 */
 export function drawAWMIcon(cx: number, cy: number, r: number): void {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(-0.10);
-  ctx.shadowColor = 'rgba(140,220,255,.9)';
-  ctx.shadowBlur = 8;
-  drawAWMShape(r);
-  ctx.shadowColor = 'rgba(205,240,255,.95)';
-  ctx.shadowBlur = 3;
-  drawAWMShape(r);
-  ctx.shadowBlur = 0;
-  ctx.restore();
+  glowIcon(drawAWMShape, -0.10, 'rgba(140,220,255,.9)', 'rgba(205,240,255,.95)', cx, cy, r);
 }
 
-/** 火箭筒图标（双层发光；中心绘制） */
+/** 火箭筒图标 */
 export function drawRocketIcon(cx: number, cy: number, r: number): void {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(-0.10);
-  ctx.shadowColor = 'rgba(255,190,90,.9)';
-  ctx.shadowBlur = 8;
-  drawRocketShape(r);
-  ctx.shadowColor = 'rgba(255,228,180,.95)';
-  ctx.shadowBlur = 3;
-  drawRocketShape(r);
-  ctx.shadowBlur = 0;
-  ctx.restore();
+  glowIcon(drawRocketShape, -0.10, 'rgba(255,190,90,.9)', 'rgba(255,228,180,.95)', cx, cy, r);
 }
 
-/** 冰冻炸弹图标（双层发光；中心绘制） */
+/** 冰冻炸弹图标 */
 export function drawIceBombIcon(cx: number, cy: number, r: number): void {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.shadowColor = 'rgba(120,220,255,.9)';
-  ctx.shadowBlur = 8;
-  drawIceBombShape(r);
-  ctx.shadowColor = 'rgba(220,248,255,.95)';
-  ctx.shadowBlur = 3;
-  drawIceBombShape(r);
-  ctx.shadowBlur = 0;
-  ctx.restore();
+  glowIcon(drawIceBombShape, 0, 'rgba(120,220,255,.9)', 'rgba(220,248,255,.95)', cx, cy, r);
 }
 
-/** 武器图标统一出口（HUD / 图鉴 / 持枪用；按 kind 分发） */
+/** 武器图标统一出口（HUD / 图鉴 / 持枪用；按 kind 分发，未知回退 AK） */
 export function drawWeaponIcon(cx: number, cy: number, r: number, kind: string): void {
-  if (kind === 'grenade') drawGrenadeIcon(cx, cy, r);
-  else if (kind === 'shotgun') drawShotgunIcon(cx, cy, r);
-  else if (kind === 'awm') drawAWMIcon(cx, cy, r);
-  else if (kind === 'rocket') drawRocketIcon(cx, cy, r);
-  else if (kind === 'iceBomb') drawIceBombIcon(cx, cy, r);
-  else drawAKIcon(cx, cy, r);
+  switch (kind) {
+    case 'grenade': drawGrenadeIcon(cx, cy, r); break;
+    case 'shotgun': drawShotgunIcon(cx, cy, r); break;
+    case 'awm': drawAWMIcon(cx, cy, r); break;
+    case 'rocket': drawRocketIcon(cx, cy, r); break;
+    case 'iceBomb': drawIceBombIcon(cx, cy, r); break;
+    default: drawAKIcon(cx, cy, r); break;
+  }
 }

@@ -13,6 +13,10 @@ import { Settings } from '../core/settings';
 /** 后期特效参数（= VIS.postfx 引用） */
 export const PFX = VIS.postfx;
 
+// 画质档位应用：设置变更（含启动 load）经 Settings 通知本模块原地写回 VIS。
+// subscribe 立即推送一次当前值，覆盖「load 早于本模块导入」的时序。
+Settings.subscribe((d) => applyQuality(d.quality));
+
 /** 单帧后期输入（由 game/index 渲染时提供） */
 export interface PostFXFrame {
   /** 速度归一化 0..1（驱动径向模糊强度） */
