@@ -8,7 +8,7 @@ import {
   Position, Velocity, Collider, PathMotion, SpringPad, Timer, Hazard, Health,
   Collectible, Cipher, Chest, Loot, RespawnPoint, Goal, Track, Aura, Renderable, Animator, Hookable,
   Player, PlayerControl, PlayerInput, Orb, JumpBoost, Hook, ShieldPickup, SpeedPickup, WeaponPickup, Backpack,
-  Projectile, EnemyBrain,
+  Projectile, EnemyRock, EnemyBrain,
 } from './components';
 import { world } from './World';
 
@@ -60,6 +60,8 @@ export const qAnimators = (): Q => query(world, [Position, Animator]) as Q;
 
 /** 抛体（手雷等） */
 export const qProjectiles = (): Q => query(world, [Position, Projectile]) as Q;
+/** 敌人投石（大猩猩远程攻击） */
+export const qEnemyRocks = (): Q => query(world, [Position, EnemyRock]) as Q;
 /** 敌人实体（位置 + 生命 + 大脑） */
 export const qEnemies = (): Q => query(world, [Position, Collider, Health, EnemyBrain]) as Q;
 

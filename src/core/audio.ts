@@ -453,6 +453,11 @@ const MIN_GAP: Record<string, number> = {
   hit: 0.03,
   hurt: 0.05,
   explosion: 0.12,
+  /** 大猩猩砸地：多只大猩猩同时砸地时防糊成一团 */
+  gorillaSlam: 0.14,
+  /** 大猩猩投石 / 石头命中：节流避免连拍噪声 */
+  gorillaThrow: 0.1,
+  rockHit: 0.08,
   /** 破译咔哒：多台密码机同时破译时防止叠成一片 */
   cipherTick: 0.08,
   /** 宝箱冷却拒绝：按住 E 时不要每帧都响 */
@@ -744,6 +749,33 @@ export const sfx = {
     const t = now();
     osc('square', 420, { at: t, dur: 0.2, vol: PEAK * 0.3 * k, f1: 80, lp: 1400, attack: 0.003, release: 0.16, pan: opts?.pan });
     noise({ at: t, dur: 0.12, vol: PEAK * 0.2 * k, hp: 800, pan: opts?.pan });
+  },
+
+  /** 大猩猩砸地：低频重击 + 碎石噪声（近战砸中地面瞬间） */
+  gorillaSlam(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null || gate('gorillaSlam')) return;
+    const t = now();
+    osc('sawtooth', 150, { at: t, dur: 0.28, vol: PEAK * 0.85 * k, f1: 42, lp: 700, attack: 0.003, decay: 0.1, sustain: 0.3, release: 0.16, pan: opts?.pan });
+    noise({ at: t, dur: 0.18, vol: PEAK * 0.4 * k, hp: 300, lp: 1600, attack: 0.002, release: 0.12, pan: opts?.pan });
+  },
+
+  /** 大猩猩投石：挥臂风声 + 短促上滑（石头出手） */
+  gorillaThrow(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null || gate('gorillaThrow')) return;
+    const t = now();
+    noise({ at: t, dur: 0.14, vol: PEAK * 0.24 * k, hp: 800, lp: 2800, attack: 0.004, release: 0.09, pan: opts?.pan });
+    osc('triangle', 260, { at: t, dur: 0.12, vol: PEAK * 0.32 * k, f1: 560, lp: 2000, attack: 0.003, release: 0.08, pan: opts?.pan });
+  },
+
+  /** 石头命中/落地：短促碎石闷响 */
+  rockHit(opts?: SfxOpts): void {
+    const k = scale(opts);
+    if (k === null || gate('rockHit')) return;
+    const t = now();
+    noise({ at: t, dur: 0.12, vol: PEAK * 0.42 * k, hp: 200, lp: 2400, attack: 0.002, release: 0.09, pan: opts?.pan });
+    osc('triangle', 300, { at: t, dur: 0.1, vol: PEAK * 0.34 * k, f1: 90, lp: 1400, attack: 0.002, release: 0.07, pan: opts?.pan });
   },
 
   /**

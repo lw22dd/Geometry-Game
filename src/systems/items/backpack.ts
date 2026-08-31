@@ -127,6 +127,46 @@ export const ITEMS: Record<ItemId, ItemDef> = {
       p.selectedSlot = p.backpack.indexOf('grenade');
     },
   },
+  shotgun: {
+    id: 'shotgun',
+    code: 7,
+    name: '霰弹枪',
+    category: 'active',
+    // 主动装备：拾取后自动选中该槽位，便于立即开火
+    onPickup: (p) => {
+      p.selectedSlot = p.backpack.indexOf('shotgun');
+    },
+  },
+  awm: {
+    id: 'awm',
+    code: 8,
+    name: 'AWM',
+    category: 'active',
+    // 主动装备：拾取后自动选中该槽位，便于立即开火
+    onPickup: (p) => {
+      p.selectedSlot = p.backpack.indexOf('awm');
+    },
+  },
+  rocket: {
+    id: 'rocket',
+    code: 9,
+    name: '火箭筒',
+    category: 'active',
+    // 主动装备：拾取后自动选中该槽位，便于立即发射
+    onPickup: (p) => {
+      p.selectedSlot = p.backpack.indexOf('rocket');
+    },
+  },
+  iceBomb: {
+    id: 'iceBomb',
+    code: 10,
+    name: '冰冻炸弹',
+    category: 'active',
+    // 主动装备：拾取后自动选中该槽位，便于立即投掷
+    onPickup: (p) => {
+      p.selectedSlot = p.backpack.indexOf('iceBomb');
+    },
+  },
   };
 
 /**

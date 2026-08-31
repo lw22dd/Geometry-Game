@@ -14,7 +14,9 @@ import type { MapInstance, InstanceType } from './mapTypes';
 // 游戏侧工厂统一收口于 sceneFactory（旧 Prefabs/Scenes/*Entity.ts 已重构合并）
 import {
   createSpike, createOrb, createJumpBoost, createCheckpoint, createNova,
-  createHookPickup, createShieldPickup, createSpeedPickup, createLoopTrack, createMovingPlatform, createLaser, createSpringPad,
+  createHookPickup, createShieldPickup, createSpeedPickup, createRecallPickup,
+  createWeaponPickup, createCipherMachine, createChest,
+  createLoopTrack, createMovingPlatform, createLaser, createSpringPad,
 } from '@game/Prefabs/Scenes/sceneFactory';
 // 弹簧默认数值与游戏侧单一数据源（垂直/水平预设）
 import { VERTICAL_SPRING, HORIZONTAL_SPRING } from '@game/Prefabs/Scenes/springPresets';
@@ -107,6 +109,50 @@ export const PREFAB_ENTRIES: PrefabEntry[] = [
       { key: 'rotation', label: '旋转°', type: 'number', step: 5 },
     ],
     defaults: () => ({ type: 'speedPickup', x: 0, y: 0 }),
+  },
+  {
+    toolId: 'recallPickup', type: 'recallPickup', name: '重置箭头', category: '可收集物',
+    swatch: '#eef2ff', icon: 'Refresh', factory: createRecallPickup,
+    fields: [
+      { key: 'x', label: 'X', type: 'number', step: 0.5 },
+      { key: 'y', label: 'Y', type: 'number', step: 0.5 },
+      { key: 'rotation', label: '旋转°', type: 'number', step: 5 },
+    ],
+    defaults: () => ({ type: 'recallPickup', x: 0, y: 0 }),
+  },
+  {
+    toolId: 'weaponPickup', type: 'weaponPickup', name: '武器拾取物', category: '可收集物',
+    swatch: '#ff9640', icon: 'Thunder', factory: createWeaponPickup,
+    fields: [
+      { key: 'x', label: 'X', type: 'number', step: 0.5 },
+      { key: 'y', label: 'Y', type: 'number', step: 0.5 },
+      { key: 'kind', label: '武器', type: 'string', placeholder: 'ak 或 grenade' },
+      { key: 'rotation', label: '旋转°', type: 'number', step: 5 },
+    ],
+    defaults: () => ({ type: 'weaponPickup', x: 0, y: 0, kind: 'ak' }),
+  },
+
+  // ── 交互物 ──
+  {
+    toolId: 'cipher', type: 'cipher', name: '密码机', category: '交互物',
+    swatch: '#ffb44d', icon: 'LockOn', factory: createCipherMachine,
+    fields: [
+      { key: 'x', label: 'X', type: 'number', step: 0.5 },
+      { key: 'y', label: 'Y', type: 'number', step: 0.5 },
+      { key: 'rotation', label: '旋转°', type: 'number', step: 5 },
+    ],
+    defaults: () => ({ type: 'cipher', x: 0, y: 0 }),
+  },
+  {
+    toolId: 'chest', type: 'chest', name: '宝箱', category: '交互物',
+    swatch: '#ffa050', icon: 'Gift', factory: createChest,
+    fields: [
+      { key: 'x', label: 'X', type: 'number', step: 0.5 },
+      { key: 'y', label: 'Y', type: 'number', step: 0.5 },
+      { key: 'chestType', label: '类型（0武器/1道具）', type: 'number', step: 1, min: 0, max: 1 },
+      { key: 'rotation', label: '旋转°', type: 'number', step: 5 },
+    ],
+    defaults: () => ({ type: 'chest', x: 0, y: 0, chestType: 0 }),
   },
 
   // ── 机关 ──

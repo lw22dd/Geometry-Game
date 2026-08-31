@@ -1,6 +1,6 @@
 /* 由 sync-prefabs.mjs 自动生成，请勿手动编辑 */
 window.PREFABS_DATA = {
-  "generatedAt": "2026-08-30T09:41:26.947Z",
+  "generatedAt": "2026-08-31T02:41:32.816Z",
   "source": "src/Prefabs",
   "categories": [
     {
@@ -66,6 +66,12 @@ window.PREFABS_DATA = {
           "file": "ItemVis/index.ts"
         },
         {
+          "id": "recall",
+          "name": "重置箭头",
+          "glow": "rgba(238,242,255,.95)",
+          "file": "ItemVis/index.ts"
+        },
+        {
           "id": "ak",
           "name": "AK 步枪",
           "glow": "rgba(255,150,60,.9)",
@@ -75,6 +81,30 @@ window.PREFABS_DATA = {
           "id": "grenade",
           "name": "手雷",
           "glow": "rgba(150,255,140,.9)",
+          "file": "WeaponVis/index.ts"
+        },
+        {
+          "id": "shotgun",
+          "name": "短管霰弹枪",
+          "glow": "rgba(255,120,70,.9)",
+          "file": "WeaponVis/index.ts"
+        },
+        {
+          "id": "awm",
+          "name": "AWM 狙击枪",
+          "glow": "rgba(140,220,255,.9)",
+          "file": "WeaponVis/index.ts"
+        },
+        {
+          "id": "rocket",
+          "name": "火箭筒",
+          "glow": "rgba(255,190,90,.9)",
+          "file": "WeaponVis/index.ts"
+        },
+        {
+          "id": "iceBomb",
+          "name": "冰冻炸弹",
+          "glow": "rgba(120,220,255,.9)",
           "file": "WeaponVis/index.ts"
         },
         {
@@ -133,6 +163,28 @@ window.PREFABS_DATA = {
             "#e04f2f"
           ],
           "glow": "rgba(255,110,80,.9)",
+          "file": "Enemy/kinds.ts"
+        },
+        {
+          "id": "creeper",
+          "name": "苦力怕",
+          "bodyGrad": [
+            "#3aff6e",
+            "#1fae46",
+            "#0d6b28"
+          ],
+          "glow": "rgba(60,255,120,.95)",
+          "file": "Enemy/kinds.ts"
+        },
+        {
+          "id": "gorilla",
+          "name": "大猩猩",
+          "bodyGrad": [
+            "#ffffff",
+            "#cdd3de",
+            "#8a92a3"
+          ],
+          "glow": "rgba(255,255,255,.95)",
           "file": "Enemy/kinds.ts"
         }
       ]
@@ -893,6 +945,196 @@ window.PREFABS_DATA = {
           "file": "Fx/presets.ts"
         },
         {
+          "id": "creeperBoom",
+          "name": "creeperBoom",
+          "fx": {
+            "count": 22,
+            "kind": "frag",
+            "colors": [
+              "#3aff6e",
+              "#1fae46",
+              "#c8ffb0",
+              "#ffffff"
+            ],
+            "gravity": 16,
+            "life": [
+              0.45,
+              0.8
+            ],
+            "size": [
+              0.08,
+              0.2
+            ],
+            "vel": {
+              "mode": "radial",
+              "speed": [
+                4,
+                12
+              ],
+              "vyBias": 3
+            },
+            "r0": null,
+            "r1": null,
+            "lw": null
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "creeperShock",
+          "name": "creeperShock",
+          "fx": {
+            "count": 1,
+            "kind": "shock",
+            "colors": [
+              "#3aff6e",
+              "#ffffff"
+            ],
+            "gravity": 0,
+            "life": [
+              0.4,
+              0.4
+            ],
+            "size": [
+              0.1,
+              0.1
+            ],
+            "vel": {
+              "mode": "axis",
+              "vx": [
+                0,
+                0
+              ],
+              "vy": [
+                0,
+                0
+              ]
+            },
+            "r0": [
+              0.4,
+              0.4
+            ],
+            "r1": [
+              3,
+              3.6
+            ],
+            "lw": 3
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "gorillaSlam",
+          "name": "gorillaSlam",
+          "fx": {
+            "count": 12,
+            "kind": "dot",
+            "colors": [
+              "#ffffff",
+              "#cdd3de",
+              "#9aa4b8"
+            ],
+            "gravity": 6,
+            "life": [
+              0.35,
+              0.55
+            ],
+            "size": [
+              0.07,
+              0.14
+            ],
+            "vel": {
+              "mode": "axis",
+              "vx": [
+                -3.5,
+                3.5
+              ],
+              "vy": [
+                0.5,
+                3
+              ]
+            },
+            "r0": null,
+            "r1": null,
+            "lw": null
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "gorillaSlamShock",
+          "name": "gorillaSlamShock",
+          "fx": {
+            "count": 1,
+            "kind": "shock",
+            "colors": [
+              "#ffffff",
+              "#cdd3de"
+            ],
+            "gravity": 0,
+            "life": [
+              0.32,
+              0.32
+            ],
+            "size": [
+              0.1,
+              0.1
+            ],
+            "vel": {
+              "mode": "axis",
+              "vx": [
+                0,
+                0
+              ],
+              "vy": [
+                0,
+                0
+              ]
+            },
+            "r0": [
+              0.3,
+              0.3
+            ],
+            "r1": [
+              2.6,
+              3.2
+            ],
+            "lw": 3
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "rockBreak",
+          "name": "rockBreak",
+          "fx": {
+            "count": 8,
+            "kind": "frag",
+            "colors": [
+              "#ffffff",
+              "#cdd3de",
+              "#8a92a3"
+            ],
+            "gravity": 16,
+            "life": [
+              0.3,
+              0.5
+            ],
+            "size": [
+              0.06,
+              0.13
+            ],
+            "vel": {
+              "mode": "radial",
+              "speed": [
+                2,
+                6
+              ],
+              "vyBias": 2
+            },
+            "r0": null,
+            "r1": null,
+            "lw": null
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
           "id": "enemyDeath",
           "name": "敌人死亡爆裂",
           "fx": {
@@ -1075,6 +1317,120 @@ window.PREFABS_DATA = {
               3.2
             ],
             "lw": 2.5
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "iceBoom",
+          "name": "iceBoom",
+          "fx": {
+            "count": 22,
+            "kind": "frag",
+            "colors": [
+              "#7feaff",
+              "#bfefff",
+              "#ffffff",
+              "#4fb9f0"
+            ],
+            "gravity": 10,
+            "life": [
+              0.5,
+              0.85
+            ],
+            "size": [
+              0.1,
+              0.22
+            ],
+            "vel": {
+              "mode": "radial",
+              "speed": [
+                3,
+                9
+              ],
+              "vyBias": 1.5
+            },
+            "r0": null,
+            "r1": null,
+            "lw": null
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "iceShock",
+          "name": "iceShock",
+          "fx": {
+            "count": 1,
+            "kind": "shock",
+            "colors": [
+              "#7feaff",
+              "#ffffff"
+            ],
+            "gravity": 0,
+            "life": [
+              0.4,
+              0.4
+            ],
+            "size": [
+              0.1,
+              0.1
+            ],
+            "vel": {
+              "mode": "axis",
+              "vx": [
+                0,
+                0
+              ],
+              "vy": [
+                0,
+                0
+              ]
+            },
+            "r0": [
+              0.3,
+              0.3
+            ],
+            "r1": [
+              3,
+              3.6
+            ],
+            "lw": 3
+          },
+          "file": "Fx/presets.ts"
+        },
+        {
+          "id": "iceTrail",
+          "name": "iceTrail",
+          "fx": {
+            "count": 3,
+            "kind": "streak",
+            "colors": [
+              "#7feaff",
+              "#bfefff",
+              "#ffffff"
+            ],
+            "gravity": 0,
+            "life": [
+              0.18,
+              0.3
+            ],
+            "size": [
+              0.04,
+              0.08
+            ],
+            "vel": {
+              "mode": "axis",
+              "vx": [
+                -1,
+                1
+              ],
+              "vy": [
+                -1,
+                1
+              ]
+            },
+            "r0": null,
+            "r1": null,
+            "lw": 2
           },
           "file": "Fx/presets.ts"
         },

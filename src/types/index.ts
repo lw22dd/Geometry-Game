@@ -177,17 +177,17 @@ export interface TrackState {
 
 /* ==================== 背包/道具 ==================== */
 
-/** 道具 id（含武器：AK/手雷 作为背包主动道具，拾取占用背包格） */
-export type ItemId = 'doubleJump' | 'hook' | 'shield' | 'speed' | 'recall' | 'ak' | 'grenade';
+/** 道具 id（含武器：AK/手雷/霰弹枪/AWM/火箭筒/冰冻炸弹 作为背包主动道具，拾取占用背包格） */
+export type ItemId = 'doubleJump' | 'hook' | 'shield' | 'speed' | 'recall' | 'ak' | 'grenade' | 'shotgun' | 'awm' | 'rocket' | 'iceBomb';
 
 /**
  * 武器 id（独立体系，不强绑 Backpack 道具槽）。
  * 'none' = 未装备任何主武器（出生默认；武器为地图拾取物，非自带）。
  */
-export type WeaponId = 'none' | 'ak' | 'grenade';
+export type WeaponId = 'none' | 'ak' | 'grenade' | 'shotgun' | 'awm' | 'rocket' | 'iceBomb';
 
-/** 敌人种类 id（S3；行走兵起步，精英/Boss 为扩展位） */
-export type EnemyKind = 'walker';
+/** 敌人种类 id（S3；行走兵起步，苦力怕/大猩猩/精英/Boss 为扩展位） */
+export type EnemyKind = 'walker' | 'creeper' | 'gorilla';
 
 /** 道具类别：主动（玩家触发）/ 被动（拾取即生效常驻） */
 export type ItemCategory = 'active' | 'passive';

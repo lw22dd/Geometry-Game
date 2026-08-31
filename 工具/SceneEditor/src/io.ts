@@ -281,6 +281,26 @@ export function mapDefinitionTSCode(store: EditorStore): string {
   if (map.entitySpawners.speeds && map.entitySpawners.speeds.length > 0) {
     out += `${indent}${indent}speeds: [\n${map.entitySpawners.speeds.map(h => `${indent}${indent}${indent}[${fmt(h[0])}, ${fmt(h[1])}],`).join('\n')}\n${indent}${indent}],\n`;
   }
+  if (map.entitySpawners.recalls && map.entitySpawners.recalls.length > 0) {
+    out += `${indent}${indent}recalls: [\n${map.entitySpawners.recalls.map(h => `${indent}${indent}${indent}[${fmt(h[0])}, ${fmt(h[1])}],`).join('\n')}\n${indent}${indent}],\n`;
+  }
+  if (map.entitySpawners.weapons && map.entitySpawners.weapons.length > 0) {
+    out += `${indent}${indent}weapons: [\n`;
+    for (const w of map.entitySpawners.weapons) {
+      out += `${indent}${indent}${indent}{ kind: '${w.kind}', x: ${fmt(w.x)}, y: ${fmt(w.y)} },\n`;
+    }
+    out += `${indent}${indent}],\n`;
+  }
+  if (map.entitySpawners.ciphers && map.entitySpawners.ciphers.length > 0) {
+    out += `${indent}${indent}ciphers: [\n${map.entitySpawners.ciphers.map(h => `${indent}${indent}${indent}[${fmt(h[0])}, ${fmt(h[1])}],`).join('\n')}\n${indent}${indent}],\n`;
+  }
+  if (map.entitySpawners.chests && map.entitySpawners.chests.length > 0) {
+    out += `${indent}${indent}chests: [\n`;
+    for (const c of map.entitySpawners.chests) {
+      out += `${indent}${indent}${indent}{ type: ${c.type}, x: ${fmt(c.x)}, y: ${fmt(c.y)} },\n`;
+    }
+    out += `${indent}${indent}],\n`;
+  }
   if (map.entitySpawners.tracks && map.entitySpawners.tracks.length > 0) {
     out += `${indent}${indent}tracks: [\n`;
     for (const tr of map.entitySpawners.tracks) {

@@ -26,6 +26,7 @@ import { HOOK_MAX_RANGE, HOOK_SPEED, HOOK_COOLDOWN, HOOK_RETRACT_TIME } from '..
 import { hasItem, ITEMS, type ActiveItemContext } from './backpack';
 import { getHookTargets } from '../player';
 import { sfx } from '../../core/audio';
+import { WEAPONS } from '../../config/weapons';
 import { raycastWorld, segRectT, type RayFace } from '../combat/raycast';
 
 /** 钩锁最小作用距离（格）：点射脚下的地板不产生退化滑索 */
@@ -211,14 +212,14 @@ export function drawCrosshair(color: string = 'rgba(255,120,120,.8)'): void {
 }
 
 /**
- * 武器瞄准准星（AK / 手雷）：鼠标已引导且选中武器槽时绘制鼠标准星。
- * 钩锁有自己的 drawHookAim（含命中锚点菱形），此处只服务枪械类瞄准。
+ * 武器瞄准准星：鼠标已引导且选中武器槽时绘制鼠标准星。
+ * 覆盖全部武器（AK / 霰弹枪 / AWM / 手雷 / 火箭筒 / 冰冻炸弹）；
+ * 钩锁有自己的 drawHookAim（含命中锚点菱形），此处只服务武器类瞄准。
  */
 export function drawWeaponAim(p: PlayerState): void {
   if (p.dead || p.track || !mouse.used) return;
   const sel = p.backpack[p.selectedSlot];
-  if (sel !== 'ak' && sel !== 'grenade') return;
-  drawCrosshair('rgba(255,200,110,.85)');
+  if (sel !== undefined && sel in WEAPONS) drawCrosshair('rgba(255,200,110,.85)');
 }
 
 /**

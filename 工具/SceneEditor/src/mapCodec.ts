@@ -23,6 +23,7 @@ import type {
   Spike,
   Rect,
   PathSegment,
+  WeaponId,
 } from '@game/types';
 import { buildCumulativeLengths, pathPosition } from '@game/core/path';
 
@@ -88,6 +89,18 @@ export function decompileMapDefinition(def: MapDefinition): MapData {
   }
   for (const s of def.entitySpawners.speeds ?? []) {
     data.layers.objects.push({ type: 'speedPickup', x: s[0], y: s[1] });
+  }
+  for (const r of def.entitySpawners.recalls ?? []) {
+    data.layers.objects.push({ type: 'recallPickup', x: r[0], y: r[1] });
+  }
+  for (const w of def.entitySpawners.weapons ?? []) {
+    data.layers.objects.push({ type: 'weaponPickup', kind: w.kind, x: w.x, y: w.y });
+  }
+  for (const c of def.entitySpawners.ciphers ?? []) {
+    data.layers.objects.push({ type: 'cipher', x: c[0], y: c[1] });
+  }
+  for (const c of def.entitySpawners.chests ?? []) {
+    data.layers.objects.push({ type: 'chest', chestType: c.type, x: c.x, y: c.y });
   }
   // 冲刺轨道：入口点 = 路径上 entryDist 处的世界坐标（编辑器锚点）
   for (const t of def.entitySpawners.tracks ?? []) {
@@ -157,6 +170,10 @@ export function compileMapData(data: MapData): {
   const hooks: [number, number][] = [];
   const shields: [number, number][] = [];
   const speeds: [number, number][] = [];
+  const recalls: [number, number][] = [];
+  const weapons: { kind: WeaponId; x: number; y: number }[] = [];
+  const ciphers: [number, number][] = [];
+  const chests: { type: 0 | 1; x: number; y: number }[] = [];
   const tracks: TrackSpawnData[] = [];
   let nova: { x: number; y: number } = { x: 0, y: 0 };
 
@@ -188,6 +205,10 @@ export function compileMapData(data: MapData): {
       case 'hookPickup': hooks.push([inst.x, inst.y]); break;
       case 'shieldPickup': shields.push([inst.x, inst.y]); break;
       case 'speedPickup': speeds.push([inst.x, inst.y]); break;
+      case 'recallPickup': recalls.push([inst.x, inst.y]); break;
+      case 'weaponPickup': weapons.push({ kind: inst.kind, x: inst.x, y: inst.y }); break;
+      case 'cipher': ciphers.push([inst.x, inst.y]); break;
+      case 'chest': chests.push({ type: inst.chestType, x: inst.x, y: inst.y }); break;
       case 'track': {
         const tr: TrackSpawnData = {
           segments: inst.segments,
@@ -222,6 +243,10 @@ export function compileMapData(data: MapData): {
       hooks: hooks.length > 0 ? hooks : undefined,
       shields: shields.length > 0 ? shields : undefined,
       speeds: speeds.length > 0 ? speeds : undefined,
+      recalls: recalls.length > 0 ? recalls : undefined,
+      weapons: weapons.length > 0 ? weapons : undefined,
+      ciphers: ciphers.length > 0 ? ciphers : undefined,
+      chests: chests.length > 0 ? chests : undefined,
       tracks: tracks.length > 0 ? tracks : undefined,
       nova,
     },
@@ -281,6 +306,10 @@ export function verifyRoundTrip(def: MapDefinition): RoundTripReport {
   PUSH(diffs, 'hooks', def.entitySpawners.hooks ?? [], compiled.entitySpawners.hooks ?? []);
   PUSH(diffs, 'shields', def.entitySpawners.shields ?? [], compiled.entitySpawners.shields ?? []);
   PUSH(diffs, 'speeds', def.entitySpawners.speeds ?? [], compiled.entitySpawners.speeds ?? []);
+  PUSH(diffs, 'recalls', def.entitySpawners.recalls ?? [], compiled.entitySpawners.recalls ?? []);
+  PUSH(diffs, 'weapons', def.entitySpawners.weapons ?? [], compiled.entitySpawners.weapons ?? []);
+  PUSH(diffs, 'ciphers', def.entitySpawners.ciphers ?? [], compiled.entitySpawners.ciphers ?? []);
+  PUSH(diffs, 'chests', def.entitySpawners.chests ?? [], compiled.entitySpawners.chests ?? []);
   PUSH(diffs, 'tracks', def.entitySpawners.tracks ?? [], compiled.entitySpawners.tracks ?? []);
   PUSH(diffs, 'nova', def.entitySpawners.nova, compiled.entitySpawners.nova);
 

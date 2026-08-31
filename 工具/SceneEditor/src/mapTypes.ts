@@ -7,7 +7,7 @@
  *
  * 部分对象类型从游戏侧 `@game/types` 复用 spawn 数据形状，确保同步。
  */
-import type { MoverSpawnData, LaserSpawnData, SpringPadSpawnData, PathSegment } from '@game/types';
+import type { MoverSpawnData, LaserSpawnData, SpringPadSpawnData, PathSegment, WeaponId } from '@game/types';
 import { buildCumulativeLengths, pathPosition } from '@game/core/path';
 
 /* ==================== 几何图元（基础地图层） ==================== */
@@ -95,6 +95,34 @@ export interface SpeedPickupInstance {
   rotation?: number;
 }
 
+export interface RecallPickupInstance {
+  type: 'recallPickup';
+  x: number; y: number;
+  rotation?: number;
+}
+
+export interface WeaponPickupInstance {
+  type: 'weaponPickup';
+  x: number; y: number;
+  /** 武器类型（ak / grenade） */
+  kind: WeaponId;
+  rotation?: number;
+}
+
+export interface CipherInstance {
+  type: 'cipher';
+  x: number; y: number;
+  rotation?: number;
+}
+
+export interface ChestInstance {
+  type: 'chest';
+  x: number; y: number;
+  /** 宝箱类型：0 = 武器宝箱（橙红，掉 AK/手雷）；1 = 道具宝箱（蓝青，掉背包道具） */
+  chestType: 0 | 1;
+  rotation?: number;
+}
+
 /** 冲刺轨道（玻璃管道）：路径段数组 + 入口/出口弧长 + 捕获速度 */
 export interface TrackInstance {
   type: 'track';
@@ -127,6 +155,10 @@ export type MapInstance =
   | HookPickupInstance
   | ShieldPickupInstance
   | SpeedPickupInstance
+  | RecallPickupInstance
+  | WeaponPickupInstance
+  | CipherInstance
+  | ChestInstance
   | TrackInstance
   | SpringPadInstance;
 
@@ -344,6 +376,10 @@ export function instancePosition(inst: MapInstance): { x: number; y: number } {
     case 'hookPickup': return { x: inst.x, y: inst.y };
     case 'shieldPickup': return { x: inst.x, y: inst.y };
     case 'speedPickup': return { x: inst.x, y: inst.y };
+    case 'recallPickup': return { x: inst.x, y: inst.y };
+    case 'weaponPickup': return { x: inst.x, y: inst.y };
+    case 'cipher': return { x: inst.x, y: inst.y };
+    case 'chest': return { x: inst.x, y: inst.y };
     case 'track':   return { x: inst.x, y: inst.y };
     case 'springPad': return { x: inst.x, y: inst.y };
   }
@@ -364,6 +400,10 @@ export function moveInstance(inst: MapInstance, dx: number, dy: number): void {
     case 'hookPickup': inst.x += dx; inst.y += dy; break;
     case 'shieldPickup': inst.x += dx; inst.y += dy; break;
     case 'speedPickup': inst.x += dx; inst.y += dy; break;
+    case 'recallPickup': inst.x += dx; inst.y += dy; break;
+    case 'weaponPickup': inst.x += dx; inst.y += dy; break;
+    case 'cipher': inst.x += dx; inst.y += dy; break;
+    case 'chest': inst.x += dx; inst.y += dy; break;
     case 'track': {
       inst.x += dx; inst.y += dy;
       for (const seg of inst.segments) {
@@ -391,6 +431,10 @@ export function instanceLabel(inst: MapInstance): string {
     case 'hookPickup': return `钩锁 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
     case 'shieldPickup': return `护盾 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
     case 'speedPickup': return `加速 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
+    case 'recallPickup': return `重置箭头 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
+    case 'weaponPickup': return `武器·${inst.kind === 'grenade' ? '手雷' : 'AK'} (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
+    case 'cipher': return `密码机 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
+    case 'chest': return `宝箱·${inst.chestType === 1 ? '道具' : '武器'} (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
     case 'track':   return `轨道 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
     case 'springPad': return `${inst.h > inst.w ? '水平' : '垂直'}弹簧 (${inst.x.toFixed(1)}, ${inst.y.toFixed(1)})`;
   }
@@ -440,6 +484,22 @@ export function instanceHitBounds(inst: MapInstance, minSize = 0.6): { x: number
     case 'speedPickup': {
       const r = Math.max(0.6, minSize / 2);
       return { x: inst.x - r, y: inst.y - r, w: r * 2, h: r * 2 };
+    }
+    case 'recallPickup': {
+      const r = Math.max(0.6, minSize / 2);
+      return { x: inst.x - r, y: inst.y - r, w: r * 2, h: r * 2 };
+    }
+    case 'weaponPickup': {
+      const r = Math.max(0.6, minSize / 2);
+      return { x: inst.x - r, y: inst.y - r, w: r * 2, h: r * 2 };
+    }
+    case 'cipher': {
+      // 密码机触发区：宽 2.0 / 高 2.4（与 sceneFactory 一致）
+      return { x: inst.x - 1.0, y: inst.y - 1.2, w: 2.0, h: 2.4 };
+    }
+    case 'chest': {
+      // 宝箱触发区：宽 2.2 / 高 2.0（与 sceneFactory 一致）
+      return { x: inst.x - 1.1, y: inst.y - 1.0, w: 2.2, h: 2.0 };
     }
     case 'track': {
       // 轨道命中范围 = 路径段包围盒（退化段补最小尺寸）

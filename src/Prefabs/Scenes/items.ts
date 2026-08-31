@@ -975,8 +975,8 @@ export function drawWeaponPickups(): void {
     ctx.rotate(out.rotation);
     ctx.shadowColor = 'rgba(255,150,60,.9)';
     ctx.shadowBlur = T.glowMovable;
-    // 建模单一来源 = Prefabs/WeaponVis
-    drawWeaponModel(kind === 'grenade' ? 'grenade' : 'ak', R);
+    // 建模单一来源 = Prefabs/WeaponVis（按武器种类分发；'none' 防御回退 ak）
+    drawWeaponModel(kind === 'none' ? 'ak' : kind, R);
     ctx.shadowBlur = 0;
     ctx.restore();
     ctx.globalAlpha = 1;

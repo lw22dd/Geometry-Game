@@ -1,26 +1,30 @@
 /**
- * 敌人控制器（S3）—— 对称 PlayerController：持有敌人状态真源（EnemyBrain AoS）+ 轻量专用物理 + 映射 ECS 实体。
+ * 敌人控制器（S3）—— 只做通用调度：目标选择 / 移动 / 重力 / 碰撞 / 掉头。
+ * 每种敌人的专属行为（creeper 引爆、gorilla 近战/投石）由各自预制体
+ * （Prefabs/Enemy/creeper.ts、gorilla.ts）的 step 自决，控制器只负责调用
+ * stepEnemyBehavior 并把结果（hold = 停身）落到通用移动上。
  *
- * 架构对称但物理不对称（决策 3）：
- *  - 玩家用手感特化的 stepPlayerGeneric；敌人用本模块的轻量物理
- *    （重力 + 地面碰撞 + 撞墙/悬崖掉头），敌人不跳跃、不复用玩家物理引擎。
- *  - 敌人状态真源在 EnemyBrain[eid]（AoS，同 Animator 模式），
- *    不做玩家那套「SoA → scratch → 写回」搬运；仅位置/生命/无敌走 SoA（被 HUD / 子弹查询）。
+ * 每帧流水线（stepEnemy）：
+ *   1. 通用 FSM：detectRange 内选最近存活玩家为 target
+ *   2. 冰冻减速计时递减（通用，iceBomb 命中写入 st.slow）
+ *   3. 专属行为：stepEnemyBehavior → 预制体 step（推进引爆/攻击、结算、生成实体），返回移动意向
+ *   4. 模式 + 朝向：有目标 → chase 且朝玩家；失目标 → 回 patrol
+ *   5. 水平移动：hold → 停身；否则按模式移速（追/巡 × 冰冻减速）推进 + walkT 动画相位
+ *   6. 碰墙掉头 / 巡逻边界（仅非 hold，避免干扰结算位置）
+ *   7. 重力 + 垂直碰撞（始终；引爆/攻击中同样保持贴地）
+ *   8. 悬崖掉头（巡逻且在地面且前方无支撑）
  *
- * AI（行走兵 FSM）：patrol（巡逻）↔ chase（追击）。
- *  - 巡逻：围绕出生 homeX ± patrolRange 往复；撞墙 / 到巡逻边界 / 悬崖掉头。
- *  - 警戒：进入 detectRange 内最近玩家 → chase（朝玩家水平移动，不跳跃）。
- *  - 失目标：玩家超出 loseRange → 回巡逻。
- *
- * 接触伤害：敌人 → 玩家走 collisionBus（见 CollisionHooks enemy 分支）→ dealDamage。
+ * 状态真源在 EnemyBrain[eid].state（AoS，判别联合 EnemyState）；位置/生命/无敌走 SoA。
+ * 接触伤害：敌人 → 玩家走 collisionBus（CollisionHooks enemy 分支）。
  * 死亡：房主判定 → netBus 广播 enemy:died → 各端粒子 / hitstop。
  */
 import { addEntity, addComponent } from 'bitecs';
 import type { PlayerState, EnemyKind } from '../../types';
+import { world, Position, Velocity, Collider, Health, EnemyBrain, Team, qEnemies } from '../../core/ecs';
 import {
-  world, Position, Velocity, Collider, Health, EnemyBrain, Team, qEnemies,
-} from '../../core/ecs';
-import { getEnemyKind, type WalkerState } from '../../Prefabs/Enemy';
+  getEnemyKind, createEnemyState, stepEnemyBehavior, stepGorillaRocks, clearGorillaRocks,
+} from '../../Prefabs/Enemy';
+import type { EnemyState } from '../../Prefabs/Enemy';
 import { getSolids } from '../player';
 
 /** 敌人生成数据（MapDefinition.entitySpawners.enemies 条目） */
@@ -53,7 +57,7 @@ export function spawnEnemy(kind: EnemyKind, x: number, y: number): number {
   Velocity.x[e] = 0;
   Velocity.y[e] = 0;
   Collider.w[e] = def.half * 2;
-  Collider.h[e] = def.half * 2;
+  Collider.h[e] = def.height ?? def.half * 2;
   Collider.ox[e] = 0;
   Collider.oy[e] = 0;
   Collider.solid[e] = 0; // 触发型：不参与玩家物理推挤
@@ -61,17 +65,9 @@ export function spawnEnemy(kind: EnemyKind, x: number, y: number): number {
   Health.max[e] = def.hp;
   Health.inv[e] = 0;
 
-  // AoS 大脑：kind + 独立 AI/物理状态（状态真源）
-  EnemyBrain[e] = {
-    kind,
-    state: {
-      dir: Math.random() < 0.5 ? -1 : 1,
-      homeX: x,
-      mode: 'patrol',
-      grounded: false,
-      walkT: 0,
-    } as WalkerState,
-  };
+  // AoS 大脑：初始状态由种类预制体自决（判别联合 EnemyState）
+  const state = createEnemyState(kind, x, Math.random() < 0.5 ? -1 : 1);
+  EnemyBrain[e] = { kind, state };
   return e;
 }
 
@@ -119,14 +115,15 @@ function groundAhead(e: number, dir: 1 | -1): boolean {
   return false;
 }
 
-/** 步进单个敌人：轻量物理（重力 + 地面）+ 行走兵 FSM */
+/** 步进单个敌人：通用调度 + 轻量物理（重力 + 地面）；专属行为委托给预制体 */
 function stepEnemy(e: number, dt: number, players: { state: PlayerState }[]): void {
   const brain = EnemyBrain[e];
   if (!brain) return;
-  const def = getEnemyKind(brain.kind as EnemyKind);
-  const st = brain.state as WalkerState;
+  const kind = brain.kind as EnemyKind;
+  const def = getEnemyKind(kind);
+  const st = brain.state as EnemyState;
 
-  /* ── FSM：选择目标玩家（警戒/追击）── */
+  /* ── 1. 通用 FSM：选择目标玩家（警戒 / 追击）── */
   let target: PlayerState | null = null;
   let bestD2 = def.detectRange * def.detectRange;
   for (const pl of players) {
@@ -140,48 +137,57 @@ function stepEnemy(e: number, dt: number, players: { state: PlayerState }[]): vo
     }
   }
 
-  const wasChase = st.mode === 'chase';
+  /* ── 2. 冰冻减速计时递减（通用；冰冻炸弹命中写入 st.slow）── */
+  if (st.slow && st.slow.t > 0) st.slow.t = Math.max(0, st.slow.t - dt);
+
+  /* ── 3. 专属行为：预制体自决（推进引爆/攻击、结算伤害、生成实体），返回移动意向 ── */
+  const res = stepEnemyBehavior(kind, { e, dt, target, dist2: bestD2, players }, st, def);
+
+  /* ── 4. 模式 + 朝向（通用）── */
   if (target) {
-    // 有目标 → 追击（朝玩家水平移动）
     st.mode = 'chase';
     const dx = target.x - Position.x[e];
     if (Math.abs(dx) > 0.3) st.dir = dx > 0 ? 1 : -1;
-  } else if (wasChase) {
-    // 失目标 → 回巡逻
+  } else if (st.mode === 'chase') {
     st.mode = 'patrol';
   }
 
-  /* ── 水平移动 ── */
-  const speed = st.mode === 'chase' ? def.chaseSpeed : def.speed;
-  Velocity.x[e] = st.dir * speed;
-  Position.x[e] += Velocity.x[e] * dt;
-  st.walkT += Math.abs(Velocity.x[e]) * dt * 6; // 动画相位随移动推进
-
-  // 撞墙掉头（水平碰撞；越过顶面不算墙）
-  const r = enemyRect(e);
-  const solids = getSolids();
-  for (const s of solids) {
-    if (!overlap(r, s)) continue;
-    if (Position.y[e] - Collider.h[e] / 2 >= s.top - 0.02) continue; // 站在上面，不算墙
-    // 撞墙：推回 + 掉头
-    if (st.dir > 0) Position.x[e] = s.x - Collider.w[e] / 2;
-    else Position.x[e] = s.x + s.w + Collider.w[e] / 2;
-    st.dir = st.dir > 0 ? -1 : 1;
-    break;
+  /* ── 5. 水平移动（行为锁定 → 停身；冰冻减速按 slow.f 降速）── */
+  if (res.hold) {
+    Velocity.x[e] = 0;
+  } else {
+    const base = st.mode === 'chase' ? def.chaseSpeed : def.speed;
+    const slowF = st.slow && st.slow.t > 0 ? st.slow.f : 1;
+    const speed = base * slowF;
+    Velocity.x[e] = st.dir * speed;
+    Position.x[e] += Velocity.x[e] * dt;
+    st.walkT += Math.abs(Velocity.x[e]) * dt * 6; // 动画相位随移动推进
   }
 
-  // 巡逻边界掉头
-  if (st.mode === 'patrol') {
-    if (Position.x[e] < st.homeX - def.patrolRange) st.dir = 1;
-    else if (Position.x[e] > st.homeX + def.patrolRange) st.dir = -1;
+  /* ── 6. 撞墙掉头 + 巡逻边界（非锁定期间；越过顶面不算墙）── */
+  if (!res.hold) {
+    const r = enemyRect(e);
+    for (const s of getSolids()) {
+      if (!overlap(r, s)) continue;
+      if (Position.y[e] - Collider.h[e] / 2 >= s.top - 0.02) continue; // 站在上面，不算墙
+      // 撞墙：推回 + 掉头
+      if (st.dir > 0) Position.x[e] = s.x - Collider.w[e] / 2;
+      else Position.x[e] = s.x + s.w + Collider.w[e] / 2;
+      st.dir = st.dir > 0 ? -1 : 1;
+      break;
+    }
+    if (st.mode === 'patrol') {
+      if (Position.x[e] < st.homeX - def.patrolRange) st.dir = 1;
+      else if (Position.x[e] > st.homeX + def.patrolRange) st.dir = -1;
+    }
   }
 
-  /* ── 重力 + 垂直碰撞（始终受重力，防止站在空中边缘 / 被打下平台；敌人不跳）── */
+  /* ── 7. 重力 + 垂直碰撞（始终；引爆/攻击锁定中也保持贴地）── */
   st.grounded = false;
   Velocity.y[e] -= 22 * dt;
   Position.y[e] += Velocity.y[e] * dt;
   const r2 = enemyRect(e);
-  for (const s of solids) {
+  for (const s of getSolids()) {
     if (!overlap(r2, s)) continue;
     if (Velocity.y[e] <= 0) {
       Position.y[e] = s.top + Collider.h[e] / 2;
@@ -193,8 +199,20 @@ function stepEnemy(e: number, dt: number, players: { state: PlayerState }[]): vo
     }
     break;
   }
-  // 悬崖掉头：巡逻且在地面上且前方无支撑 → 转向
+  // ── 8. 悬崖掉头：巡逻且在地面上且前方无支撑 → 转向 ──
   if (st.grounded && st.mode === 'patrol' && !groundAhead(e, st.dir)) {
     st.dir = st.dir > 0 ? -1 : 1;
   }
+}
+
+/* ==================== 石头转发（gorilla 投石专属弹道，身体在预制体自管） ==================== */
+
+/** 步进全部敌人石头（固定物理步调用，放在 stepEnemies 之后）—— 转发 gorilla 预制体 */
+export function stepEnemyRocks(dt: number, players: { state: PlayerState }[]): void {
+  stepGorillaRocks(dt, players);
+}
+
+/** 清空全部敌人石头（切图重建用，applyLevel 调用）—— 转发 gorilla 预制体 */
+export function clearEnemyRocks(): void {
+  clearGorillaRocks();
 }

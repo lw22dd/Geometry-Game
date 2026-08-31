@@ -19,12 +19,12 @@ import { getSolids } from '../player';
 import { colliderWorldRect } from '../level';
 import { dealDamage } from './damage';
 import { raycastWorld, segRectT } from './raycast';
-import { spawnGrenade } from './projectile';
+import { spawnProjectile } from './projectile';
 import { killEnemy } from '../enemy';
 import { spawnParticles } from '../particles';
 import { FX } from '../../Prefabs/Fx';
 import { sfx } from '../../core/audio';
-import { ctx, VW } from '../../core/canvas';
+import { ctx, VW, VH } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
 import { netBus } from '../../core/netBus';
 
@@ -84,9 +84,38 @@ const prevInput = new WeakMap<object, { reload: boolean; fire: boolean }>();
 
 /* ==================== 开火 ==================== */
 
-/** 开火曳光表现（模拟端 / 客机 fx_shot 广播端共用；纯表现，最短寿命） */
+/**
+ * 通用子弹消失逻辑：把子弹（曳光/弹丸）的弹道线段裁剪到当前视口内。
+ * 返回裁剪后的终点 —— 子弹超出屏幕外的部分直接消失；
+ * 再叠加 hitscan 的命中点 / 射程末端后，即「子弹超出一定距离或飞出屏幕就消失」。
+ * 所有枪械（AK / 霰弹枪…）的子弹都经 spawnShotTracer 走本逻辑，新增武器无需重复实现。
+ */
+function clipBulletEnd(x1: number, y1: number, x2: number, y2: number): { x: number; y: number } {
+  const vw = VW / view.SZ;
+  const vh = VH / view.SZ;
+  const L = view.SL, B = view.SB, R = view.SL + vw, T = view.SB + vh;
+  const dx = x2 - x1, dy = y2 - y1;
+  let t = 1;
+  if (Math.abs(dx) > 1e-9) {
+    if (dx > 0) t = Math.min(t, (R - x1) / dx);
+    else t = Math.min(t, (L - x1) / dx);
+  } else if (x1 < L || x1 > R) {
+    return { x: x1, y: y1 };
+  }
+  if (Math.abs(dy) > 1e-9) {
+    if (dy > 0) t = Math.min(t, (T - y1) / dy);
+    else t = Math.min(t, (B - y1) / dy);
+  } else if (y1 < B || y1 > T) {
+    return { x: x1, y: y1 };
+  }
+  const tt = Math.max(0, t);
+  return { x: x1 + dx * tt, y: y1 + dy * tt };
+}
+
+/** 开火曳光表现（模拟端 / 客机 fx_shot 广播端共用；纯表现，最短寿命）。终点统一裁剪到视口内。 */
 export function spawnShotTracer(x1: number, y1: number, x2: number, y2: number): void {
-  tracers.push({ x1, y1, x2, y2, age: 0, life: 0.12 });
+  const end = clipBulletEnd(x1, y1, x2, y2);
+  tracers.push({ x1, y1, x2: end.x, y2: end.y, age: 0, life: 0.12 });
 }
 
 /** 开火反馈（纯表现）：枪口火光 + 射击音 + 命中火花（本地开火帧 / 客机广播补播共用） */
@@ -112,57 +141,83 @@ function spreadDir(aim: Vector2, spread: number): Vector2 {
 }
 
 /**
- * hitscan 开火：raycastWorld（固体最近 → 敌人最近）取更近者。
- * 命中敌人 → dealDamage + 命中火花；命中/射空 → 曳光到命中点或射程末端。
+ * hitscan 开火：raycastWorld（固体最近 → 敌人沿射线命中）。
+ * 支持多弹丸（霰弹枪）：每颗弹丸独立散布 / 独立命中 / 独立曳光与伤害。
+ * 支持穿透（AWM）：hitPierce > 0 时子弹可穿透多个敌人（越过已命中目标继续前进），
+ *   曳光终点 = min(最后一个被穿透命中点, 射程末端, 屏幕出界点)。
+ * 曳光终点统一经 spawnShotTracer 的 clipBulletEnd 裁剪 —— 子弹超出屏幕/射程即消失。
  */
 function fireHitscan(p: PlayerState, def: WeaponDef, ctx: WeaponStepCtx): void {
-  const dir = spreadDir(ctx.aim, def.spread);
-  const m = muzzlePos(p, dir);
+  const pellets = def.pellets ?? 1;
+  let last: { mx: number; my: number; hx: number; hy: number; applied: boolean } | null = null;
 
-  // 1) 固体：最近命中 t（无 = 射程末端 t=1）
-  const wallHit = raycastWorld(m.x, m.y, dir.x, dir.y, def.range, getSolids());
-  const wallT = wallHit ? wallHit.t : 1;
+  for (let i = 0; i < pellets; i++) {
+    const dir = spreadDir(ctx.aim, def.spread);
+    const m = muzzlePos(p, dir);
 
-  // 2) 敌人：逐个 AABB 求最近命中 t
-  let bestEnemy: { eid: number; t: number } | null = null;
-  for (const e of qDamageable()) {
-    if (!hasComponent(world, e, EnemyBrain)) continue; // 只打敌人
-    const r = colliderWorldRect(e);
-    const h = segRectT(m.x, m.y, dir.x * def.range, dir.y * def.range, r);
-    if (h && (bestEnemy === null || h.t < bestEnemy.t)) bestEnemy = { eid: e, t: h.t };
+    // 1) 固体：最近命中 t（无 = 射程末端 t=1）
+    const wallHit = raycastWorld(m.x, m.y, dir.x, dir.y, def.range, getSolids());
+    const wallT = wallHit ? wallHit.t : 1;
+
+    // 2) 敌人：沿射线收集全部命中（按 t 升序；穿透时依次结算）
+    const hits: { eid: number; t: number }[] = [];
+    for (const e of qDamageable()) {
+      if (!hasComponent(world, e, EnemyBrain)) continue; // 只打敌人
+      const r = colliderWorldRect(e);
+      const h = segRectT(m.x, m.y, dir.x * def.range, dir.y * def.range, r);
+      if (h) hits.push({ eid: e, t: h.t });
+    }
+    hits.sort((a, b) => a.t - b.t);
+
+    // 3) 穿透：最多命中 (hitPierce+1) 个敌人（hitPierce=0 = 只中最近，与原有行为一致）
+    const maxHits = (def.hitPierce ?? 0) + 1;
+    let damaged = 0;
+    let endT = wallT; // 曳光终点 t（默认墙/射程末端）
+    let lastEnv: { t: number } | null = null;
+
+    for (const h of hits) {
+      if (h.t >= wallT) break; // 越过墙？后面的敌人都被墙挡，停
+      if (damaged >= maxHits) break;
+      if (lastEnv && lastEnv.t === h.t) continue; // 同一敌人重复命中（防御）
+      lastEnv = h;
+      const hx = m.x + dir.x * def.range * h.t;
+      const hy = m.y + dir.y * def.range * h.t;
+      const r = dealDamage(h.eid, {
+        amount: def.damage,
+        source: def.id,
+        knockback: def.knockback,
+      }, {
+        onEntityKilled: (eid) => killEnemy(eid),
+      });
+      damaged++;
+      endT = h.t;
+      // 每颗命中的弹丸播命中火花 + 命中音（本地才播，避免房主替远端玩家出声）
+      if (ctx.isLocal && r.applied) {
+        spawnParticles(FX.hitSpark, hx, hy);
+        sfx.hit({ pan: panOfX(hx) });
+      }
+    }
+
+    // 曳光：模拟端可见（本地玩家 / 房主替远端模拟）；对端经 fx:shot 广播补播。
+    // 终点 = min(最后命中, 射程末端, 屏幕出界点) —— 子弹超距/出屏即消失（通用逻辑）。
+    const hitX = m.x + dir.x * def.range * endT;
+    const hitY = m.y + dir.y * def.range * endT;
+    spawnShotTracer(m.x, m.y, hitX, hitY);
+
+    last = { mx: m.x, my: m.y, hx: hitX, hy: hitY, applied: damaged > 0 };
   }
 
-  const hitT = bestEnemy && bestEnemy.t < wallT ? bestEnemy.t : wallT;
-  const hitX = m.x + dir.x * def.range * hitT;
-  const hitY = m.y + dir.y * def.range * hitT;
-
-  // 曳光：模拟端可见（本地玩家 / 房主替远端模拟）；对端经 fx:shot 广播补播
-  spawnShotTracer(m.x, m.y, hitX, hitY);
-
-  // 伤害结算（目标侧裁决；结果供表现分流）
-  let hitApplied = false;
-  if (bestEnemy && bestEnemy.t < wallT) {
-    const r = dealDamage(bestEnemy.eid, {
-      amount: def.damage,
-      source: 'ak',
-      knockback: def.knockback,
-    }, {
-      onEntityKilled: (eid) => killEnemy(eid),
-    });
-    hitApplied = r.applied;
-  }
-
-  // 本地反馈 + 广播（本地才播粒子/音效，避免房主替远端玩家出声；房主广播给客机补播）
-  if (ctx.isLocal) {
-    spawnShotFeedback(m.x, m.y, hitX, hitY, hitApplied);
-    netBus.emit({ type: 'fx:shot', mx: m.x, my: m.y, hitX, hitY, hit: hitApplied });
+  // 本地反馈（枪口火光 + 枪声每发只播一次）+ 广播（每发一次；命中火花已按弹丸播）
+  if (ctx.isLocal && last) {
+    spawnShotFeedback(last.mx, last.my, last.hx, last.hy, false);
+    netBus.emit({ type: 'fx:shot', mx: last.mx, my: last.my, hitX: last.hx, hitY: last.hy, hit: last.applied });
   }
 }
 
-/** 手雷投掷：生成抛体实体（抛物线 + 引信 + 爆炸在 projectile.ts 步进） */
-function throwGrenade(p: PlayerState, def: WeaponDef, ctx: WeaponStepCtx): void {
+/** 抛体发射（手雷 / 火箭筒 / 冰冻炸弹共用）：生成抛体实体（弹道 + 引信 + 爆炸在 projectile.ts 步进） */
+function throwProjectile(p: PlayerState, def: WeaponDef, ctx: WeaponStepCtx): void {
   const dir = spreadDir(ctx.aim, def.spread);
-  spawnGrenade(p, dir, def);
+  spawnProjectile(p, dir, def);
   if (ctx.isLocal) {
     sfx.grenadeThrow({ pan: panOfX(p.x) });
   }
@@ -196,9 +251,10 @@ export function stepWeapon(p: PlayerState, input: InputKeys, ctx: WeaponStepCtx)
   // 武器均为主动道具：只有在背包中"持有"（选中对应槽位）才能使用，语义与钩锁一致。
   const held = p.backpack[p.selectedSlot];
 
-  // ── 主武器 AK：选中 ak 槽位（持有）才可开火 / 换弹 ──
-  if (held === 'ak' && p.weapon === 'ak') {
-    const def = WEAPONS.ak;
+  // ── 主武器（枪械 AK/霰弹枪/AWM + 抛体武器 火箭筒/冰冻炸弹）：选中对应槽位（持有）+ 已装备才可开火 / 换弹 ──
+  const mainDef = p.weapon !== 'none' ? WEAPONS[p.weapon] : undefined;
+  if (held === p.weapon && mainDef && (mainDef.kind === 'hitscan' || mainDef.kind === 'projectile')) {
+    const def = mainDef;
 
     // 换弹完成判定：上一帧在换弹中且本帧计时归零 → 弹匣补满
     // （必须在递减前记录 wasReloading，否则无法区分"刚归零"与"本来为 0"）
@@ -214,13 +270,13 @@ export function stepWeapon(p: PlayerState, input: InputKeys, ctx: WeaponStepCtx)
       if (ctx.isLocal) sfx.reload({ pan: panOfX(p.x) });
     }
 
-    // 开火：按住 + 冷却就绪 + 未换弹 + 有弹
+    // 开火：按住 + 冷却就绪 + 未换弹 + 有弹（hitscan = 射线命中；projectile = 抛体发射）
     if (input.fire && p.fireCd <= 0 && p.reloadT <= 0) {
       if (p.ammo > 0) {
         p.ammo--;
         p.fireCd = 1 / def.rate;
         if (def.kind === 'hitscan') fireHitscan(p, def, ctx);
-        else throwGrenade(p, def, ctx);
+        else throwProjectile(p, def, ctx);
       } else {
         // 空膛：扣扳机只响干涩"咔哒"（击锤空击），随后自动进入换弹（与 R 手动同路径）
         if (ctx.isLocal) sfx.shotDry({ pan: panOfX(p.x) });
@@ -230,8 +286,8 @@ export function stepWeapon(p: PlayerState, input: InputKeys, ctx: WeaponStepCtx)
   }
 
   // ── 手雷（选中 grenade 槽位 + 左键按下沿 + 未换弹）──
-  // 左键语义按选中槽位分发：AK=按住开火（上文），手雷=按下沿投掷（此处），钩锁=发射（canHook 独占）
+  // 左键语义按选中槽位分发：主武器=按住开火（上文），手雷=按下沿投掷（此处），钩锁=发射（canHook 独占）
   if (held === 'grenade' && fireEdge && p.hasGrenade && p.reloadT <= 0) {
-    throwGrenade(p, WEAPONS.grenade, ctx);
+    throwProjectile(p, WEAPONS.grenade, ctx);
   }
 }

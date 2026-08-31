@@ -191,6 +191,10 @@ export const neonAscentMap: MapDefinition = {
     weapons: [
       { kind: 'ak', x: 10, y: 5.6 },       // 出生点平原前：获得 AK 主武器
       { kind: 'grenade', x: 30, y: 6.6 },  // 阶梯塔入口前：获得手雷副武器
+      { kind: 'shotgun', x: 128, y: 31.2 }, // 节奏平台区中段：获得短管霰弹枪（近程爆发）
+      { kind: 'awm', x: 84, y: 15.2 },      // 中段高处平台：获得 AWM 狙击枪（穿透）
+      { kind: 'rocket', x: 155, y: 31.6 },  // 节奏平台区后段：获得火箭筒（直线爆炸）
+      { kind: 'iceBomb', x: 45, y: 6.6 },   // 平原后段：获得冰冻炸弹（投掷减速）
     ],
     // 密码机（第五人格式：靠近 + 持续按 E 破译，进度满转完成）
     ciphers: [
@@ -227,10 +231,16 @@ export const neonAscentMap: MapDefinition = {
         speedThreshold: 0,
       },
     ],
-    // 敌人（S3）：霓虹平原上的行走兵（x=32/48，近似玩家同地面）
+    // 敌人（S3）：霓虹平原上的行走兵 + 苦力怕 + 大猩猩
+    // 出生 Y 需贴合所在表面（表面 top + 碰撞箱半高，否则首帧水平碰撞会把嵌入地面的高个子敌人推出平台掉崖）：
+    //   walker  静止 y = 4 + 0.42 = 4.42
+    //   gorilla 静止 y = 4 + 1.5  = 5.5（平原 top=4）
+    //   creeper 静止 y = 5.2 + 1  = 6.2（阶梯块 R(38,4,4,1.2) top=5.2，x=40 位于其上）
     enemies: [
       { kind: 'walker', x: 32, y: 4.6 },
       { kind: 'walker', x: 48, y: 4.6 },
+      { kind: 'creeper', x: 40, y: 6.2 },
+      { kind: 'gorilla', x: 56, y: 5.5 },
     ],
   },
 };

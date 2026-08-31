@@ -8,4 +8,4 @@ export { raycastWorld, segRectT } from './raycast';
 export type { RayHit, RayFace } from './raycast';
 export { stepWeapon, stepTracers, drawTracers, spawnShotTracer, spawnShotFeedback } from './weapon';
 export type { WeaponStepCtx, Tracer } from './weapon';
-export { spawnGrenade, stepProjectiles, drawProjectiles, clearProjectiles } from './projectile';
+export { spawnProjectile, spawnGrenade, stepProjectiles, drawProjectiles, clearProjectiles } from './projectile';

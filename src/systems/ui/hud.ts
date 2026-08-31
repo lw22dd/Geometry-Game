@@ -36,6 +36,10 @@ const SLOT_HUE: Record<ItemId, string> = {
   recall: 'rgba(238,242,255,.95)',
   ak: 'rgba(255,180,90,.95)',
   grenade: 'rgba(150,255,140,.95)',
+  shotgun: 'rgba(255,130,75,.95)',
+  awm: 'rgba(140,220,255,.95)',
+  rocket: 'rgba(255,190,90,.95)',
+  iceBomb: 'rgba(120,220,255,.95)',
 };
 
 /** 背包栏（玩家自带 MAX_BACKPACK=10 格装备栏，屏幕最下方居中）；
@@ -167,9 +171,9 @@ function getReloadTime(p: { weapon: string }): number {
 /* ==================== 武器弹药 HUD（S2：持有后右下角显示弹药） ==================== */
 
 /** 当前"持有"的武器（与 stepWeapon 门控一致：选中对应武器槽位 + 已拥有；null = 未持有武器） */
-function heldWeapon(p: PlayerState): 'ak' | 'grenade' | null {
+function heldWeapon(p: PlayerState): 'ak' | 'grenade' | 'shotgun' | 'awm' | 'rocket' | 'iceBomb' | null {
   const sel = p.backpack[p.selectedSlot];
-  if (sel === 'ak' && p.weapon === 'ak') return 'ak';
+  if ((sel === 'ak' || sel === 'shotgun' || sel === 'awm' || sel === 'rocket' || sel === 'iceBomb') && p.weapon === sel) return sel;
   if (sel === 'grenade' && p.hasGrenade) return 'grenade';
   return null;
 }
@@ -189,21 +193,22 @@ function drawWeaponHUD(): void {
   rr(ctx, x, y, w, h, 10);
   ctx.fillStyle = 'rgba(8,6,26,.68)';
   ctx.fill();
-  ctx.strokeStyle = kind === 'ak' ? 'rgba(255,180,90,.7)' : 'rgba(150,255,140,.7)';
+  ctx.strokeStyle = kind === 'grenade' ? 'rgba(150,255,140,.7)' : 'rgba(255,180,90,.7)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
   // 武器图标（建模单一来源 = ItemVis/WeaponVis）
-  drawItemIcon(kind, x + 26, y + h / 2, kind === 'ak' ? 12 : 9);
+  drawItemIcon(kind, x + 26, y + h / 2, kind === 'grenade' ? 9 : 12);
 
-  // 武器名
+  // 武器名（单一事实源 = WEAPONS 配置）
   ctx.font = '700 14px "Segoe UI",Arial';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = 'rgba(220,235,255,.95)';
-  ctx.fillText(kind === 'ak' ? 'AK' : '手雷', x + 52, y + 15);
+  ctx.fillText(WEAPONS[kind].name, x + 52, y + 15);
 
-  if (kind === 'ak') {
+  if (kind !== 'grenade') {
+    // 枪械（AK / 霰弹枪）：弹匣 / 换弹进度
     if (p.reloadT > 0) {
       // 换弹中：进度条
       ctx.font = '600 11px "Segoe UI",Arial';

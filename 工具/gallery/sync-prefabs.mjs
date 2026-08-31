@@ -110,6 +110,7 @@ function buildCollectibles() {
     hook: '钩锁道具',
     shield: '护盾道具',
     speed: '加速道具',
+    recall: '重置箭头',
   };
   // 道具发光色（ITEM_GLOW 表）
   const glowMap = {};
@@ -126,9 +127,23 @@ function buildCollectibles() {
     }
   }
 
-  // 武器（ak / grenade）
-  const WEAPON_NAME = { ak: 'AK 步枪', grenade: '手雷' };
-  const WEAPON_GLOW = { ak: 'rgba(255,150,60,.9)', grenade: 'rgba(150,255,140,.9)' };
+  // 武器（ak / grenade / shotgun / awm / rocket / iceBomb）
+  const WEAPON_NAME = {
+    ak: 'AK 步枪',
+    grenade: '手雷',
+    shotgun: '短管霰弹枪',
+    awm: 'AWM 狙击枪',
+    rocket: '火箭筒',
+    iceBomb: '冰冻炸弹',
+  };
+  const WEAPON_GLOW = {
+    ak: 'rgba(255,150,60,.9)',
+    grenade: 'rgba(150,255,140,.9)',
+    shotgun: 'rgba(255,120,70,.9)',
+    awm: 'rgba(140,220,255,.9)',
+    rocket: 'rgba(255,190,90,.9)',
+    iceBomb: 'rgba(120,220,255,.9)',
+  };
   for (const [id, name] of Object.entries(WEAPON_NAME)) {
     if (weaponSrc.includes("'" + id + "'")) {
       items.push({ id, name, glow: WEAPON_GLOW[id], file: 'WeaponVis/index.ts' });
@@ -151,16 +166,60 @@ function buildCollectibles() {
   if (items.length) categories.push({ id: 'collectibles', title: '收集品', source: 'ItemVis + WeaponVis + Scenes', items });
 }
 
+/**
+ * 从对象字面量中按顶层键提取 { key: { ... } } 条目（兼容 CRLF / 嵌套对象 / `} satisfies X` 后缀）。
+ * @param src 源码文本
+ * @param containerStart 顶层对象起始大括号的索引（指向 '{'）
+ * @returns { key: string; body: string }[]（body 为该键对应对象的内部文本）
+ */
+function extractObjectEntries(src, containerStart) {
+  // 找到 containerStart 对应大括号的闭合位置（括号配对）
+  let depth = 0, containerEnd = -1;
+  for (let i = containerStart; i < src.length; i++) {
+    const c = src[i];
+    if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) { containerEnd = i; break; } }
+  }
+  if (containerEnd < 0) return [];
+  const inner = src.slice(containerStart + 1, containerEnd);
+
+  const out = [];
+  // 顶层键：行首（允许缩进）key: { 开头的条目
+  const re = /(?:^|\n)\s*([A-Za-z0-9_]+)\s*:\s*\{/g;
+  let m;
+  // 最近一个已收条目的 [起点, 闭括号] 区间：嵌套键（如 fuse/melee/rock 子配置）落在其中 → 跳过
+  let lastStart = -1, lastEnd = -1;
+  while ((m = re.exec(inner))) {
+    const key = m[1];
+    const openIdx = inner.indexOf('{', m.index);
+    if (openIdx < 0) continue;
+    // 括号配对找该条目的结束
+    let d = 0, end = -1;
+    for (let i = openIdx; i < inner.length; i++) {
+      const c = inner[i];
+      if (c === '{') d++;
+      else if (c === '}') { d--; if (d === 0) { end = i; break; } }
+    }
+    if (end < 0) continue;
+    // 嵌套键（位于上一条目内部）→ 非顶层条目，跳过
+    if (lastStart >= 0 && openIdx > lastStart && openIdx < lastEnd) continue;
+    lastStart = m.index; lastEnd = end;
+    const body = inner.slice(openIdx + 1, end);
+    out.push({ key, body });
+  }
+  return out;
+}
+
 /* ── 敌人：Enemy/kinds.ts ── */
 function buildEnemies() {
   const src = read(join(PREFABS, 'Enemy/kinds.ts'));
   if (!src) return;
   const items = [];
-  const re = /^  ([A-Za-z0-9_]+):\s*\{([\s\S]*?)\n  \},?$/gm;
-  let m;
-  while ((m = re.exec(src))) {
-    const id = m[1];
-    const body = m[2];
+  // 用赋值声明定位（避免注释中的 ENEMY_KINDS 字样误匹配）
+  const decl = src.match(/ENEMY_KINDS\s*[:=]/);
+  const containerStart = decl ? src.indexOf('{', decl.index) : src.indexOf('{', src.indexOf('ENEMY_KINDS'));
+  if (containerStart < 0) return;
+  for (const { key: id, body } of extractObjectEntries(src, containerStart)) {
     const name = strVal(body, 'name') || id;
     const bodyGrad = strArray(body, 'bodyGrad');
     const glow = strVal(body, 'glow') || 'rgba(255,110,80,.9)';
@@ -174,12 +233,10 @@ function buildFx() {
   const src = read(join(PREFABS, 'Fx/presets.ts'));
   if (!src) return;
   const items = [];
-  const re = /^  ([A-Za-z0-9_]+):\s*\{([\s\S]*?)\n  \},?$/gm;
-  let m;
-  while ((m = re.exec(src))) {
-    const id = m[1];
-    const body = m[2];
-    if (!body) continue;
+  const containerStart = src.indexOf('export const FX');
+  const openIdx = src.indexOf('{', containerStart);
+  if (openIdx < 0) return;
+  for (const { key: id, body } of extractObjectEntries(src, openIdx)) {
     const colors = strArray(body, 'colors');
     const kind = strVal(body, 'kind') || 'dot';
     const count = numVal(body, 'count') || 12;

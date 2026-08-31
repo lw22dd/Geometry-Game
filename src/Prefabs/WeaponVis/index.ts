@@ -194,6 +194,195 @@ function drawAKShape(r: number): void {
 }
 
 /**
+ * 短管霰弹枪本体建模（参考写实：截短双管 + 泵动护木 + 短木托）。
+ * 固定参考坐标系与 AK 同源：枪口朝右，x 向右、y 向下为正，图形整体落在 x≈[2,39] / y≈[-11,4]；
+ * 由 drawShotgunShape 经同一 scale/translate 映射（s = r*0.09 + translate(-20, 3)）。
+ */
+function paintShotgun(c: CanvasRenderingContext2D): void {
+  // ── 短枪托（截短木托，贴腮近水平）──
+  c.beginPath();
+  c.moveTo(12, -7.0); c.lineTo(4.2, -6.0); c.lineTo(4.2, 1.2); c.lineTo(12, -2.6);
+  c.closePath();
+  c.fillStyle = '#6b4a2a'; c.fill();
+  c.fillStyle = 'rgba(255,255,255,.16)'; c.fillRect(4.8, -6.4, 7, .7);   // 顶缘受光
+  c.fillStyle = 'rgba(0,0,0,.22)';
+  c.beginPath(); c.moveTo(12, -4.2); c.lineTo(4.2, 0); c.lineTo(4.2, 1.2); c.lineTo(12, -2.6); c.closePath(); c.fill();
+  // 托底板（金属）
+  voxelBlock(c, 3.0, -6.4, 1.4, 7.6, '#3a3e46', 'metal');
+
+  // ── 手枪握把（后倾短粗）──
+  c.save(); c.translate(13.6, -2.6); c.rotate(.38);
+  voxelBlock(c, -1.2, -.6, 2.4, 4.8, '#23262c', 'rough');
+  c.fillStyle = 'rgba(255,255,255,.08)'; c.fillRect(-1.2, -.6, .8, 4.2);
+  c.restore();
+  // ── 扳机护圈 + 扳机 ──
+  c.strokeStyle = '#2a2d33';
+  c.lineWidth = .9;
+  c.beginPath();
+  c.moveTo(14.2, -2.5); c.lineTo(16.4, -2.5);
+  c.quadraticCurveTo(17.4, 1.6, 15.6, 1.6);
+  c.lineTo(13.8, 1.6);
+  c.quadraticCurveTo(12.9, 1.6, 14.2, -2.5);
+  c.stroke();
+  c.fillStyle = '#4a4e55'; // 扳机
+  c.beginPath(); c.moveTo(15.4, -2.5); c.lineTo(16.2, -2.5); c.lineTo(15.9, -.4); c.closePath(); c.fill();
+
+  // ── 机匣（短粗方匣 + 抛壳窗）──
+  voxelBlock(c, 12.6, -8.6, 10, 6.2, '#2a2d33', 'metal');
+  voxelBlock(c, 12.6, -9.4, 10, 2.2, '#3a3e46', 'metal'); // 机匣盖
+  voxelBlock(c, 17.6, -7.4, 2.2, 1.5, '#1c1e23', 'metal'); // 抛壳窗
+  c.fillStyle = '#4a4e55';                                  // 铆钉
+  c.beginPath(); c.arc(14.6, -7.4, .8, 0, 7); c.fill();
+  c.beginPath(); c.arc(20.6, -7.4, .8, 0, 7); c.fill();
+
+  // ── 泵动护木（管状粗木 + 前箍，霰弹特征件）──
+  voxelBlock(c, 22.6, -3.0, 7.0, 3.4, '#6b4a2a', 'wood');
+  voxelBlock(c, 22.4, -3.2, .9, 3.8, '#3a3e46', 'metal');
+
+  // ── 截短双枪管（上下并排粗短管）──
+  voxelBlock(c, 29.8, -8.0, 8.4, 3.4, '#2e3138', 'metal'); // 上管
+  voxelBlock(c, 29.8, -0.6, 8.4, 3.4, '#2e3138', 'metal'); // 下管
+  c.fillStyle = 'rgba(0,0,0,.30)'; c.fillRect(29.8, -4.8, 8.4, .6); // 管缝
+
+  // ── 枪口箍 + 双炮口黑洞（短管大开口 = 霰弹识别度）──
+  voxelBlock(c, 36.4, -8.4, 1.2, 4.2, '#3a3e46', 'metal');
+  voxelBlock(c, 36.4, -1.0, 1.2, 4.2, '#3a3e46', 'metal');
+  c.fillStyle = '#0e1013';
+  c.fillRect(37.6, -7.8, 1.2, 3.0);
+  c.fillRect(37.6, -0.4, 1.2, 3.0);
+
+  // ── 低矮准星 ──
+  voxelBlock(c, 33.4, -9.6, 1.3, 1.5, '#3a3e46', 'metal');
+  c.fillStyle = '#23262c'; c.fillRect(34.0, -11.0, .7, 1.8);
+}
+
+/** 短管霰弹枪本体（原点绘制；枪口朝右，r 为尺度单位） —— 与 AK 共享同一坐标映射 */
+function drawShotgunShape(r: number): void {
+  ctx.save();
+  const s = r * 0.09;
+  ctx.scale(s, s);
+  ctx.translate(-20, 3); // 将参考中心 (20,-3) 对齐到原点
+  paintShotgun(ctx);
+  ctx.restore();
+}
+
+/**
+ * AWM 狙击步枪本体（简约几何风：细长枪管 + 大口径制退器 + 顶部瞄准镜）。
+ * 固定参考坐标系与 AK 同源：枪口朝右，x≈[2,39] / y≈[-11,4]。
+ */
+function paintAWM(c: CanvasRenderingContext2D): void {
+  // 枪托（后弯短托）
+  c.fillStyle = '#3a3e46';
+  c.beginPath();
+  c.moveTo(12, -8.0); c.lineTo(3.5, -7.2); c.lineTo(3.2, -2.2); c.lineTo(12, -3.4);
+  c.closePath(); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.14)'; c.fillRect(4.0, -7.8, 7.4, .6);
+  // 手枪握把
+  c.save(); c.translate(13.8, -2.6); c.rotate(.45);
+  voxelBlock(c, -1.0, -.5, 2.0, 4.2, '#23262c', 'rough');
+  c.restore();
+  // 机匣（细长）+ 抛壳窗
+  voxelBlock(c, 12.4, -8.6, 12, 5.0, '#2a2d33', 'metal');
+  voxelBlock(c, 12.4, -9.2, 12, 1.6, '#3a3e46', 'metal');
+  voxelBlock(c, 18.0, -7.0, 2.0, 1.3, '#1c1e23', 'metal');
+  // 顶部瞄准镜（细管 + 前后镜环）
+  voxelBlock(c, 15.5, -11.4, 5.5, 1.5, '#1c1e23', 'polished');
+  c.fillStyle = 'rgba(255,255,255,.25)';
+  c.fillRect(16.0, -10.9, .9, .4);
+  voxelBlock(c, 15.2, -11.9, .9, 2.5, '#4a4e55', 'metal');
+  voxelBlock(c, 20.6, -11.9, .9, 2.5, '#4a4e55', 'metal');
+  // 细长枪管（更长，外露 ≈34%）
+  voxelBlock(c, 24.5, -6.9, 11, 1.6, '#2e3138', 'metal');
+  // 枪口制退器（大口径矩形开口）
+  voxelBlock(c, 35.6, -7.3, 3.2, 2.4, '#3a3e46', 'metal');
+  c.fillStyle = '#0e1013';
+  c.fillRect(38.2, -7.0, 1.0, 1.8);
+}
+
+/** AWM 狙击步枪本体（原点绘制；枪口朝右，r 为尺度单位） */
+function drawAWMShape(r: number): void {
+  ctx.save();
+  const s = r * 0.09;
+  ctx.scale(s, s);
+  ctx.translate(-20, 3);
+  paintAWM(ctx);
+  ctx.restore();
+}
+
+/**
+ * 火箭筒本体（简约几何风：粗管身 + 前端大口 + 尾翼）。
+ * 固定参考坐标系与 AK 同源：枪口朝右，x≈[2,39] / y≈[-11,4]。
+ */
+function paintRocketLauncher(c: CanvasRenderingContext2D): void {
+  // 管身（粗圆筒体素）
+  voxelBlock(c, 10, -7.5, 22, 7.5, '#2e3138', 'metal');
+  // 管身中部加强环
+  voxelBlock(c, 19.5, -8.2, 1.6, 9.2, '#3a3e46', 'metal');
+  // 前端（发射口加粗）+ 炮口黑洞
+  voxelBlock(c, 32, -8.6, 6, 9.2, '#3a3e46', 'metal');
+  c.fillStyle = '#0e1013';
+  c.fillRect(36.4, -8.0, 1.8, 7.0);
+  // 前端握把（管身下方小方块）
+  voxelBlock(c, 30.5, -10.4, 1.4, 1.8, '#23262c', 'rough');
+  // 瞄准基线（顶部细线）
+  voxelBlock(c, 14, -9.6, 12, 1.0, '#23262c', 'metal');
+  // 尾端（握把 + 肩托短块）
+  voxelBlock(c, 5.5, -4.8, 4.5, 3.2, '#23262c', 'rough');
+}
+
+/** 火箭筒本体（原点绘制；枪口朝右，r 为尺度单位） */
+function drawRocketShape(r: number): void {
+  ctx.save();
+  const s = r * 0.09;
+  ctx.scale(s, s);
+  ctx.translate(-20, 3);
+  paintRocketLauncher(ctx);
+  ctx.restore();
+}
+
+/**
+ * 冰冻炸弹本体（简约几何风：冰蓝圆弹 + 引信座 + 拉环/冰晶）。
+ * 以 r 为尺度的原点绘制；与手雷同布局（引信朝上）。
+ */
+function drawIceBombShape(r: number): void {
+  const rx = r * 0.78;
+  const ry = r * 0.86;
+  const bodyCY = r * 0.06;
+
+  // 冰蓝渐变弹体
+  const g = ctx.createRadialGradient(-r * 0.30, bodyCY - r * 0.36, r * 0.08, 0, bodyCY, r * 1.05);
+  g.addColorStop(0, '#bff3ff');
+  g.addColorStop(0.45, '#5fceff');
+  g.addColorStop(1, '#2a7fd6');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(0, bodyCY, rx, ry, 0, 0, 6.283); ctx.fill();
+  // 冰裂纹（纵横短线，浅白）
+  ctx.strokeStyle = 'rgba(235,252,255,.85)';
+  ctx.lineWidth = Math.max(0.5, r * 0.035);
+  ctx.beginPath();
+  ctx.moveTo(-rx * 0.5, bodyCY - ry * 0.2); ctx.lineTo(-rx * 0.1, bodyCY + ry * 0.45);
+  ctx.moveTo(rx * 0.15, bodyCY - ry * 0.55); ctx.lineTo(rx * 0.5, bodyCY - ry * 0.05);
+  ctx.moveTo(-rx * 0.2, bodyCY - ry * 0.6); ctx.lineTo(-rx * 0.45, bodyCY - ry * 0.1);
+  ctx.stroke();
+  // 引信座（金属短柱）
+  const fuzeW = r * 0.40;
+  const fuzeTop = bodyCY - ry - r * 0.30;
+  const fg = ctx.createLinearGradient(-fuzeW / 2, 0, fuzeW / 2, 0);
+  fg.addColorStop(0, '#5a5f68');
+  fg.addColorStop(0.35, '#9aa0aa');
+  fg.addColorStop(1, '#3c4149');
+  ctx.fillStyle = fg;
+  ctx.fillRect(-fuzeW / 2, fuzeTop, fuzeW, r * 0.30);
+  // 拉环 + 冰晶尖刺（顶部小三角）
+  ctx.strokeStyle = '#dff6ff';
+  ctx.lineWidth = Math.max(0.8, r * 0.08);
+  ctx.beginPath(); ctx.arc(r * 0.16, fuzeTop - r * 0.16, r * 0.16, 0, 6.283); ctx.stroke();
+  // 弹体高光
+  ctx.fillStyle = 'rgba(235,252,255,.6)';
+  ctx.beginPath(); ctx.ellipse(-rx * 0.34, bodyCY - ry * 0.40, r * 0.2, r * 0.13, -0.5, 0, 6.283); ctx.fill();
+}
+
+/**
  * 手雷本体（原点绘制；引信朝上，r 为尺度单位）。
  * 分层：卵形铸造弹体（径向受光 + 菠萝分段纹 + 右下环境反光 + 左上镜面高光）
  *       → 螺纹引信座 → 保险握片（右侧杠杆）→ 拉环 + 开口销。
@@ -282,8 +471,12 @@ function drawGrenadeShape(r: number): void {
 }
 
 /** 武器本体建模（按 kind 分发；在原点绘制，供拾取物 / 抛体用，阴影由调用方控制） */
-export function drawWeaponModel(kind: 'ak' | 'grenade', r: number): void {
+export function drawWeaponModel(kind: 'ak' | 'grenade' | 'shotgun' | 'awm' | 'rocket' | 'iceBomb', r: number): void {
   if (kind === 'grenade') drawGrenadeShape(r);
+  else if (kind === 'shotgun') drawShotgunShape(r);
+  else if (kind === 'awm') drawAWMShape(r);
+  else if (kind === 'rocket') drawRocketShape(r);
+  else if (kind === 'iceBomb') drawIceBombShape(r);
   else drawAKShape(r);
 }
 
@@ -316,8 +509,71 @@ export function drawGrenadeIcon(cx: number, cy: number, r: number): void {
   ctx.restore();
 }
 
+/** 霰弹枪图标（双层发光；中心绘制） */
+export function drawShotgunIcon(cx: number, cy: number, r: number): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-0.12);
+  ctx.shadowColor = 'rgba(255,120,70,.9)';
+  ctx.shadowBlur = 8;
+  drawShotgunShape(r);
+  ctx.shadowColor = 'rgba(255,198,150,.95)';
+  ctx.shadowBlur = 3;
+  drawShotgunShape(r);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+/** AWM 图标（双层发光；中心绘制） */
+export function drawAWMIcon(cx: number, cy: number, r: number): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-0.10);
+  ctx.shadowColor = 'rgba(140,220,255,.9)';
+  ctx.shadowBlur = 8;
+  drawAWMShape(r);
+  ctx.shadowColor = 'rgba(205,240,255,.95)';
+  ctx.shadowBlur = 3;
+  drawAWMShape(r);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+/** 火箭筒图标（双层发光；中心绘制） */
+export function drawRocketIcon(cx: number, cy: number, r: number): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-0.10);
+  ctx.shadowColor = 'rgba(255,190,90,.9)';
+  ctx.shadowBlur = 8;
+  drawRocketShape(r);
+  ctx.shadowColor = 'rgba(255,228,180,.95)';
+  ctx.shadowBlur = 3;
+  drawRocketShape(r);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+/** 冰冻炸弹图标（双层发光；中心绘制） */
+export function drawIceBombIcon(cx: number, cy: number, r: number): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.shadowColor = 'rgba(120,220,255,.9)';
+  ctx.shadowBlur = 8;
+  drawIceBombShape(r);
+  ctx.shadowColor = 'rgba(220,248,255,.95)';
+  ctx.shadowBlur = 3;
+  drawIceBombShape(r);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
 /** 武器图标统一出口（HUD / 图鉴 / 持枪用；按 kind 分发） */
 export function drawWeaponIcon(cx: number, cy: number, r: number, kind: string): void {
   if (kind === 'grenade') drawGrenadeIcon(cx, cy, r);
+  else if (kind === 'shotgun') drawShotgunIcon(cx, cy, r);
+  else if (kind === 'awm') drawAWMIcon(cx, cy, r);
+  else if (kind === 'rocket') drawRocketIcon(cx, cy, r);
+  else if (kind === 'iceBomb') drawIceBombIcon(cx, cy, r);
   else drawAKIcon(cx, cy, r);
 }

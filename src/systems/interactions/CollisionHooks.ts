@@ -200,6 +200,8 @@ export function initCollisionHooks(): void {
     const ps = targetState();
     if (ps.dead) return;
     const def = getEnemyKind(brain.kind as never);
+    // 无接触伤害的敌人（如苦力怕：靠自爆威胁，不靠贴身咬人）→ 跳过
+    if (def.contactDamage <= 0) return;
     dealDamage(ps, {
       amount: def.contactDamage,
       source: 'enemy',
@@ -262,16 +264,16 @@ export function initCollisionHooks(): void {
           return;
         }
         s.hasGrenade = true;
-      } else {
-        // AK：装备主武器 + 满弹（重复拾取 = 补弹；首次拾取才占用背包格）
-        if (!addItem(s.backpack, 'ak')) {
-          if (!hasItem(s.backpack, 'ak')) {
+      } else if (kind !== 'none') {
+        // 主武器（AK / 霰弹枪）：装备 + 满弹（重复拾取 = 补弹；首次拾取才占用背包格）
+        if (!addItem(s.backpack, kind)) {
+          if (!hasItem(s.backpack, kind)) {
             if (!isRemote()) { gs.toast = '背包已满！'; gs.toastT = 2; }
             return;
           }
         }
-        s.weapon = 'ak';
-        s.ammo = WEAPONS.ak.ammo;
+        s.weapon = kind;
+        s.ammo = WEAPONS[kind].ammo;
         s.reloadT = 0;
       }
       // 自动选中该武器槽位，便于立即开火/投掷（与钩锁拾取同语义）
@@ -280,9 +282,11 @@ export function initCollisionHooks(): void {
       Collectible.collected[b] = 1;
       if (!isRemote()) {
         spawnParticles(FX.weaponSpark, pos.x, pos.y);
-        // 拾取音按武器种类差异化（AK = 上膛两段咔 / 手雷 = 金属 ping + 保险片）
+        // 拾取音按武器种类差异化（枪械 = 上膛两段咔 / 手雷 = 金属 ping + 保险片）
         sfx.weaponPickup({ pan: panOfX(pos.x), kind: kind === 'grenade' ? 'grenade' : 'ak' });
-        gs.toast = kind === 'grenade' ? '获得手雷！选中槽位投掷或右键' : '获得 AK！选中槽位左键开火';
+        gs.toast = kind === 'grenade'
+          ? '获得手雷！选中槽位投掷或右键'
+          : (kind !== 'none' ? '获得' + WEAPONS[kind].name + '！选中槽位左键开火' : '获得武器！');
         gs.toastT = 2;
       }
       return;

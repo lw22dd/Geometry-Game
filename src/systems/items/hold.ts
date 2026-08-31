@@ -17,18 +17,22 @@
 import { ctx } from '../../core/canvas';
 import { sx, sy, view } from '../../core/camera';
 import type { ItemId, PlayerState, Vector2 } from '../../types';
-import { drawAKIcon, drawGrenadeIcon } from '../../Prefabs/WeaponVis';
+import { drawWeaponIcon, drawGrenadeIcon } from '../../Prefabs/WeaponVis';
 import { drawHookIcon } from '../ui/icons';
 import { WEAPONS } from '../../config/weapons';
 
 /** 持有物可见标识（由选中槽位的道具决定） */
-export type HeldItemVisual = 'ak' | 'grenade' | 'hook';
+export type HeldItemVisual = 'ak' | 'grenade' | 'shotgun' | 'awm' | 'rocket' | 'iceBomb' | 'hook';
 
 /** 判定玩家当前持有的可见物品（null = 无持有物） */
 export function heldItemVisual(p: PlayerState): HeldItemVisual | null {
   const sel: ItemId | undefined = p.backpack[p.selectedSlot];
   if (sel === 'ak') return 'ak';
   if (sel === 'grenade') return 'grenade';
+  if (sel === 'shotgun') return 'shotgun';
+  if (sel === 'awm') return 'awm';
+  if (sel === 'rocket') return 'rocket';
+  if (sel === 'iceBomb') return 'iceBomb';
   if (sel === 'hook') return 'hook';
   return null;
 }
@@ -63,7 +67,7 @@ export function drawHeldItem(p: PlayerState, aim?: Vector2): void {
     const ay = py + Math.sin(ang) * r * 0.35;
     ctx.translate(ax, ay);
     ctx.rotate(ang);
-    drawAKIcon(0, 0, Math.max(12, r * 0.7));
+    drawWeaponIcon(0, 0, Math.max(12, r * 0.7), vis);
   } else {
     // 其他道具：原手部持有位
     const hx = px + Math.cos(ang) * r * 1.3;
@@ -71,7 +75,8 @@ export function drawHeldItem(p: PlayerState, aim?: Vector2): void {
     ctx.translate(hx, hy);
     ctx.rotate(ang);
     if (vis === 'grenade') drawGrenadeIcon(0, 0, baseSize);
-    else drawHookIcon(0, 0, baseSize);
+    else if (vis === 'hook') drawHookIcon(0, 0, baseSize);
+    else drawWeaponIcon(0, 0, baseSize, vis); // 火箭筒 / 冰冻炸弹等投掷/抛体类
   }
   ctx.restore();
 }

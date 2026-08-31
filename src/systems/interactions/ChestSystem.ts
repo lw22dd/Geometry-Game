@@ -40,7 +40,7 @@ export const CHEST_OPEN_TIME = 1.5;
 const LOOT_LIFETIME = 20;
 
 /** 武器宝箱掉落候选（kind = WeaponId） */
-const WEAPON_LOOT = ['ak', 'grenade'] as const;
+const WEAPON_LOOT = ['ak', 'grenade', 'shotgun', 'awm', 'rocket', 'iceBomb'] as const;
 /** 道具宝箱掉落候选（工厂函数，返回值统一创建 hover 浮动拾取物） */
 const ITEM_LOOT_FACTORIES = [
   createJumpBoost,

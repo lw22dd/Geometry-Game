@@ -14,7 +14,7 @@
  */
 import { ctx } from '../../core/canvas';
 import type { ItemId } from '../../types';
-import { drawWeaponModel, drawAKIcon, drawGrenadeIcon } from '../WeaponVis';
+import { drawWeaponModel, drawWeaponIcon } from '../WeaponVis';
 
 /* ==================== 本体形状（原点绘制；r 为尺度单位） ==================== */
 
@@ -149,6 +149,10 @@ export function drawItemModel(id: ItemId, r: number): void {
     case 'recall': drawRecallShape(r); break;
     case 'ak': drawWeaponModel('ak', r); break;
     case 'grenade': drawWeaponModel('grenade', r); break;
+    case 'shotgun': drawWeaponModel('shotgun', r); break;
+    case 'awm': drawWeaponModel('awm', r); break;
+    case 'rocket': drawWeaponModel('rocket', r); break;
+    case 'iceBomb': drawWeaponModel('iceBomb', r); break;
   }
 }
 
@@ -163,6 +167,10 @@ const ITEM_GLOW: Record<ItemId, string> = {
   recall: 'rgba(238,242,255,.95)',
   ak: 'rgba(255,150,60,.9)',
   grenade: 'rgba(150,255,140,.9)',
+  shotgun: 'rgba(255,120,70,.9)',
+  awm: 'rgba(140,220,255,.9)',
+  rocket: 'rgba(255,190,90,.9)',
+  iceBomb: 'rgba(120,220,255,.9)',
 };
 
 /** HUD 槽位内每道具的图标尺度（px；按道具视觉体积微调；漏配回退 10） */
@@ -174,14 +182,18 @@ export const ITEM_ICON_R: Record<ItemId, number> = {
   recall: 11,
   ak: 10,
   grenade: 8,
+  shotgun: 10,
+  awm: 10,
+  rocket: 10,
+  iceBomb: 8,
 };
 
 /** 道具图标统一出口（按 ItemId 分发；武器走 WeaponVis 专属发光/倾角） */
 export function drawItemIcon(id: ItemId, cx: number, cy: number, r: number): void {
   ctx.save();
   ctx.translate(cx, cy);
-  if (id === 'ak' || id === 'grenade') {
-    (id === 'ak' ? drawAKIcon : drawGrenadeIcon)(0, 0, r);
+  if (id === 'ak' || id === 'grenade' || id === 'shotgun' || id === 'awm' || id === 'rocket' || id === 'iceBomb') {
+    drawWeaponIcon(0, 0, r, id);
     ctx.restore();
     return;
   }

@@ -61,8 +61,8 @@ import { wireTriggerSystem } from '../effects/TriggerSystem';
 import { stepAuraSystem, resetAuraState } from '../level/AuraSystem';
 import { stepHealthInv, stepTracers, drawTracers, spawnShotTracer, spawnShotFeedback, drawProjectiles, stepProjectiles, clearProjectiles } from '../combat';
 import { drawHeldItem } from '../items/hold';
-import { stepEnemies, spawnLevelEnemies } from '../enemy';
-import { drawEnemies } from '../../Prefabs/Enemy';
+import { stepEnemies, stepEnemyRocks, clearEnemyRocks, spawnLevelEnemies } from '../enemy';
+import { drawEnemies, drawEnemyRocks } from '../../Prefabs/Enemy';
 
 /* ==================== 轨道状态序列化（问题 10：统一走 core/trackCodec） ==================== */
 
@@ -98,8 +98,9 @@ export function applyLevel(mapId: string): void {
   // 玩家 ECS 实体：setupLevel 已 clearWorld + initEcs，这里重建并同步出生点
   ensurePlayerEntity(room.playerId);
   playerController.flush(); // 初始化写回（实体新建，全字段落位）
-  // 清空旧抛体（切图重建；clearWorld 已移除实体，防御性清理）
+  // 清空旧抛体 + 敌人石头（切图重建；clearWorld 已移除实体，防御性清理）
   clearProjectiles();
+  clearEnemyRocks();
   // 敌人：房主/单机进程模拟并本地生成；客机为接收事件的木偶，不本地生成（S3/S4）
   if (room.role !== 'client') {
     spawnLevelEnemies(currentMap.entitySpawners.enemies ?? []);
@@ -331,6 +332,14 @@ function step(dt: number): void {
       if (!rp.dead) enemyPlayers.push({ state: rp });
     }
     stepEnemies(dt, enemyPlayers);
+    // 敌人石头（大猩猩投石）步进：抛物线 + 命中/落地判定
+    stepEnemyRocks(dt, enemyPlayers);
+    // 关键：玩家 hp 真源在 ECS PlayerControl（每物理步由 stepPlayer 装载派生视图）。
+    // 敌人/自爆的伤害发生在 tickPlayer 写回（storePlayerComponents）之后，
+    // 只改了渲染视图的 hp，若不写回，下一物理步会装载到旧血量把血"补回来"
+    // （表现为大猩猩砸地/投石"扣血后立刻回满"，walker 因伤害在 tickPlayer 内部而无此坑）。
+    // 这里把扣血后的视图一次性写回组件，保证伤害持久。
+    playerController.flush();
   }
 
   // 9.6 抛体（手雷）步进：抛物线 + 引信 + 爆炸圆判定（放在 buildSolids 与
@@ -930,6 +939,8 @@ function renderGame(dt: number): void {
 
   // 手雷抛体（S2）：在玩家之上绘制，保证飞行可见
   drawProjectiles();
+  // 敌人石头（大猩猩投石）：与手雷同层，飞行可见
+  drawEnemyRocks();
 
   // 滑索绳索（在玩家上方，金色线）
   drawHookRope(pS);

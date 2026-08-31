@@ -388,6 +388,131 @@ function renderOne(inst: MapInstance, time: number): void {
       ctx.restore();
       break;
     }
+    case 'recallPickup': {
+      // 白色重置箭头：圆环 + 顺时针箭头（与 ItemVis drawRecallShape 一致）
+      const hx = sx(inst.x), hy = sy(inst.y);
+      ctx.save();
+      ctx.translate(hx, hy);
+      if (inst.rotation) ctx.rotate((inst.rotation * Math.PI) / 180);
+      ctx.shadowColor = 'rgba(238,242,255,.95)';
+      ctx.shadowBlur = 8;
+      const R = 0.5 * sz;
+      ctx.strokeStyle = '#eef2ff';
+      ctx.fillStyle = '#eef2ff';
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const lw = R * 0.3;
+      ctx.lineWidth = lw;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.58, -Math.PI * 0.55, Math.PI * 2 - Math.PI * 0.55, false);
+      ctx.stroke();
+      ctx.save();
+      ctx.rotate(-Math.PI * 0.55);
+      ctx.translate(R * 0.58, 0);
+      ctx.rotate(-Math.PI / 2);
+      ctx.lineWidth = lw * 0.9;
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.34, 0);
+      ctx.lineTo(R * 0.12, 0);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(R * 0.22, -R * 0.3);
+      ctx.lineTo(R * 0.52, 0);
+      ctx.lineTo(R * 0.22, R * 0.3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      ctx.restore();
+      break;
+    }
+    case 'weaponPickup': {
+      // 武器拾取物：AK 枪 / 手雷（按 kind 简化预览）
+      const hx = sx(inst.x), hy = sy(inst.y);
+      ctx.save();
+      ctx.translate(hx, hy);
+      if (inst.rotation) ctx.rotate((inst.rotation * Math.PI) / 180);
+      ctx.shadowColor = 'rgba(255,150,60,.9)';
+      ctx.shadowBlur = 8;
+      const R = 0.5 * sz;
+      if (inst.kind === 'grenade') {
+        ctx.strokeStyle = '#7fb874';
+        ctx.fillStyle = '#4c7a44';
+        ctx.beginPath(); ctx.arc(0, 0, R * 0.7, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ffd76b';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(0, -R * 0.7, R * 0.14, 0, Math.PI * 2); ctx.stroke();
+      } else {
+        // AK 枪（朝右简化矩形拼装）
+        ctx.fillStyle = '#2a2d33';
+        ctx.fillRect(-R * 0.4, -R * 0.15, R * 1.4, R * 0.3);
+        ctx.fillStyle = '#6b4a2a';
+        ctx.fillRect(-R * 0.7, -R * 0.05, R * 0.35, R * 0.28);
+        ctx.fillStyle = '#3a3e46';
+        ctx.fillRect(-R * 0.3, -R * 0.32, R * 0.3, R * 0.18);
+        ctx.fillRect(R * 0.55, -R * 0.28, R * 0.55, R * 0.22);
+        ctx.fillStyle = '#23262c';
+        ctx.fillRect(R * 0.25, -R * 0.4, R * 0.2, R * 0.35);
+      }
+      ctx.restore();
+      break;
+    }
+    case 'cipher': {
+      // 密码机（破译中橙黄机箱 + 密码轮）
+      const hx = sx(inst.x), hy = sy(inst.y);
+      ctx.save();
+      ctx.translate(hx, hy);
+      ctx.shadowColor = 'rgba(255,180,80,.9)';
+      ctx.shadowBlur = 8;
+      const W = sz * 1.15, H = sz * 1.7;
+      ctx.fillStyle = 'rgba(26,17,6,.95)';
+      ctx.fillRect(-W / 2, -H / 2, W, H);
+      ctx.strokeStyle = '#ffb44d';
+      ctx.lineWidth = 1.6;
+      ctx.strokeRect(-W / 2, -H / 2, W, H);
+      // 玻璃窗 + 4 位密码轮
+      ctx.fillStyle = 'rgba(6,16,10,.9)';
+      ctx.fillRect(-W / 2 + W * 0.09, -H / 2 + H * 0.14, W * 0.82, H * 0.28);
+      ctx.fillStyle = '#ffd08a';
+      const wheelW = (W * 0.82 - W * 0.14 - W * 0.07 * 3) / 4;
+      for (let i = 0; i < 4; i++) {
+        ctx.fillRect(-W / 2 + W * 0.16 + i * (wheelW + W * 0.07), -H / 2 + H * 0.22, wheelW, H * 0.12);
+      }
+      // 顶盖 + 天线灯
+      ctx.fillStyle = 'rgba(40,26,8,.95)';
+      ctx.fillRect(-W / 2 - W * 0.05, -H / 2 - H * 0.06, W * 1.1, H * 0.07);
+      ctx.fillStyle = '#ffb44d';
+      ctx.beginPath(); ctx.arc(0, -H / 2 - H * 0.06 - H * 0.06, Math.max(1.6, sz * 0.06), 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      break;
+    }
+    case 'chest': {
+      // 宝箱（武器橙红 / 道具蓝青；简化等距箱体 + 开盖）
+      const hx = sx(inst.x), hy = sy(inst.y);
+      const isWeapon = inst.chestType === 0;
+      const hue = isWeapon ? 24 : 190;
+      ctx.save();
+      ctx.translate(hx, hy);
+      ctx.shadowColor = `hsla(${hue},100%,55%,.9)`;
+      ctx.shadowBlur = 8;
+      const W = sz * 1.5, H = sz * 0.9;
+      // 顶面（亮）
+      ctx.fillStyle = `hsla(${hue},95%,70%,.95)`;
+      ctx.beginPath();
+      ctx.moveTo(-W / 2, -H / 2 - H * 0.18);
+      ctx.lineTo(0, -H / 2 - H * 0.55);
+      ctx.lineTo(W / 2, -H / 2 - H * 0.18);
+      ctx.lineTo(0, -H / 2 + H * 0.18);
+      ctx.closePath();
+      ctx.fill();
+      // 正面
+      ctx.fillStyle = `hsla(${hue},40%,20%,.97)`;
+      ctx.fillRect(-W / 2, -H / 2, W, H);
+      // 锁扣
+      ctx.fillStyle = `hsla(${hue},100%,70%,.9)`;
+      ctx.fillRect(-W * 0.09, -H / 2 + H * 0.14, W * 0.18, H * 0.22);
+      ctx.restore();
+      break;
+    }
     case 'track': {
       // 绘制轨道路径折线（预览简单线框 + 入口亮点）
       const pts: { x: number; y: number }[] = [];

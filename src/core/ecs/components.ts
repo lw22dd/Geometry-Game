@@ -156,11 +156,11 @@ export const Aura = { radius: [] as number[], tick: [] as number[], tickT: [] as
 /** 可被钩锁命中（tag；需同时有 Position + Collider） */
 export const Hookable = {};
 
-/** 抛体（手雷等）：初速 + 重力 + 引信 + 爆炸参数（SoA，S2） */
+/** 抛体（手雷/火箭筒/冰冻炸弹等）：初速 + 重力 + 引信 + 爆炸参数（SoA，S2） */
 export const Projectile = {
   vx: [] as number[],
   vy: [] as number[],
-  /** 重力加速度（格/秒²，正值 = 向下加速） */
+  /** 重力加速度（格/秒²，正值 = 向下加速；火箭筒 = 0 直线弹道） */
   gravity: [] as number[],
   /** 引信剩余时长（秒，<=0 爆炸） */
   fuse: [] as number[],
@@ -168,6 +168,34 @@ export const Projectile = {
   blastRadius: [] as number[],
   /** 爆炸伤害 */
   damage: [] as number[],
+  /**
+   * 直射类抛体最大射程（格；火箭筒等）。>0 = 直线弹道：累计飞行距离，
+   * 超过 maxRange 即消失（超出范围子弹消失）；无法命中远处目标。
+   * 缺省 0 = 手雷式抛物线，靠引信爆炸，无距离限制。
+   */
+  maxRange: [] as number[],
+  /** 已飞行距离（格；直线类抛体步进累计） */
+  traveled: [] as number[],
+  /** 抛体弹种（weaponToCode 编码；爆炸表现/音效/减速分发用） */
+  source: [] as number[],
+  /** 爆炸施加减速倍率（<1 冰冻炸弹；1 = 无减速） */
+  slowFactor: [] as number[],
+  /** 减速持续时长（秒） */
+  slowDur: [] as number[],
+};
+
+/** 敌人投石（大猩猩远程攻击）：初速 + 重力 + 半径 + 伤害 + 寿命（SoA，S3） */
+export const EnemyRock = {
+  vx: [] as number[],
+  vy: [] as number[],
+  /** 重力加速度（格/秒²，正值 = 向下加速） */
+  gravity: [] as number[],
+  /** 碰撞半径（格） */
+  radius: [] as number[],
+  /** 命中伤害 */
+  damage: [] as number[],
+  /** 剩余寿命（秒，<=0 自动消失，防丢失石头永存） */
+  life: [] as number[],
 };
 
 /* ==================== 表现 / 渲染 ==================== */
@@ -294,6 +322,6 @@ export const CONTROL_MODE_CONSTRAINT = 4;
 export const soaComponents = [
   Position, Velocity, Collider, PathMotion, SpringPad,
   Timer, Hazard, Health, Collectible, Cipher, Chest, Loot, RespawnPoint, Goal, Track, Aura,
-  Projectile, WeaponPickup,
+  Projectile, EnemyRock, WeaponPickup,
   Renderable, Player, PlayerControl, PlayerInput, JumpCharges, ShieldCharges, ControlMode,
 ];

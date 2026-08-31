@@ -293,6 +293,70 @@ export const FX: Record<string, FxPreset> = {
     lw: 3,
   },
 
+  /** 苦力怕自爆：绿色爆裂 + 冲击波 */
+  creeperBoom: {
+    count: 22,
+    kind: 'frag',
+    vel: { mode: 'radial', uniform: false, speed: [4, 12], vyBias: 3 },
+    gravity: 16,
+    life: [0.45, 0.8],
+    size: [0.08, 0.2],
+    colors: ['#3aff6e', '#1fae46', '#c8ffb0', '#ffffff'],
+    spin: { start: [0, 3], rate: [-8, 8] },
+  },
+
+  /** 苦力怕自爆冲击波：外扩绿色描边圆 */
+  creeperShock: {
+    count: 1,
+    kind: 'shock',
+    vel: { mode: 'axis', vx: [0, 0], vy: [0, 0] },
+    gravity: 0,
+    life: [0.4, 0.4],
+    size: [0.1, 0.1],
+    colors: ['#3aff6e', '#ffffff'],
+    r0: [0.4, 0.4],
+    r1: [3.0, 3.6],
+    lw: 3,
+  },
+
+  /** 大猩猩砸地：地面尘土 + 碎石飞溅（近战砸中地面瞬间） */
+  gorillaSlam: {
+    count: 12,
+    kind: 'dot',
+    vel: { mode: 'axis', vx: [-3.5, 3.5], vy: [0.5, 3] },
+    spreadX: 0.9,
+    gravity: 6,
+    life: [0.35, 0.55],
+    size: [0.07, 0.14],
+    colors: ['#ffffff', '#cdd3de', '#9aa4b8'],
+  },
+
+  /** 大猩猩砸地冲击环：外扩白色描边圆（强化砸地震感） */
+  gorillaSlamShock: {
+    count: 1,
+    kind: 'shock',
+    vel: { mode: 'axis', vx: [0, 0], vy: [0, 0] },
+    gravity: 0,
+    life: [0.32, 0.32],
+    size: [0.1, 0.1],
+    colors: ['#ffffff', '#cdd3de'],
+    r0: [0.3, 0.3],
+    r1: [2.6, 3.2],
+    lw: 3,
+  },
+
+  /** 石头破碎：灰白碎片（投石命中 / 落地时） */
+  rockBreak: {
+    count: 8,
+    kind: 'frag',
+    vel: { mode: 'radial', uniform: false, speed: [2, 6], vyBias: 2 },
+    gravity: 16,
+    life: [0.3, 0.5],
+    size: [0.06, 0.13],
+    colors: ['#ffffff', '#cdd3de', '#8a92a3'],
+    spin: { start: [0, 3], rate: [-9, 9] },
+  },
+
   /** 敌人死亡：红紫爆裂 + 冲击环 */
   enemyDeath: {
     count: 14,
@@ -355,6 +419,45 @@ export const FX: Record<string, FxPreset> = {
     r0: [0.2, 0.2],
     r1: [2.6, 3.2],
     lw: 2.5,
+  },
+
+  /** 冰冻炸弹爆炸：淡蓝水晶碎片 + 白霜（冰冻系特效） */
+  iceBoom: {
+    count: 22,
+    kind: 'frag',
+    vel: { mode: 'radial', uniform: false, speed: [3, 9], vyBias: 1.5 },
+    gravity: 10,
+    life: [0.5, 0.85],
+    size: [0.1, 0.22],
+    colors: ['#7feaff', '#bfefff', '#ffffff', '#4fb9f0'],
+    spin: { start: [0, 3], rate: [-8, 8] },
+  },
+
+  /** 冰冻爆炸冲击环：外扩淡蓝冰圈（爆炸瞬间，强化范围感） */
+  iceShock: {
+    count: 1,
+    kind: 'shock',
+    vel: { mode: 'axis', vx: [0, 0], vy: [0, 0] },
+    gravity: 0,
+    life: [0.4, 0.4],
+    size: [0.1, 0.1],
+    colors: ['#7feaff', '#ffffff'],
+    r0: [0.3, 0.3],
+    r1: [3.0, 3.6],
+    lw: 3,
+  },
+
+  /** 冰冻炸弹：圆弹本体抛弹拖尾（蓝色短拖尾，飞行中表现） */
+  iceTrail: {
+    count: 3,
+    kind: 'streak',
+    vel: { mode: 'axis', vx: [-1, 1], vy: [-1, 1] },
+    gravity: 0,
+    life: [0.18, 0.3],
+    size: [0.04, 0.08],
+    colors: ['#7feaff', '#bfefff', '#ffffff'],
+    len: [0.3, 0.7],
+    lw: 2,
   },
 
   /** 宝箱刷新就绪：青色上行光点（40s 冷却结束，重新可开启） */
